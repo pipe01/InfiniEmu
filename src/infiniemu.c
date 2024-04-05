@@ -43,25 +43,13 @@ int main(int argc, char **argv) {
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
-    csh handle;
+    cpu_t *cpu = cpu_new(buffer, fsize);
 
-    if (cs_open(CS_ARCH_ARM, CS_MODE_THUMB + CS_MODE_MCLASS, &handle) != CS_ERR_OK)
-        return -1;
+    cpu_reset(cpu);
 
-    cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
-    cs_option(handle, CS_OPT_SKIPDATA, CS_OPT_ON);
-
-    cs_insn *inst;
-
-    size_t count = cs_disasm(handle, buffer, fsize, 0, 0, &inst);
-    if (count == 0) {
-        fprintf(stderr, "Failed to disassemble %s\n", program_path);
-        return -1;
+    for (;;) {
+        cpu_step(cpu);
     }
-
-    printf("Disassembled %ld instructions\n", count);
-
-    cpu_t *cpu = cpu_new(inst, count);
 
     return 0;
 }
