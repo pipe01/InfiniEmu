@@ -7,10 +7,9 @@ LDIR =../lib
 
 LIBS=-lm -lcapstone
 
-_DEPS =
-DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
+DEPS = $(wildcard $(IDIR)/*.h)
 
-_OBJ = infiniemu.o cpu.o 
+_OBJ = infiniemu.o cpu.o memory.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 

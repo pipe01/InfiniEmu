@@ -18,13 +18,14 @@ cs_insn *insn_at(cpu_t *cpu, uint32_t pc)
     return NULL;
 }
 
-cpu_t *cpu_new(uint8_t *program, size_t program_size)
+cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
 {
     cpu_t *cpu = malloc(sizeof(cpu_t));
     memset(cpu, 0, sizeof(cpu_t));
 
     cpu->program = program;
     cpu->program_size = program_size;
+    cpu->mem = mem;
 
     csh handle;
 
@@ -59,17 +60,25 @@ void cpu_reset(cpu_t *cpu)
 
 void cpu_step(cpu_t *cpu)
 {
-    cs_insn *i = insn_at(cpu, cpu->core_regs[ARM_REG_PC]);
+    uint32_t pc = cpu->core_regs[ARM_REG_PC];
+
+    printf("PC: 0x%08X\n", pc);
+
+    cs_insn *i = insn_at(cpu, pc);
     if (i == NULL) {
         fprintf(stderr, "Failed to find instruction at 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
         abort();
     }
+
+    uint32_t next = pc + i->size;
 
     switch (i->id)
     {
     case ARM_INS_LDR:
         break;
     }
+
+    cpu->core_regs[ARM_REG_PC] = next;
 }
 
 uint32_t *cpu_reg(cpu_t *cpu, int reg)

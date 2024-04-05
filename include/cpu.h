@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <capstone/capstone.h>
 
+#include "memory.h"
+
 typedef struct
 {
     uint32_t core_regs[16];
@@ -13,9 +15,11 @@ typedef struct
 
     cs_insn *inst;
     size_t inst_count;
+
+    memreg_t *mem;
 } cpu_t;
 
-cpu_t *cpu_new(uint8_t *program, size_t program_size);
+cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem);
 void cpu_reset(cpu_t *cpu);
 void cpu_step(cpu_t *cpu);
 
