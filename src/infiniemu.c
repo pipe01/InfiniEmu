@@ -6,13 +6,15 @@
 
 #include <capstone/capstone.h>
 
+#include "cpu.h"
+
 int main(int argc, char **argv) {
     char *program_path = NULL;
     int c;
     
-    while ((c = getopt(argc, argv, "p:")) != -1) {
+    while ((c = getopt(argc, argv, "f:")) != -1) {
         switch (c) {
-            case 'p':
+            case 'f':
                 program_path = optarg;
                 break;
             default:
@@ -58,6 +60,8 @@ int main(int argc, char **argv) {
     }
 
     printf("Disassembled %ld instructions\n", count);
+
+    cpu_t *cpu = cpu_new(inst, count);
 
     return 0;
 }
