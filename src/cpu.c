@@ -19,6 +19,20 @@ cs_insn *insn_at(cpu_t *cpu, uint32_t pc)
     return NULL;
 }
 
+uint32_t cpu_mem_operand_address(cpu_t *cpu, arm_op_mem op)
+{
+    uint32_t base = cpu_reg_read(cpu, op.base);
+
+    if (op.index != ARM_REG_INVALID)
+    {
+        base += cpu_reg_read(cpu, op.index) * op.scale;
+    }
+
+    // TODO: Shift
+
+    return base + op.disp;
+}
+
 uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op)
 {
     uint32_t value;
@@ -32,16 +46,7 @@ uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op)
         value = op->imm;
         break;
     case ARM_OP_MEM:
-        uint32_t base = cpu_reg_read(cpu, op->mem.base);
-
-        if (op->mem.index != ARM_REG_INVALID)
-        {
-            base += cpu_reg_read(cpu, op->mem.index) * op->mem.scale;
-        }
-
-        // TODO: Shift
-
-        value = memreg_read(cpu->mem, ALIGN4(base + op->mem.disp));
+        value = memreg_read(cpu->mem, ALIGN4(cpu_mem_operand_address(cpu, op->mem)));
         break;
     default:
         fprintf(stderr, "Unhandled operand type %d\n", op->type);
@@ -68,12 +73,10 @@ uint32_t cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value)
         printf("register %d\n", op->reg);
         break;
     case ARM_OP_MEM:
-        uint32_t base = cpu_reg_read(cpu, op->mem.base);
-        uint32_t addr = ALIGN4(base + op->mem.disp);
+        uint32_t addr = ALIGN4(cpu_mem_operand_address(cpu, op->mem));
 
         memreg_write(cpu->mem, addr, value);
-
-        printf("memory at 0x%08X\n", addr);
+        printf("memory 0x%08X\n", addr);
         break;
     default:
         fprintf(stderr, "Unhandled operand type %d\n", op->type);
@@ -94,6 +97,8 @@ bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
     }
 
     bool result;
+
+    printf("N:%d Z:%d C:%d V:%d\n", IS_SET(cpu->xpsr, APSR_N), IS_SET(cpu->xpsr, APSR_Z), IS_SET(cpu->xpsr, APSR_C), IS_SET(cpu->xpsr, APSR_V));
 
     switch (cc)
     {
@@ -201,9 +206,16 @@ void cpu_reset(cpu_t *cpu)
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
 }
 
+// TODO: Implement
+#define BRANCH_WRITE_PC(cpu, pc)            \
+    cpu_reg_write((cpu), ARM_REG_PC, (pc)); \
+    printf("Branching to 0x%08X\n", (pc));
+
 void cpu_step(cpu_t *cpu)
 {
     uint32_t pc = cpu->core_regs[ARM_REG_PC];
+
+    uint32_t op1, op2, value;
 
     cs_insn *i = insn_at(cpu, pc);
     if (i == NULL)
@@ -212,7 +224,7 @@ void cpu_step(cpu_t *cpu)
         abort();
     }
 
-    printf("PC: 0x%08X %s %s\n", pc, i->mnemonic, i->op_str);
+    printf("\nPC: 0x%08X %s %s\n", pc, i->mnemonic, i->op_str);
 
     uint32_t next = pc + i->size;
 
@@ -225,24 +237,38 @@ void cpu_step(cpu_t *cpu)
     switch (i->id)
     {
     case ARM_INS_B:
+        BRANCH_WRITE_PC(cpu, cpu_load_operand(cpu, &i->detail->arm.operands[0]));
+        return;
+
+    case ARM_INS_BL:
+        cpu_reg_write(cpu, ARM_REG_LR, next | 1);
+        BRANCH_WRITE_PC(cpu, cpu_load_operand(cpu, &i->detail->arm.operands[0]));
+        return;
+
+    case ARM_INS_LDR:
+        value = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
+
+        cpu_store_operand(cpu, &i->detail->arm.operands[0], value);
+        break;
+
+    case ARM_INS_STR:
+        value = cpu_load_operand(cpu, &i->detail->arm.operands[0]);
+
+        cpu_store_operand(cpu, &i->detail->arm.operands[1], value);
         break;
 
     case ARM_INS_SUB:
-        uint32_t op1 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 1 : 0]);
-        uint32_t op2 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 2 : 1]);
+        op1 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 1 : 0]);
+        op2 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 2 : 1]);
 
         carry = true;
-        uint32_t result = AddWithCarry(op1, ~op2, &carry, &overflow);
+        value = AddWithCarry(op1, ~op2, &carry, &overflow);
 
-        cpu_store_operand(cpu, &i->detail->arm.operands[0], result);
-
-        UPDATE_NZCV(cpu, i, result, carry, overflow);
-        break;
-
-    case ARM_INS_LDR:
-        uint32_t value = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
+        printf("sub: 0x%08X - 0x%08X = 0x%08X\n", op1, op2, value);
 
         cpu_store_operand(cpu, &i->detail->arm.operands[0], value);
+
+        UPDATE_NZCV(cpu, i, value, carry, overflow);
         break;
 
     default:
