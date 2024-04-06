@@ -11,6 +11,8 @@
 #include "byte_util.h"
 #include "incbin.h"
 
+#include "peripherals/ppb_scb.h"
+
 #define NRF52832_SRAM_SIZE 0x10000
 #define NRF52832_FLASH_SIZE 0x80000
 
@@ -68,6 +70,9 @@ int main(int argc, char **argv)
     last = last->next = memreg_new_simple_copy(x(F000, 0000), incbin_secret_start, incbin_secret_end - incbin_secret_start);
     last = last->next = memreg_new_simple_copy(x(1000, 0000), incbin_ficr_start, incbin_ficr_end - incbin_ficr_start);
     last = last->next = memreg_new_simple_copy(x(1000, 1000), incbin_uicr_start, incbin_uicr_end - incbin_uicr_start);
+
+    SCB_t *scb = scb_new();
+    last = last->next = scb_memreg(scb);
 
     cpu_t *cpu = cpu_new(flash, fsize, mem_first);
 

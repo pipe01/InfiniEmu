@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #define SIZE_BYTE       1
 #define SIZE_HALFWORD   2
@@ -15,7 +16,23 @@
 #define OP_WRITE_HALFWORD   -SIZE_HALFWORD
 #define OP_WRITE_WORD       -SIZE_WORD
 
+#define OP_IS_READ(op)      ((op) > 0)
+#define OP_IS_WRITE(op)     ((op) < 0)
+
+#define OP_ASSERT_SIZE(op, size)  if ((op) != OP_READ_##size && (op) != OP_WRITE_##size) { printf("Invalid operation %d\n", op); abort(); }
+#define OP_RETURN_REG(reg, size)       \
+    do                                      \
+    {                                       \
+        if ((op) == OP_READ_##size)         \
+            *value = reg;                   \
+        else if ((op) == OP_WRITE_##size)   \
+            reg = *value;                   \
+        return true;                        \
+    } while (0)
+
 typedef bool (*memreg_operation_t)(uint32_t offset, uint32_t *value, int op, void *userdata);
+
+#define OPERATION(name) bool operation_##name(uint32_t offset, uint32_t *value, int op, void *userdata)
 
 typedef struct memreg_t {
     void *userdata;
