@@ -7,28 +7,7 @@
 
 #include <capstone/capstone.h>
 
-#include "cpu.h"
-#include "byte_util.h"
-#include "incbin.h"
-
-#include "peripherals/nrf52832/clock.h"
-#include "peripherals/nrf52832/comp.h"
-#include "peripherals/nrf52832/power.h"
-#include "peripherals/nrf52832/radio.h"
-#include "peripherals/nrf52832/temp.h"
-#include "peripherals/ppb_scb.h"
-
-#define NRF52832_SRAM_SIZE 0x10000
-#define NRF52832_FLASH_SIZE 0x80000
-
-INCBIN(secret, "../dumps/secret.bin");
-INCBIN(ficr, "../dumps/ficr.bin");
-INCBIN(uicr, "../dumps/uicr.bin");
-
-#define NEW_PERIPH(type, name, addr, size) \
-    type##_t *name = name##_new(); \
-    name##_reset(name); \
-    last = last->next = memreg_new_operation(addr, size, name##_operation, name);
+#include "nrf52832.h"
 
 int main(int argc, char **argv)
 {
@@ -49,7 +28,7 @@ int main(int argc, char **argv)
 
     if (program_path == NULL)
     {
-        fprintf(stderr, "Usage: %s -p <program_path>\n", argv[0]);
+        fprintf(stderr, "Usage: %s -f <program_path>\n", argv[0]);
         return -1;
     }
 
@@ -64,39 +43,19 @@ int main(int argc, char **argv)
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    uint8_t *flash = malloc(NRF52832_FLASH_SIZE);
-    fread(flash, fsize, 1, f);
+    uint8_t *program = malloc(fsize);
+    fread(program, fsize, 1, f);
     fclose(f);
-    memset(flash + fsize, 0xFF, NRF52832_FLASH_SIZE - fsize); // 0xFF out the rest of the flash
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
-    uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
+    NRF52832_t *nrf52 = nrf52832_new(program, fsize);
 
-    memreg_t *mem_first = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
-    memreg_t *last = mem_first;
-
-    last = last->next = memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE);
-
-    NEW_PERIPH(COMP, comp, x(4001, 3000), 0x1000);
-    NEW_PERIPH(CLOCK, clock, x(4000, 0000), 0x1000);
-    NEW_PERIPH(POWER, power, x(4000, 0000), 0x1000);
-    NEW_PERIPH(RADIO, radio, x(4000, 1000), 0x1000);
-    NEW_PERIPH(TEMP, temp, x(4000, C000), 0x1000);
-
-    last = last->next = memreg_new_simple_copy(x(F000, 0000), (const uint8_t *)incbin_secret_start, incbin_secret_end - incbin_secret_start);
-    last = last->next = memreg_new_simple_copy(x(1000, 0000), (const uint8_t *)incbin_ficr_start, incbin_ficr_end - incbin_ficr_start);
-    last = last->next = memreg_new_simple_copy(x(1000, 1000), (const uint8_t *)incbin_uicr_start, incbin_uicr_end - incbin_uicr_start);
-
-    NEW_PERIPH(SCB, scb, x(E000, ED00), 0x8F);
-
-    cpu_t *cpu = cpu_new(flash, fsize, mem_first);
-
-    cpu_reset(cpu);
+    free(program);
 
     for (;;)
     {
-        cpu_step(cpu);
+        nrf52832_step(nrf52);
     }
 
     return 0;

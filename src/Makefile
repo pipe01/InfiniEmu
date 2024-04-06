@@ -9,7 +9,7 @@ LIBS=-lm -lcapstone
 
 DEPS = $(shell find $(IDIR) -type f -name '*.h')
 
-_OBJ = infiniemu.o cpu.o memory.o
+_OBJ = infiniemu.o cpu.o nrf52832.o memory.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 
