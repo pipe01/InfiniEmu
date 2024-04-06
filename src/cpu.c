@@ -276,6 +276,17 @@ void cpu_step(cpu_t *cpu)
         UPDATE_NZC;
         break;
 
+    case ARM_INS_ASR:
+        op1 = OPERAND(detail.op_count == 3 ? 1 : 0);
+        op2 = OPERAND(detail.op_count == 3 ? 2 : 1);
+
+        value = Shift_C(op1, ARM_SFT_ASR, op2, &carry);
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+
+        UPDATE_NZC;
+        break;
+
     case ARM_INS_B:
     case ARM_INS_BX:
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
@@ -286,6 +297,17 @@ void cpu_step(cpu_t *cpu)
         cpu_reg_write(cpu, ARM_REG_LR, next | 1);
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
         return;
+
+    case ARM_INS_CBZ:
+        op1 = OPERAND(0);
+        op2 = OPERAND(1);
+
+        if (op1 != 0)
+        {
+            BRANCH_WRITE_PC(cpu, cpu_reg_read(cpu, ARM_REG_PC) + op2);
+            return;
+        }
+        break;
 
     case ARM_INS_CMP:
         op1 = OPERAND(0);
@@ -300,10 +322,9 @@ void cpu_step(cpu_t *cpu)
     case ARM_INS_DSB:
     case ARM_INS_ISB:
     case ARM_INS_NOP:
-        break;
-
+    case ARM_INS_HINT:
     case ARM_INS_IT:
-        // Ignore
+        // Do nothing
         break;
 
     case ARM_INS_LDR:
@@ -340,8 +361,8 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LSL:
-        op1 = OPERAND(1);
-        op2 = OPERAND(2);
+        op1 = OPERAND(detail.op_count == 3 ? 1 : 0);
+        op2 = OPERAND(detail.op_count == 3 ? 2 : 1);
 
         value = Shift_C(op1, ARM_SFT_LSL, op2, &carry);
 
@@ -369,6 +390,21 @@ void cpu_step(cpu_t *cpu)
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
+        break;
+
+    case ARM_INS_POP:
+        op1 = cpu_reg_read(cpu, ARM_REG_SP);
+
+        cpu_reg_write(cpu, ARM_REG_SP, op1 + 4 * detail.op_count);
+
+        for (int n = 0; n < detail.op_count; n++)
+        {
+            value = memreg_read(cpu->mem, op1);
+
+            cpu_store_operand(cpu, &detail.operands[n], value, SIZE_WORD);
+
+            op1 += 4;
+        }
         break;
 
     case ARM_INS_PUSH:

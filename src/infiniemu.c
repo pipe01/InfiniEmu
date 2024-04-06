@@ -14,6 +14,7 @@
 #include "peripherals/nrf52832/clock.h"
 #include "peripherals/nrf52832/comp.h"
 #include "peripherals/nrf52832/power.h"
+#include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/temp.h"
 #include "peripherals/ppb_scb.h"
 
@@ -80,6 +81,7 @@ int main(int argc, char **argv)
     NEW_PERIPH(COMP, comp, x(4001, 3000), 0x1000);
     NEW_PERIPH(CLOCK, clock, x(4000, 0000), 0x1000);
     NEW_PERIPH(POWER, power, x(4000, 0000), 0x1000);
+    NEW_PERIPH(RADIO, radio, x(4000, 1000), 0x1000);
     NEW_PERIPH(TEMP, temp, x(4000, C000), 0x1000);
 
     last = last->next = memreg_new_simple_copy(x(F000, 0000), (const uint8_t *)incbin_secret_start, incbin_secret_end - incbin_secret_start);
