@@ -9,9 +9,12 @@
 
 #include "cpu.h"
 #include "byte_util.h"
+#include "incbin.h"
 
 #define NRF52832_SRAM_SIZE 0x10000
 #define NRF52832_FLASH_SIZE 0x80000
+
+INCBIN(secret, "../dumps/secret.bin");
 
 int main(int argc, char **argv)
 {
@@ -54,13 +57,15 @@ int main(int argc, char **argv)
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
-    memreg_t *mem_flash = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
+    memreg_t *mem_first = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
+    memreg_t *last = mem_first;
 
     uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
-    memreg_t *mem_ram = memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE);
-    mem_flash->next = mem_ram;
+    last = last->next = memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE);
 
-    cpu_t *cpu = cpu_new(flash, fsize, mem_flash);
+    last = last->next = memreg_new_simple_copy(x(F000, 0000), incbin_secret_start, incbin_secret_end - incbin_secret_start);
+
+    cpu_t *cpu = cpu_new(flash, fsize, mem_first);
 
     cpu_reset(cpu);
 

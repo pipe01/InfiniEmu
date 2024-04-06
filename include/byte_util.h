@@ -1,5 +1,10 @@
 #pragma once
 
+#define READ_UINT16(arr, addr) (arr[(addr)] | (arr[(addr)+1] << 8))
+#define WRITE_UINT16(arr, addr, value) do { \
+    (arr)[(addr)] = (value) & 0xFF; \
+    (arr)[(addr)+1] = ((value) >> 8) & 0xFF; } while (0);
+
 #define READ_UINT32(arr, addr) (arr[(addr)] | (arr[(addr)+1] << 8) | (arr[(addr)+2] << 16) | (arr[(addr)+3] << 24))
 #define WRITE_UINT32(arr, addr, value) do { \
     (arr)[(addr)] = (value) & 0xFF; \
