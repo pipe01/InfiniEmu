@@ -45,8 +45,26 @@ const char target_xml[] = QUOTE(
     </target>
 );
 
+const char memory_map_xml[] = QUOTE(
+    <?xml version="1.0"?>
+    <memory-map>
+        <memory type="flash" start="0x0" length="0x80000">
+            <property name="blocksize">0x1000</property>
+        </memory>
+        <memory type="flash" start="0x10001000" length="0x400">
+            <property name="blocksize">0x400</property>
+        </memory>
+        <memory type="ram" start="0x20000000" length="0x10000" />
+    </memory-map>
+);
+
 #define HAS_PREFIX(haystack, needle) (strncmp((needle), (haystack), sizeof(needle) - 1) == 0)
 #define SKIP(str) msg += sizeof(str) - 1
+
+bool has_prefix(const char *pre, const char *str)
+{
+    return strncmp(pre, str, strlen(pre)) == 0;
+}
 
 struct gdb_inst_t
 {
@@ -114,7 +132,7 @@ void send_response_bytes(int fd, const uint8_t *data, size_t len)
 void send_response_binary(int fd, const uint8_t *data, size_t len)
 {
     // When a byte is escaped it takes up two bytes instead of one, therefore the worst case is 2x the original size
-    size_t max_size = len * 2 + 4;
+    size_t max_size = len * 2;
     char buf[max_size];
 
     size_t pos = 0;
@@ -134,46 +152,43 @@ void send_response_binary(int fd, const uint8_t *data, size_t len)
         }
     }
 
-    send_response_str(fd, buf);
+    send_response_raw(fd, buf, pos);
 }
 
 char *gdb_qSupported(gdbstub *gdb, char *msg)
 {
-    bool hwbreak = false;
+    send_response_str(gdb->fd, "hwbreak+;qXfer:features:read+;qXfer:memory-map:read+");
 
-    char *dup = strdup(msg);
-    char *token = strtok(dup, ";#");
-
-    while (token)
-    {
-        // Don't check delimiter on the first token
-        if (token != dup && msg[token - dup - 1] == '#')
-        {
-            msg += token - dup - 1;
-            break;
-        }
-
-        if (strcmp(token, "hwbreak+") == 0)
-            hwbreak = true;
-
-        token = strtok(NULL, ";#");
-    }
-
-    free(dup);
-
-    send_response_str(gdb->fd, hwbreak ? "qXfer:features:read+;hwbreak+" : "qXfer:features:read+");
-
-    return msg;
+    return strchr(msg, '#');
 }
 
 char *gdb_qXfer(gdbstub *gdb, char *msg)
 {
-    if (strcmp(msg, "features:read:target.xml:") == 0)
+    const char *data;
+    size_t data_size;
+
+    printf("msg: %s\n", msg);
+    
+    if (has_prefix("features:read:target.xml:", msg))
+    {
+        msg += sizeof("features:read:target.xml:") - 1;
+
+        data = target_xml;
+        data_size = sizeof(target_xml) - 1;
+    }
+    else if (has_prefix("memory-map:read::", msg))
+    {
+        msg += sizeof("memory-map:read::") - 1;
+
+        data = memory_map_xml;
+        data_size = sizeof(memory_map_xml) - 1;
+    }
+    else
+    {
         return NULL;
+    }
 
-    msg += sizeof("features:read:target.xml:") - 1;
-
-    size_t start = -1, length = -1;
+    size_t start, length;
 
     char *dup = strdup(msg);
 
@@ -198,14 +213,12 @@ char *gdb_qXfer(gdbstub *gdb, char *msg)
 
     free(dup);
 
-    const char *xml = target_xml + start;
-    size_t remaining = sizeof(target_xml) - 1 - start;
-
+    size_t remaining = data_size - start;
     size_t size = remaining > length ? length : remaining;
 
     uint8_t buf[size + 1];
     buf[0] = size == remaining ? 'l' : 'm';
-    memcpy(buf + 1, xml, size);
+    memcpy(buf + 1, data + start, size);
 
     send_response_binary(gdb->fd, buf, sizeof(buf));
 
@@ -276,7 +289,7 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
     char *dup = strdup(msg);
 
     uint32_t start = 0, length = 0;
-    
+
     char *token = strtok(dup, ",");
     if (token == NULL)
     {
@@ -316,7 +329,6 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
 void gdbstub_run(gdbstub *gdb)
 {
     char in_buf[4096];
-    // char out_buf[4096];
     ssize_t nread;
 
     char *msg;
