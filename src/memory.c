@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <string.h>
 
-void simple_write(uint32_t offset, uint32_t value, void *userdata)
+void simple_write(uint32_t offset, uint32_t value, size_t size, void *userdata)
 {
     uint8_t *data = (uint8_t *)userdata;
 
@@ -43,16 +43,17 @@ uint32_t memreg_read(memreg_t *region, uint32_t addr)
         region = region->next;
     }
 
+    printf("Tried to read from unmapped memory at 0x%08X\n", addr);
     abort(); // TODO: Handle this better
 }
 
-void memreg_write(memreg_t *region, uint32_t addr, uint32_t value)
+void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, size_t size)
 {
     while (region)
     {
         if (addr >= region->start && addr < region->end)
         {
-            region->write(addr - region->start, value, region->userdata);
+            region->write(addr - region->start, value, size, region->userdata);
             return;
         }
 

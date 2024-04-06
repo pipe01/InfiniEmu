@@ -62,7 +62,7 @@ uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op)
     return value;
 }
 
-uint32_t cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value)
+uint32_t cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t size)
 {
     printf("store 0x%08X into ", value);
 
@@ -75,7 +75,7 @@ uint32_t cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value)
     case ARM_OP_MEM:
         uint32_t addr = ALIGN4(cpu_mem_operand_address(cpu, op->mem));
 
-        memreg_write(cpu->mem, addr, value);
+        memreg_write(cpu->mem, addr, value, size);
         printf("memory 0x%08X\n", addr);
         break;
     default:
@@ -237,24 +237,45 @@ void cpu_step(cpu_t *cpu)
     switch (i->id)
     {
     case ARM_INS_B:
-        BRANCH_WRITE_PC(cpu, cpu_load_operand(cpu, &i->detail->arm.operands[0]));
+        BRANCH_WRITE_PC(cpu, cpu_load_operand(cpu, &i->detail->arm.operands[0]) | 1);
         return;
 
     case ARM_INS_BL:
         cpu_reg_write(cpu, ARM_REG_LR, next | 1);
-        BRANCH_WRITE_PC(cpu, cpu_load_operand(cpu, &i->detail->arm.operands[0]));
+        BRANCH_WRITE_PC(cpu, cpu_load_operand(cpu, &i->detail->arm.operands[0]) | 1);
         return;
 
     case ARM_INS_LDR:
+    case ARM_INS_MOV:
         value = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
 
-        cpu_store_operand(cpu, &i->detail->arm.operands[0], value);
+        cpu_store_operand(cpu, &i->detail->arm.operands[0], value, SIZE_WORD);
+        break;
+
+    case ARM_INS_LDRB:
+        value = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
+
+        cpu_store_operand(cpu, &i->detail->arm.operands[0], value, SIZE_BYTE);
+        break;
+
+    case ARM_INS_PUSH:
+        op1 = cpu_reg_read(cpu, ARM_REG_SP) - 4 * i->detail->arm.op_count;
+        cpu_reg_write(cpu, ARM_REG_SP, op1);
+
+        for (size_t n = 0; n < i->detail->arm.op_count; n++)
+        {
+            printf("Push reg %d\n", i->detail->arm.operands[n].reg);
+
+            memreg_write(cpu->mem, op1, cpu_load_operand(cpu, &i->detail->arm.operands[n]), SIZE_WORD);
+
+            op1 += 4;
+        }
         break;
 
     case ARM_INS_STR:
         value = cpu_load_operand(cpu, &i->detail->arm.operands[0]);
 
-        cpu_store_operand(cpu, &i->detail->arm.operands[1], value);
+        cpu_store_operand(cpu, &i->detail->arm.operands[1], value, SIZE_WORD);
         break;
 
     case ARM_INS_SUB:
@@ -266,7 +287,7 @@ void cpu_step(cpu_t *cpu)
 
         printf("sub: 0x%08X - 0x%08X = 0x%08X\n", op1, op2, value);
 
-        cpu_store_operand(cpu, &i->detail->arm.operands[0], value);
+        cpu_store_operand(cpu, &i->detail->arm.operands[0], value, SIZE_WORD);
 
         UPDATE_NZCV(cpu, i, value, carry, overflow);
         break;
@@ -277,7 +298,7 @@ void cpu_step(cpu_t *cpu)
     }
 
 next_pc:
-    cpu_set_pc(cpu, next);
+    cpu_reg_write(cpu, ARM_REG_PC, next | 1);
 }
 
 uint32_t cpu_reg_read(cpu_t *cpu, arm_reg reg)
@@ -290,23 +311,27 @@ uint32_t cpu_reg_read(cpu_t *cpu, arm_reg reg)
 
 void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
 {
-    cpu->core_regs[reg] = value; // TODO: Bank SP_main and SP_process
-}
-
-void cpu_set_pc(cpu_t *cpu, uint32_t pc)
-{
-    if (pc & 1 != 1)
+    if (reg == ARM_REG_PC)
     {
-        fprintf(stderr, "PC is not aligned\n");
-        abort();
-    }
+        if ((value & 1) != 1)
+        {
+            fprintf(stderr, "PC is not aligned\n");
+            abort();
+        }
 
-    cpu->core_regs[ARM_REG_PC] = pc & ~1;
+        cpu->core_regs[ARM_REG_PC] = value & ~1;
+    }
+    else
+    {
+        cpu->core_regs[reg] = value; // TODO: Bank SP_main and SP_process
+    }
 }
 
 void cpu_jump_exception(cpu_t *cpu, int exception_num)
 {
+    // TODO: Implement
+
     uint32_t addr = READ_UINT32(cpu->program, exception_num * 4);
 
-    cpu_set_pc(cpu, addr);
+    cpu_reg_write(cpu, ARM_REG_PC, addr);
 }
