@@ -7,18 +7,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-static cs_insn *insn_at(cpu_t *cpu, uint32_t pc)
-{
-    pc &= ~1;
+// #define LOG_CPU
 
-    for (size_t i = 0; i < cpu->inst_count; i++)
-    {
-        if (cpu->inst[i].address == pc)
-            return &cpu->inst[i];
-    }
-
-    return NULL;
-}
+#ifdef LOG_CPU
+#define LOGF(...) printf(__VA_ARGS__)
+#else
+#define LOGF(...)
+#endif
 
 static uint32_t cpu_mem_operand_address(cpu_t *cpu, arm_op_mem op)
 {
@@ -65,19 +60,19 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset)
 
 static uint32_t cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t size)
 {
-    printf("store 0x%08X into ", value);
+    LOGF("store 0x%08X into ", value);
 
     switch (op->type)
     {
     case ARM_OP_REG:
         cpu_reg_write(cpu, op->reg, value);
-        printf("register %d\n", op->reg);
+        LOGF("register %d\n", op->reg);
         break;
     case ARM_OP_MEM:
         uint32_t addr = ALIGN4(cpu_mem_operand_address(cpu, op->mem));
 
         memreg_write(cpu->mem, addr, value, size);
-        printf("memory 0x%08X\n", addr);
+        LOGF("memory 0x%08X\n", addr);
         break;
     default:
         fprintf(stderr, "Unhandled operand type %d\n", op->type);
@@ -99,7 +94,7 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 
     bool result;
 
-    printf("N:%d Z:%d C:%d V:%d\n", IS_SET(cpu->xpsr, APSR_N), IS_SET(cpu->xpsr, APSR_Z), IS_SET(cpu->xpsr, APSR_C), IS_SET(cpu->xpsr, APSR_V));
+    LOGF("N:%d Z:%d C:%d V:%d\n", IS_SET(cpu->xpsr, APSR_N), IS_SET(cpu->xpsr, APSR_Z), IS_SET(cpu->xpsr, APSR_C), IS_SET(cpu->xpsr, APSR_V));
 
     switch (cc)
     {
@@ -199,7 +194,14 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
         return NULL;
     }
 
-    printf("Disassembled %ld instructions\n", cpu->inst_count);
+    LOGF("Disassembled %ld instructions\n", cpu->inst_count);
+
+    cpu->inst_by_pc = calloc(program_size, sizeof(cs_insn *));
+
+    for (uint32_t i = 0; i < cpu->inst_count; i++)
+    {
+        cpu->inst_by_pc[cpu->inst[i].address] = &cpu->inst[i];
+    }
 
     return cpu;
 }
@@ -218,7 +220,7 @@ void cpu_reset(cpu_t *cpu)
 // TODO: Implement
 #define BRANCH_WRITE_PC(cpu, pc)            \
     cpu_reg_write((cpu), ARM_REG_PC, (pc)); \
-    printf("Branching to 0x%08X\n", (pc));
+    LOGF("Branching to 0x%08X\n", (pc));
 
 #define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset))
 #define OPERAND(n) OPERAND_OFF(n, 0)
@@ -229,14 +231,14 @@ void cpu_step(cpu_t *cpu)
 
     uint32_t op1, op2, value;
 
-    cs_insn *i = insn_at(cpu, pc);
+    cs_insn *i = cpu->inst_by_pc[pc & ~1];
     if (i == NULL)
     {
         fprintf(stderr, "Failed to find instruction at 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
         abort();
     }
 
-    printf("\nPC: 0x%08X %s %s\n", pc, i->mnemonic, i->op_str);
+    LOGF("\nPC: 0x%08X %s %s\n", pc, i->mnemonic, i->op_str);
 
     uint32_t next = pc + i->size;
 
@@ -314,7 +316,7 @@ void cpu_step(cpu_t *cpu)
 
         for (size_t n = 0; n < i->detail->arm.op_count; n++)
         {
-            printf("Push reg %d\n", i->detail->arm.operands[n].reg);
+            LOGF("Push reg %d\n", i->detail->arm.operands[n].reg);
 
             memreg_write(cpu->mem, op1, cpu_load_operand(cpu, &i->detail->arm.operands[n], 0), SIZE_WORD);
 
@@ -350,7 +352,7 @@ void cpu_step(cpu_t *cpu)
         carry = true;
         value = AddWithCarry(op1, ~op2, &carry, &overflow);
 
-        printf("sub: 0x%08X - 0x%08X = 0x%08X\n", op1, op2, value);
+        LOGF("sub: 0x%08X - 0x%08X = 0x%08X\n", op1, op2, value);
 
         cpu_store_operand(cpu, &i->detail->arm.operands[0], value, SIZE_WORD);
 
@@ -359,7 +361,8 @@ void cpu_step(cpu_t *cpu)
 
     default:
         fprintf(stderr, "Unhandled instruction %s %s\n", i->mnemonic, i->op_str);
-        abort();
+        // abort();
+        exit(1);
     }
 
 next_pc:

@@ -16,6 +16,7 @@ typedef struct
 
     cs_insn *inst;
     size_t inst_count;
+    cs_insn **inst_by_pc;
 
     memreg_t *mem;
 } cpu_t;
