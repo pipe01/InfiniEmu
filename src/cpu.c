@@ -506,11 +506,24 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
     }
 }
 
+uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
+{
+    switch (reg)
+    {
+    case ARM_SYSREG_XPSR:
+        return cpu->xpsr;
+
+    default:
+        fprintf(stderr, "Unhandled system register %d\n", reg);
+        abort();
+    }
+}
+
 bool cpu_mem_read(cpu_t *cpu, uint32_t addr, uint8_t *value)
 {
     if (!memreg_is_mapped(cpu->mem, addr))
         return false;
-    
+
     *value = memreg_read(cpu->mem, addr);
     return true;
 }
@@ -519,7 +532,7 @@ bool cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value)
 {
     if (!memreg_is_mapped(cpu->mem, addr))
         return false;
-    
+
     memreg_write(cpu->mem, addr, value, SIZE_BYTE);
     return true;
 }
