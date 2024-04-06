@@ -91,6 +91,8 @@ uint32_t memreg_read(memreg_t *region, uint32_t addr)
 
 void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, size_t size)
 {
+    printf("Writing to 0x%08X: 0x%08X, size: %ld\n", addr, value, size);
+
     while (region)
     {
         if (addr >= region->start && addr < region->end)

@@ -3,6 +3,7 @@
 #include "byte_util.h"
 #include "psudocode.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,7 +34,7 @@ static uint32_t cpu_mem_operand_address(cpu_t *cpu, arm_op_mem op)
     return base + op.disp;
 }
 
-static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op)
+static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset)
 {
     uint32_t value;
 
@@ -46,7 +47,7 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op)
         value = op->imm;
         break;
     case ARM_OP_MEM:
-        value = memreg_read(cpu->mem, ALIGN4(cpu_mem_operand_address(cpu, op->mem)));
+        value = memreg_read(cpu->mem, ALIGN4(cpu_mem_operand_address(cpu, op->mem) + offset));
         break;
     default:
         fprintf(stderr, "Unhandled operand type %d\n", op->type);
@@ -147,20 +148,28 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 #define UPDATE_C(cpu, carry) ((carry) ? SET((cpu)->xpsr, APSR_C) : CLEAR((cpu)->xpsr, APSR_C))
 #define UPDATE_V(cpu, overflow) ((overflow) ? SET((cpu)->xpsr, APSR_V) : CLEAR((cpu)->xpsr, APSR_V))
 
-#define UPDATE_NZ     \
+#define UPDATE_NZ                    \
     if (i->detail->arm.update_flags) \
-    {                                   \
-        UPDATE_N((cpu), (value));       \
-        UPDATE_Z((cpu), (value));       \
+    {                                \
+        UPDATE_N((cpu), (value));    \
+        UPDATE_Z((cpu), (value));    \
     }
 
-#define UPDATE_NZCV \
-    if (i->detail->arm.update_flags)                \
-    {                                                  \
-        UPDATE_N((cpu), (value));                      \
-        UPDATE_Z((cpu), (value));                      \
-        UPDATE_C((cpu), (carry));                      \
-        UPDATE_V((cpu), (overflow));                   \
+#define UPDATE_NZC                   \
+    if (i->detail->arm.update_flags) \
+    {                                \
+        UPDATE_N((cpu), (value));    \
+        UPDATE_Z((cpu), (value));    \
+        UPDATE_C((cpu), (carry));    \
+    }
+
+#define UPDATE_NZCV                  \
+    if (i->detail->arm.update_flags) \
+    {                                \
+        UPDATE_N((cpu), (value));    \
+        UPDATE_Z((cpu), (value));    \
+        UPDATE_C((cpu), (carry));    \
+        UPDATE_V((cpu), (overflow)); \
     }
 
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
@@ -211,6 +220,9 @@ void cpu_reset(cpu_t *cpu)
     cpu_reg_write((cpu), ARM_REG_PC, (pc)); \
     printf("Branching to 0x%08X\n", (pc));
 
+#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset))
+#define OPERAND(n) OPERAND_OFF(n, 0)
+
 void cpu_step(cpu_t *cpu)
 {
     uint32_t pc = cpu->core_regs[ARM_REG_PC];
@@ -228,6 +240,7 @@ void cpu_step(cpu_t *cpu)
 
     uint32_t next = pc + i->size;
 
+    // TODO: Ignore condition on certain instructions
     if (!cpu_condition_passed(cpu, i))
         goto next_pc;
 
@@ -236,35 +249,63 @@ void cpu_step(cpu_t *cpu)
 
     switch (i->id)
     {
+    case ARM_INS_ADD:
+        op1 = OPERAND(i->detail->arm.op_count == 3 ? 1 : 0);
+        op2 = OPERAND(i->detail->arm.op_count == 3 ? 2 : 1);
+
+        value = AddWithCarry(op1, op2, &carry, &overflow);
+
+        cpu_store_operand(cpu, &i->detail->arm.operands[0], value, SIZE_WORD);
+
+        UPDATE_NZCV;
+        break;
+
     case ARM_INS_B:
-        BRANCH_WRITE_PC(cpu, cpu_load_operand(cpu, &i->detail->arm.operands[0]) | 1);
+    case ARM_INS_BX:
+        BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
         return;
 
     case ARM_INS_BL:
         cpu_reg_write(cpu, ARM_REG_LR, next | 1);
-        BRANCH_WRITE_PC(cpu, cpu_load_operand(cpu, &i->detail->arm.operands[0]) | 1);
+        BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
         return;
 
     case ARM_INS_CMP:
-        op1 = cpu_load_operand(cpu, &i->detail->arm.operands[0]);
-        op2 = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
+        op1 = OPERAND(0);
+        op2 = OPERAND(1);
 
         value = AddWithCarry(op1, ~op2, &carry, &overflow);
 
         UPDATE_NZCV
         break;
 
+    case ARM_INS_DSB:
+    case ARM_INS_ISB:
+    case ARM_INS_NOP:
+        break;
+
     case ARM_INS_LDR:
     case ARM_INS_MOV:
-        value = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
+        value = OPERAND(1);
 
         cpu_store_operand(cpu, &i->detail->arm.operands[0], value, SIZE_WORD);
         break;
 
     case ARM_INS_LDRB:
-        value = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
+        value = OPERAND(1);
 
         cpu_store_operand(cpu, &i->detail->arm.operands[0], value, SIZE_BYTE);
+        break;
+
+    case ARM_INS_ORR:
+        op1 = OPERAND(i->detail->arm.op_count == 3 ? 1 : 0);
+        op2 = OPERAND(i->detail->arm.op_count == 3 ? 2 : 1);
+
+        value = op1 | op2;
+
+        cpu_store_operand(cpu, &i->detail->arm.operands[0], value, SIZE_WORD);
+
+        UPDATE_NZC;
         break;
 
     case ARM_INS_PUSH:
@@ -275,21 +316,36 @@ void cpu_step(cpu_t *cpu)
         {
             printf("Push reg %d\n", i->detail->arm.operands[n].reg);
 
-            memreg_write(cpu->mem, op1, cpu_load_operand(cpu, &i->detail->arm.operands[n]), SIZE_WORD);
+            memreg_write(cpu->mem, op1, cpu_load_operand(cpu, &i->detail->arm.operands[n], 0), SIZE_WORD);
 
             op1 += 4;
         }
         break;
 
     case ARM_INS_STR:
-        value = cpu_load_operand(cpu, &i->detail->arm.operands[0]);
+        value = OPERAND(0);
 
         cpu_store_operand(cpu, &i->detail->arm.operands[1], value, SIZE_WORD);
         break;
 
+    case ARM_INS_STRB:
+        uint32_t address = cpu_mem_operand_address(cpu, i->detail->arm.operands[1].mem);
+
+        value = OPERAND(0);
+
+        memreg_write(cpu->mem, address, value, SIZE_BYTE);
+
+        if (i->detail->arm.post_index)
+        {
+            assert(i->detail->arm.op_count == 3);
+
+            cpu_reg_write(cpu, i->detail->arm.operands[1].reg, address + i->detail->arm.operands[2].imm);
+        }
+        break;
+
     case ARM_INS_SUB:
-        op1 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 1 : 0]);
-        op2 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 2 : 1]);
+        op1 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 1 : 0], 0);
+        op2 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 2 : 1], 0);
 
         carry = true;
         value = AddWithCarry(op1, ~op2, &carry, &overflow);
