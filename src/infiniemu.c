@@ -2,12 +2,9 @@
 
 #include <unistd.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-
-#include <capstone/capstone.h>
 
 #include "nrf52832.h"
+#include "gdb.h"
 
 int main(int argc, char **argv)
 {
@@ -52,6 +49,8 @@ int main(int argc, char **argv)
     NRF52832_t *nrf52 = nrf52832_new(program, fsize);
 
     free(program);
+
+    gdb_start(nrf52);
 
     for (;;)
     {

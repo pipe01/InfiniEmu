@@ -34,11 +34,11 @@ struct NRF52832_inst_t {
 
 NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
 {
+    NRF52832_t *chip = (NRF52832_t *)malloc(sizeof(NRF52832_t));
+
     uint8_t *flash = malloc(NRF52832_FLASH_SIZE);
     memcpy(flash, program, program_size);
     memset(flash + program_size, 0xFF, NRF52832_FLASH_SIZE - program_size); // 0xFF out the rest of the flash
-
-    NRF52832_t *chip = (NRF52832_t *)malloc(sizeof(NRF52832_t));
 
     uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
 
@@ -74,4 +74,9 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 void nrf52832_step(NRF52832_t *nrf52832)
 {
     cpu_step(nrf52832->cpu);
+}
+
+cpu_t *nrf52832_get_cpu(NRF52832_t *nrf52832)
+{
+    return nrf52832->cpu;
 }

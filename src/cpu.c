@@ -506,6 +506,16 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
     }
 }
 
+uint8_t cpu_mem_read(cpu_t *cpu, uint32_t addr)
+{
+    return memreg_read(cpu->mem, addr);
+}
+
+void cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value)
+{
+    memreg_write(cpu->mem, addr, value, SIZE_BYTE);
+}
+
 void cpu_jump_exception(cpu_t *cpu, int exception_num)
 {
     // TODO: Implement

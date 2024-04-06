@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/src/infiniemu",
+            "program": "${workspaceFolder}/infiniemu",
             "args": ["-f", "${workspaceFolder}/infinitime.bin"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
