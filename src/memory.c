@@ -4,19 +4,15 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdio.h>
 
-void simple_write(uint32_t offset, uint32_t value, size_t size, void *userdata)
+bool simple_operation(uint32_t offset, uint32_t *value, size_t size, void *userdata)
 {
     uint8_t *data = (uint8_t *)userdata;
 
-    WRITE_UINT32(data, offset, value);
-}
+    WRITE_UINT32(data, offset, *value);
 
-uint32_t simple_read(uint32_t offset, void *userdata)
-{
-    uint8_t *data = (uint8_t *)userdata;
-
-    return READ_UINT32(data, offset);
+    return true;
 }
 
 memreg_t *memreg_new_simple(uint32_t start, uint8_t *data, size_t size)
@@ -27,18 +23,22 @@ memreg_t *memreg_new_simple(uint32_t start, uint8_t *data, size_t size)
     region->userdata = data;
     region->start = start;
     region->end = start + size;
-    region->read = simple_read;
-    region->write = simple_write;
+    region->operation = simple_operation;
 
     return region;
 }
 
 uint32_t memreg_read(memreg_t *region, uint32_t addr)
 {
+    uint32_t value;
+
     while (region)
     {
         if (addr >= region->start && addr < region->end)
-            return region->read(addr - region->start, region->userdata);
+        {
+            if (region->operation(addr - region->start, &value, SIZE_WORD, region->userdata))
+                return value;
+        }
 
         region = region->next;
     }
@@ -53,7 +53,7 @@ void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, size_t size)
     {
         if (addr >= region->start && addr < region->end)
         {
-            region->write(addr - region->start, value, size, region->userdata);
+            region->operation(addr - region->start, &value, size, region->userdata);
             return;
         }
 

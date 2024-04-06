@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #define SIZE_BYTE 1
 #define SIZE_HALFWORD 2
@@ -10,8 +11,7 @@
 typedef struct memreg_t {
     void *userdata;
     uint32_t start, end;
-    uint32_t (*read)(uint32_t offset, void *userdata);
-    void (*write)(uint32_t offset, uint32_t value, size_t size, void *userdata);
+    bool (*operation)(uint32_t offset, uint32_t *value, size_t size, void *userdata);
 
     struct memreg_t *next;
 } memreg_t;
