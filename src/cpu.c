@@ -515,7 +515,8 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
 
     default:
         fprintf(stderr, "Unhandled system register %d\n", reg);
-        abort();
+        return 0;
+        // abort();
     }
 }
 
