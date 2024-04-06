@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-cs_insn *insn_at(cpu_t *cpu, uint32_t pc)
+static cs_insn *insn_at(cpu_t *cpu, uint32_t pc)
 {
     pc &= ~1;
 
@@ -19,7 +19,7 @@ cs_insn *insn_at(cpu_t *cpu, uint32_t pc)
     return NULL;
 }
 
-uint32_t cpu_mem_operand_address(cpu_t *cpu, arm_op_mem op)
+static uint32_t cpu_mem_operand_address(cpu_t *cpu, arm_op_mem op)
 {
     uint32_t base = cpu_reg_read(cpu, op.base);
 
@@ -33,7 +33,7 @@ uint32_t cpu_mem_operand_address(cpu_t *cpu, arm_op_mem op)
     return base + op.disp;
 }
 
-uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op)
+static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op)
 {
     uint32_t value;
 
@@ -62,7 +62,7 @@ uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op)
     return value;
 }
 
-uint32_t cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t size)
+static uint32_t cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t size)
 {
     printf("store 0x%08X into ", value);
 
@@ -84,7 +84,7 @@ uint32_t cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t siz
     }
 }
 
-bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
+static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 {
     arm_cc cc;
 
