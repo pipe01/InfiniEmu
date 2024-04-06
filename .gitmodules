@@ -1,3 +1,0 @@
-[submodule "lib/libgdbstub"]
-	path = lib/libgdbstub
-	url = https://github.com/AlexanderEichner/libgdbstub.git
