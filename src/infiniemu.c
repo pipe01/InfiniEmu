@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <capstone/capstone.h>
 
@@ -10,6 +11,7 @@
 #include "byte_util.h"
 
 #define NRF52832_SRAM_SIZE 0x10000
+#define NRF52832_FLASH_SIZE 0x80000
 
 int main(int argc, char **argv)
 {
@@ -45,19 +47,20 @@ int main(int argc, char **argv)
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    uint8_t *buffer = malloc(fsize);
-    fread(buffer, fsize, 1, f);
+    uint8_t *flash = malloc(NRF52832_FLASH_SIZE);
+    fread(flash, fsize, 1, f);
     fclose(f);
+    memset(flash + fsize, 0xFF, NRF52832_FLASH_SIZE - fsize); // 0xFF out the rest of the flash
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
-    memreg_t *mem_flash = memreg_new_simple(0, buffer, fsize);
+    memreg_t *mem_flash = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
 
     uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
     memreg_t *mem_ram = memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE);
     mem_flash->next = mem_ram;
 
-    cpu_t *cpu = cpu_new(buffer, fsize, mem_flash);
+    cpu_t *cpu = cpu_new(flash, fsize, mem_flash);
 
     cpu_reset(cpu);
 

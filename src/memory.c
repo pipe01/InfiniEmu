@@ -27,6 +27,8 @@ memreg_t *memreg_new_simple(uint32_t start, uint8_t *data, size_t size)
     region->userdata = data;
     region->start = start;
     region->end = start + size;
+    region->read = simple_read;
+    region->write = simple_write;
 
     return region;
 }

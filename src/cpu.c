@@ -1,6 +1,7 @@
 #include "cpu.h"
 #include "arm.h"
 #include "byte_util.h"
+#include "psudocode.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,145 @@ cs_insn *insn_at(cpu_t *cpu, uint32_t pc)
     return NULL;
 }
 
+uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op)
+{
+    uint32_t value;
+
+    switch (op->type)
+    {
+    case ARM_OP_REG:
+        value = cpu_reg_read(cpu, op->reg);
+        break;
+    case ARM_OP_IMM:
+        value = op->imm;
+        break;
+    case ARM_OP_MEM:
+        uint32_t base = cpu_reg_read(cpu, op->mem.base);
+
+        if (op->mem.index != ARM_REG_INVALID)
+        {
+            base += cpu_reg_read(cpu, op->mem.index) * op->mem.scale;
+        }
+
+        // TODO: Shift
+
+        value = memreg_read(cpu->mem, ALIGN4(base + op->mem.disp));
+        break;
+    default:
+        fprintf(stderr, "Unhandled operand type %d\n", op->type);
+        abort();
+    }
+
+    if (op->shift.type != ARM_SFT_INVALID)
+    {
+        // TODO: Implement
+        abort();
+    }
+
+    return value;
+}
+
+uint32_t cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value)
+{
+    printf("store 0x%08X into ", value);
+
+    switch (op->type)
+    {
+    case ARM_OP_REG:
+        cpu_reg_write(cpu, op->reg, value);
+        printf("register %d\n", op->reg);
+        break;
+    case ARM_OP_MEM:
+        uint32_t base = cpu_reg_read(cpu, op->mem.base);
+        uint32_t addr = ALIGN4(base + op->mem.disp);
+
+        memreg_write(cpu->mem, addr, value);
+
+        printf("memory at 0x%08X\n", addr);
+        break;
+    default:
+        fprintf(stderr, "Unhandled operand type %d\n", op->type);
+        abort();
+    }
+}
+
+bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
+{
+    arm_cc cc;
+
+    if (i->detail->arm.cc != ARM_CC_INVALID)
+        cc = i->detail->arm.cc;
+    else
+    {
+        // TODO: IT blocks
+        return true;
+    }
+
+    bool result;
+
+    switch (cc)
+    {
+    case ARM_CC_INVALID:
+    case ARM_CC_AL:
+        return true;
+
+    case ARM_CC_EQ:
+        return IS_SET(cpu->xpsr, APSR_Z) != 0;
+    case ARM_CC_NE:
+        return IS_SET(cpu->xpsr, APSR_Z) == 0;
+
+    case ARM_CC_HS:
+        return IS_SET(cpu->xpsr, APSR_C) != 0;
+    case ARM_CC_LO:
+        return IS_SET(cpu->xpsr, APSR_C) == 0;
+
+    case ARM_CC_MI:
+        return IS_SET(cpu->xpsr, APSR_N) != 0;
+    case ARM_CC_PL:
+        return IS_SET(cpu->xpsr, APSR_N) == 0;
+
+    case ARM_CC_GT:
+        return ((IS_SET(cpu->xpsr, APSR_N) != 0) == (IS_SET(cpu->xpsr, APSR_V))) && (IS_SET(cpu->xpsr, APSR_Z) == 0);
+    case ARM_CC_LE:
+        return ((IS_SET(cpu->xpsr, APSR_N) != 0) != (IS_SET(cpu->xpsr, APSR_V))) || (IS_SET(cpu->xpsr, APSR_Z) != 0);
+
+    case ARM_CC_HI:
+        return (IS_SET(cpu->xpsr, APSR_C) != 0) && (IS_SET(cpu->xpsr, APSR_Z) == 0);
+    case ARM_CC_LS:
+        return (IS_SET(cpu->xpsr, APSR_C) == 0) || (IS_SET(cpu->xpsr, APSR_Z) != 0);
+
+    case ARM_CC_GE:
+        return (IS_SET(cpu->xpsr, APSR_N) == 0) == (IS_SET(cpu->xpsr, APSR_V) == 0);
+    case ARM_CC_LT:
+        return (IS_SET(cpu->xpsr, APSR_N) == 0) != (IS_SET(cpu->xpsr, APSR_V) == 0);
+
+    default:
+        fprintf(stderr, "Unhandled condition code %d\n", cc);
+        abort();
+    }
+}
+
+#define UPDATE_N(cpu, value) ((((value) >> 31) == 1) ? SET((cpu)->xpsr, APSR_N) : CLEAR((cpu)->xpsr, APSR_N))
+#define UPDATE_Z(cpu, value) (((value) == 0) ? SET((cpu)->xpsr, APSR_Z) : CLEAR((cpu)->xpsr, APSR_Z))
+#define UPDATE_C(cpu, carry) ((carry) ? SET((cpu)->xpsr, APSR_C) : CLEAR((cpu)->xpsr, APSR_C))
+#define UPDATE_V(cpu, overflow) ((overflow) ? SET((cpu)->xpsr, APSR_V) : CLEAR((cpu)->xpsr, APSR_V))
+
+#define UPDATE_NZ(cpu, inst, value)     \
+    if (inst->detail->arm.update_flags) \
+    {                                   \
+        UPDATE_N((cpu), (value));       \
+        UPDATE_Z((cpu), (value));       \
+    }
+
+#define UPDATE_NZCV(cpu, inst, value, carry, overflow) \
+    if (inst->detail->arm.update_flags)                \
+    {                                                  \
+        UPDATE_N((cpu), (value));                      \
+        UPDATE_Z((cpu), (value));                      \
+        UPDATE_C((cpu), (carry));                      \
+        UPDATE_V((cpu), (overflow));                   \
+    }
+
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
 {
     cpu_t *cpu = malloc(sizeof(cpu_t));
@@ -29,7 +169,8 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
 
     csh handle;
 
-    if (cs_open(CS_ARCH_ARM, CS_MODE_THUMB + CS_MODE_MCLASS, &handle) != CS_ERR_OK) {
+    if (cs_open(CS_ARCH_ARM, CS_MODE_THUMB + CS_MODE_MCLASS, &handle) != CS_ERR_OK)
+    {
         fprintf(stderr, "Failed to initialize Capstone\n");
         return NULL;
     }
@@ -38,7 +179,8 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
     cs_option(handle, CS_OPT_SKIPDATA, CS_OPT_ON);
 
     cpu->inst_count = cs_disasm(handle, program, program_size, 0, 0, &cpu->inst);
-    if (cpu->inst_count == 0) {
+    if (cpu->inst_count == 0)
+    {
         fprintf(stderr, "Failed to disassemble program\n");
         return NULL;
     }
@@ -53,8 +195,9 @@ void cpu_reset(cpu_t *cpu)
     memset(cpu->core_regs, 0, sizeof(cpu->core_regs));
 
     cpu->core_regs[ARM_REG_SP] = READ_UINT32(cpu->program, 0);
-    cpu->core_regs[ARM_REG_LR] = 0xFFFFFFFF;
+    cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
 
+    // cpu->core_regs[ARM_REG_PC] = 0x1d1a8;
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
 }
 
@@ -62,32 +205,82 @@ void cpu_step(cpu_t *cpu)
 {
     uint32_t pc = cpu->core_regs[ARM_REG_PC];
 
-    printf("PC: 0x%08X\n", pc);
-
     cs_insn *i = insn_at(cpu, pc);
-    if (i == NULL) {
+    if (i == NULL)
+    {
         fprintf(stderr, "Failed to find instruction at 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
         abort();
     }
 
+    printf("PC: 0x%08X %s %s\n", pc, i->mnemonic, i->op_str);
+
     uint32_t next = pc + i->size;
+
+    if (!cpu_condition_passed(cpu, i))
+        goto next_pc;
+
+    bool carry = false;
+    bool overflow = false;
 
     switch (i->id)
     {
-    case ARM_INS_LDR:
+    case ARM_INS_B:
         break;
+
+    case ARM_INS_SUB:
+        uint32_t op1 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 1 : 0]);
+        uint32_t op2 = cpu_load_operand(cpu, &i->detail->arm.operands[i->detail->arm.op_count == 3 ? 2 : 1]);
+
+        carry = true;
+        uint32_t result = AddWithCarry(op1, ~op2, &carry, &overflow);
+
+        cpu_store_operand(cpu, &i->detail->arm.operands[0], result);
+
+        UPDATE_NZCV(cpu, i, result, carry, overflow);
+        break;
+
+    case ARM_INS_LDR:
+        uint32_t value = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
+
+        cpu_store_operand(cpu, &i->detail->arm.operands[0], value);
+        break;
+
+    default:
+        fprintf(stderr, "Unhandled instruction %s %s\n", i->mnemonic, i->op_str);
+        abort();
     }
 
-    cpu->core_regs[ARM_REG_PC] = next;
+next_pc:
+    cpu_set_pc(cpu, next);
 }
 
-uint32_t *cpu_reg(cpu_t *cpu, int reg)
+uint32_t cpu_reg_read(cpu_t *cpu, arm_reg reg)
 {
-    return &cpu->core_regs[reg]; // TODO: Bank SP_main and SP_process
+    if (reg == ARM_REG_PC)
+        return cpu->core_regs[ARM_REG_PC] + 4;
+
+    return cpu->core_regs[reg]; // TODO: Bank SP_main and SP_process
 }
 
-void cpu_jump_exception(cpu_t *cpu, int exception_num) {
+void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
+{
+    cpu->core_regs[reg] = value; // TODO: Bank SP_main and SP_process
+}
+
+void cpu_set_pc(cpu_t *cpu, uint32_t pc)
+{
+    if (pc & 1 != 1)
+    {
+        fprintf(stderr, "PC is not aligned\n");
+        abort();
+    }
+
+    cpu->core_regs[ARM_REG_PC] = pc & ~1;
+}
+
+void cpu_jump_exception(cpu_t *cpu, int exception_num)
+{
     uint32_t addr = READ_UINT32(cpu->program, exception_num * 4);
 
-    cpu->core_regs[ARM_REG_PC] = addr;
+    cpu_set_pc(cpu, addr);
 }
