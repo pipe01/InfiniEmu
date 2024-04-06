@@ -32,7 +32,7 @@
 
 typedef bool (*memreg_operation_t)(uint32_t offset, uint32_t *value, int op, void *userdata);
 
-#define OPERATION(name) bool operation_##name(uint32_t offset, uint32_t *value, int op, void *userdata)
+#define OPERATION(name) bool name##_operation(uint32_t offset, uint32_t *value, int op, void *userdata)
 
 typedef struct memreg_t {
     void *userdata;

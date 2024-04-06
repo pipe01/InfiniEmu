@@ -73,9 +73,9 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
     case ARM_OP_MEM:
     {
         uint32_t addr = ALIGN4(cpu_mem_operand_address(cpu, op->mem));
+        LOGF("memory 0x%08X\n", addr);
 
         memreg_write(cpu->mem, addr, value, size);
-        LOGF("memory 0x%08X\n", addr);
         break;
     }
     default:
@@ -408,14 +408,15 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_UBFX:
     {
-        op1 = OPERAND(0);
         op2 = OPERAND(1);
         uint32_t lsb = OPERAND(2);
         uint32_t width = OPERAND(3);
 
         assert(lsb + width <= 32);
 
-        value = (op1 >> lsb) & ((1 << width) - 1);
+        value = (op2 >> lsb) & ((1 << width) - 1);
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
         break;
     }
 

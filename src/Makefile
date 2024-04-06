@@ -1,13 +1,13 @@
 IDIR =../include
 CC=gcc
-CFLAGS=-I$(IDIR) -g -Werror -Wall -Wextra -pedantic
+CFLAGS=-I$(IDIR) -g -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
 
 ODIR=obj
 LDIR =../lib
 
 LIBS=-lm -lcapstone
 
-DEPS = $(wildcard $(IDIR)/*.h)
+DEPS = $(wildcard $(IDIR)/**/*.h)
 
 _OBJ = infiniemu.o cpu.o memory.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))

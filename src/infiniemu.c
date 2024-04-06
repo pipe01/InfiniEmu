@@ -11,6 +11,7 @@
 #include "byte_util.h"
 #include "incbin.h"
 
+#include "peripherals/comp.h"
 #include "peripherals/ppb_scb.h"
 
 #define NRF52832_SRAM_SIZE 0x10000
@@ -61,18 +62,24 @@ int main(int argc, char **argv)
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
+    uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
+    SCB_t *scb = scb_new();
+    scb_reset(scb);
+    COMP_t *comp = comp_new();
+    comp_reset(comp);
+
     memreg_t *mem_first = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
     memreg_t *last = mem_first;
 
-    uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
     last = last->next = memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE);
+
+    last = last->next = memreg_new_operation(x(4001, 3000), 0x1000, comp_operation, comp);
 
     last = last->next = memreg_new_simple_copy(x(F000, 0000), (const uint8_t *)incbin_secret_start, incbin_secret_end - incbin_secret_start);
     last = last->next = memreg_new_simple_copy(x(1000, 0000), (const uint8_t *)incbin_ficr_start, incbin_ficr_end - incbin_ficr_start);
     last = last->next = memreg_new_simple_copy(x(1000, 1000), (const uint8_t *)incbin_uicr_start, incbin_uicr_end - incbin_uicr_start);
 
-    SCB_t *scb = scb_new();
-    last = last->next = scb_memreg(scb);
+    last = last->next = memreg_new_operation(x(E000, ED00), 0x8F, scb_operation, scb);
 
     cpu_t *cpu = cpu_new(flash, fsize, mem_first);
 
