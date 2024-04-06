@@ -147,15 +147,15 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 #define UPDATE_C(cpu, carry) ((carry) ? SET((cpu)->xpsr, APSR_C) : CLEAR((cpu)->xpsr, APSR_C))
 #define UPDATE_V(cpu, overflow) ((overflow) ? SET((cpu)->xpsr, APSR_V) : CLEAR((cpu)->xpsr, APSR_V))
 
-#define UPDATE_NZ(cpu, inst, value)     \
-    if (inst->detail->arm.update_flags) \
+#define UPDATE_NZ     \
+    if (i->detail->arm.update_flags) \
     {                                   \
         UPDATE_N((cpu), (value));       \
         UPDATE_Z((cpu), (value));       \
     }
 
-#define UPDATE_NZCV(cpu, inst, value, carry, overflow) \
-    if (inst->detail->arm.update_flags)                \
+#define UPDATE_NZCV \
+    if (i->detail->arm.update_flags)                \
     {                                                  \
         UPDATE_N((cpu), (value));                      \
         UPDATE_Z((cpu), (value));                      \
@@ -245,6 +245,15 @@ void cpu_step(cpu_t *cpu)
         BRANCH_WRITE_PC(cpu, cpu_load_operand(cpu, &i->detail->arm.operands[0]) | 1);
         return;
 
+    case ARM_INS_CMP:
+        op1 = cpu_load_operand(cpu, &i->detail->arm.operands[0]);
+        op2 = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
+
+        value = AddWithCarry(op1, ~op2, &carry, &overflow);
+
+        UPDATE_NZCV
+        break;
+
     case ARM_INS_LDR:
     case ARM_INS_MOV:
         value = cpu_load_operand(cpu, &i->detail->arm.operands[1]);
@@ -289,7 +298,7 @@ void cpu_step(cpu_t *cpu)
 
         cpu_store_operand(cpu, &i->detail->arm.operands[0], value, SIZE_WORD);
 
-        UPDATE_NZCV(cpu, i, value, carry, overflow);
+        UPDATE_NZCV
         break;
 
     default:
