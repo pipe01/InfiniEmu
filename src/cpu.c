@@ -302,6 +302,10 @@ void cpu_step(cpu_t *cpu)
     case ARM_INS_NOP:
         break;
 
+    case ARM_INS_IT:
+        // Ignore
+        break;
+
     case ARM_INS_LDR:
     case ARM_INS_MOV:
     case ARM_INS_MOVS:
@@ -340,6 +344,16 @@ void cpu_step(cpu_t *cpu)
         op2 = OPERAND(2);
 
         value = Shift_C(op1, ARM_SFT_LSL, op2, &carry);
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+
+        UPDATE_NZC;
+        break;
+
+    case ARM_INS_MVN:
+        op2 = OPERAND(1);
+
+        value = ~op2;
 
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
 
