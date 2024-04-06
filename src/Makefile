@@ -7,7 +7,7 @@ LDIR =../lib
 
 LIBS=-lm -lcapstone
 
-DEPS = $(wildcard $(IDIR)/**/*.h)
+DEPS = $(shell find $(IDIR) -type f -name '*.h')
 
 _OBJ = infiniemu.o cpu.o memory.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))

@@ -3,20 +3,29 @@
 #include <stdlib.h>
 
 #include "memory.h"
+#include "arm.h"
 
 typedef struct
 {
-    uint32_t foo;
+    arm_resetreason resetreason;
 } POWER_t;
+
 
 OPERATION(power)
 {
     OP_ASSERT_SIZE(op, WORD);
 
-    // POWER_t *power = (POWER_t *)userdata;
+    POWER_t *power = (POWER_t *)userdata;
 
     switch (offset)
     {
+        case 0x400:
+            if (OP_IS_READ(op))
+                *value = power->resetreason;
+            else
+                power->resetreason &= ~*value;
+
+            return true;
     }
 
     return false;
@@ -29,5 +38,5 @@ POWER_t *power_new()
 
 void power_reset(POWER_t *power)
 {
-    
+    power->resetreason = ARM_RESETREASON_RESETPIN;
 }

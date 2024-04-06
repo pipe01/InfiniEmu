@@ -17,3 +17,15 @@
 #define APSR_V 28
 #define APSR_Q 27
 #define APSR_GE (0b1111 << 16)
+
+typedef enum
+{
+    ARM_RESETREASON_RESETPIN = 1 << 0, // Reset from pin-reset detected
+    ARM_RESETREASON_DOG = 1 << 1,      // Reset from watchdog detected
+    ARM_RESETREASON_SREQ = 1 << 2,     // Reset from soft reset detected
+    ARM_RESETREASON_LOCKUP = 1 << 3,   // Reset from CPU lock-up detected
+    ARM_RESETREASON_OFF = 1 << 16,     // Reset due to wake up from System OFF mode when wakeup is triggered from DETECT signal from GPIO
+    ARM_RESETREASON_LPCOMP = 1 << 17,  // Reset due to wake up from System OFF mode when wakeup is triggered from ANADETECT signal from LPCOMP
+    ARM_RESETREASON_DIF = 1 << 18,     // Reset due to wake up from System OFF mode when wakeup is triggered from entering into debug interface mode
+    ARM_RESETREASON_NFC = 1 << 19,     // Reset due to wake up from System OFF mode by NFC field detect
+} arm_resetreason;
