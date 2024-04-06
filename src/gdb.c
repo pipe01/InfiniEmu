@@ -209,7 +209,7 @@ char *gdb_qXfer(gdbstub *gdb, char *msg)
 
     send_response_binary(gdb->fd, buf, sizeof(buf));
 
-    return NULL;
+    return msg;
 }
 
 char *gdb_queryGeneral(gdbstub *gdb, char *msg)
@@ -222,8 +222,6 @@ char *gdb_queryGeneral(gdbstub *gdb, char *msg)
         return gdb_qSupported(gdb, rest);
     if (strncmp(msg, "Xfer", query_len) == 0)
         return gdb_qXfer(gdb, rest);
-
-    send_response_str(gdb->fd, "");
 
     return NULL;
 }
@@ -268,6 +266,51 @@ char *gdb_queryReadRegisters(gdbstub *gdb, char *msg)
     send_response_bytes(gdb->fd, registers, sizeof(registers));
 
     return msg + 1;
+}
+
+char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
+{
+    NRF52832_t *nrf = gdb->gdb->nrf;
+    cpu_t *cpu = nrf52832_get_cpu(nrf);
+
+    char *dup = strdup(msg);
+
+    uint32_t start = 0, length = 0;
+    
+    char *token = strtok(dup, ",");
+    if (token == NULL)
+    {
+        free(dup);
+        return NULL;
+    }
+    start = strtol(token, NULL, 16);
+
+    token = strtok(NULL, "#");
+    if (token == NULL)
+    {
+        free(dup);
+        return NULL;
+    }
+    length = strtol(token, NULL, 16);
+
+    msg += token + strlen(token) - dup; // Skip numbers
+
+    free(dup);
+
+    uint8_t buf[length];
+
+    for (size_t i = 0; i < length; i++)
+    {
+        if (!cpu_mem_read(cpu, start + i, buf + i))
+        {
+            send_response_str(gdb->fd, "E01");
+            return msg;
+        }
+    }
+
+    send_response_bytes(gdb->fd, buf, length);
+
+    return msg;
 }
 
 void gdbstub_run(gdbstub *gdb)
@@ -320,6 +363,11 @@ void gdbstub_run(gdbstub *gdb)
 
             case 'g':
                 ret = gdb_queryReadRegisters(gdb, msg);
+                break;
+
+            case 'm':
+                msg++;
+                ret = gdb_queryReadMemory(gdb, msg);
                 break;
 
             case '?':
