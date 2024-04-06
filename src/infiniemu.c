@@ -46,15 +46,16 @@ int main(int argc, char **argv)
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
-    NRF52832_t *nrf52 = nrf52832_new(program, fsize);
+    NRF52832_t *nrf = nrf52832_new(program, fsize);
 
     free(program);
 
-    gdb_start(nrf52);
+    gdb_t *gdb = gdb_new(nrf);
+    gdb_start(gdb);
 
     for (;;)
     {
-        nrf52832_step(nrf52);
+        nrf52832_step(nrf);
     }
 
     return 0;

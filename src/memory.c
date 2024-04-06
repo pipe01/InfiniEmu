@@ -70,6 +70,19 @@ memreg_t *memreg_new_operation(uint32_t start, size_t size, memreg_operation_t o
     return region;
 }
 
+bool memreg_is_mapped(memreg_t *region, uint32_t addr)
+{
+    while (region)
+    {
+        if (addr >= region->start && addr < region->end)
+            return true;
+
+        region = region->next;
+    }
+
+    return false;
+}
+
 uint32_t memreg_read(memreg_t *region, uint32_t addr)
 {
     uint32_t value;

@@ -506,14 +506,22 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
     }
 }
 
-uint8_t cpu_mem_read(cpu_t *cpu, uint32_t addr)
+bool cpu_mem_read(cpu_t *cpu, uint32_t addr, uint8_t *value)
 {
-    return memreg_read(cpu->mem, addr);
+    if (!memreg_is_mapped(cpu->mem, addr))
+        return false;
+    
+    *value = memreg_read(cpu->mem, addr);
+    return true;
 }
 
-void cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value)
+bool cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value)
 {
+    if (!memreg_is_mapped(cpu->mem, addr))
+        return false;
+    
     memreg_write(cpu->mem, addr, value, SIZE_BYTE);
+    return true;
 }
 
 void cpu_jump_exception(cpu_t *cpu, int exception_num)
