@@ -7,6 +7,7 @@
 
 #include "peripherals/nrf52832/clock.h"
 #include "peripherals/nrf52832/comp.h"
+#include "peripherals/nrf52832/gpio.h"
 #include "peripherals/nrf52832/power.h"
 #include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/temp.h"
@@ -31,6 +32,7 @@ struct NRF52832_inst_t {
     SCB_t *scb;
     DWT_t *dwt;
     NVIC_t *nvic;
+    GPIO_t *gpio;
 };
 
 #define NEW_PERIPH(type, name, addr, size, ...) \
@@ -58,6 +60,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(POWER, power, x(4000, 0000), 0x1000);
     NEW_PERIPH(RADIO, radio, x(4000, 1000), 0x1000);
     NEW_PERIPH(TEMP, temp, x(4000, C000), 0x1000);
+    NEW_PERIPH(GPIO, gpio, x(5000, 0000), 0x1000);
 
     last = last->next = memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len);
     last = last->next = memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len);
