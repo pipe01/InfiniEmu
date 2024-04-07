@@ -19,8 +19,6 @@ OPERATION(clock)
 
     CLOCK_t *clock = (CLOCK_t *)userdata;
 
-    printf("CLOCK: offset: 0x%x, op: %d\n", offset, op);
-
     switch (offset)
     {
     case 0x104: // EVENTS_LFCLKSTARTED

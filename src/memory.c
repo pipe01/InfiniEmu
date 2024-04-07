@@ -95,10 +95,8 @@ void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32
             if (result == MEMREG_RESULT_OK)
                 return;
 
-            if (result == MEMREG_RESULT_UNHANDLED)
-                continue;
-
-            break;
+            if (result != MEMREG_RESULT_UNHANDLED)
+                break;
         }
 
         region = region->next;
