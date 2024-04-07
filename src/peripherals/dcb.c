@@ -1,4 +1,4 @@
-#include "peripherals/ppb_dcb.h"
+#include "peripherals/dcb.h"
 
 #include <stdlib.h>
 

@@ -12,8 +12,8 @@
 #include "peripherals/nrf52832/temp.h"
 #include "peripherals/dwt.h"
 #include "peripherals/nvic.h"
-#include "peripherals/ppb_dcb.h"
-#include "peripherals/ppb_scb.h"
+#include "peripherals/dcb.h"
+#include "peripherals/scb.h"
 
 #include "../dumps/ficr.h"
 #include "../dumps/uicr.h"
