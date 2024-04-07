@@ -124,6 +124,7 @@ typedef struct
 {
     int fd;
     gdb_t *gdb;
+    bool noack;
 } gdbstub;
 
 void send_response_raw(int fd, const char *data, size_t len)
@@ -150,7 +151,7 @@ void send_response_raw(int fd, const char *data, size_t len)
 
     memcpy(buf + buf_size - 2, byte_buf, 2);
 
-    // printf("Sending response to GDB: %s\n", buf);
+    printf("Sending response to GDB: %s\n", buf);
 
     write(fd, buf, buf_size);
 }
@@ -206,7 +207,7 @@ void send_response_binary(int fd, const uint8_t *data, size_t len)
 
 char *gdb_qSupported(gdbstub *gdb, char *msg)
 {
-    send_response_str(gdb->fd, "hwbreak+;qXfer:features:read+;qXfer:memory-map:read+");
+    send_response_str(gdb->fd, "hwbreak+;qXfer:features:read+;qXfer:memory-map:read+;QStartNoAckMode+");
 
     return strchr(msg, '#');
 }
@@ -274,6 +275,9 @@ char *gdb_qXfer(gdbstub *gdb, char *msg)
 
 char *gdb_queryGeneral(gdbstub *gdb, char *msg)
 {
+    bool isSet = msg[0] == 'Q';
+    msg++;
+
     size_t query_len = (size_t)(strchr(msg, ':') - msg);
 
     char *rest = msg + query_len + 1;
@@ -282,6 +286,13 @@ char *gdb_queryGeneral(gdbstub *gdb, char *msg)
         return gdb_qSupported(gdb, rest);
     if (strncmp(msg, "Xfer", query_len) == 0)
         return gdb_qXfer(gdb, rest);
+    
+    if (isSet && HAS_PREFIX("StartNoAckMode", msg))
+    {
+        gdb->noack = true;
+        send_response_str(gdb->fd, "OK");
+        return strchr(msg, '#');
+    }
 
     return NULL;
 }
@@ -425,10 +436,12 @@ void gdbstub_run(gdbstub *gdb)
         if (nread <= 0)
             break;
 
+        printf("Received %ld bytes\n", nread);
+
         msg = in_buf;
         msg[nread] = 0;
 
-        // printf("Received message from GDB: %s\n", msg);
+        printf("Received message from GDB: %s\n", msg);
 
         while (msg[0] != 0)
         {
@@ -452,7 +465,8 @@ void gdbstub_run(gdbstub *gdb)
                 return;
             }
 
-            write(gdb->fd, "+", 1);
+            if (!gdb->noack)
+                write(gdb->fd, "+", 1);
 
             msg++;
 
@@ -461,7 +475,7 @@ void gdbstub_run(gdbstub *gdb)
             switch (msg[0])
             {
             case 'q':
-                msg++;
+            case 'Q':
                 ret = gdb_queryGeneral(gdb, msg);
                 break;
 
@@ -566,6 +580,7 @@ void *gdb_thread(void *arg)
         gdbstub stub = {
             .fd = client_fd,
             .gdb = gdb,
+            .noack = false,
         };
 
         pthread_mutex_lock(&gdb->conn_lock);
