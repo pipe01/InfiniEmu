@@ -76,8 +76,6 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset)
     {
         bool carry = false;
         value = Shift_C(value, op->shift.type, op->shift.value, &carry);
-
-        abort();
     }
 
     return value;
@@ -174,7 +172,7 @@ static bool cpu_is_privileged(cpu_t *cpu)
 
 static int cpu_execution_priority(cpu_t *cpu)
 {
-    return -1; //TODO: Implement
+    return -1; // TODO: Implement
 }
 
 #define UPDATE_N(cpu, value) ((((value) >> 31) == 1) ? SET((cpu)->xpsr, APSR_N) : CLEAR((cpu)->xpsr, APSR_N))
@@ -342,6 +340,16 @@ void cpu_step(cpu_t *cpu)
         cpu->branched = true;
         break;
 
+    case ARM_INS_BIC:
+        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+
+        value = op0 & ~op1;
+
+        // TODO: Update carry
+        UPDATE_NZ;
+        break;
+
     case ARM_INS_BL:
     case ARM_INS_BLX:
         cpu_reg_write(cpu, ARM_REG_LR, next | 1);
@@ -432,6 +440,13 @@ void cpu_step(cpu_t *cpu)
 
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_BYTE);
         break;
+    
+    case ARM_INS_LDRD:
+        value = cpu_mem_operand_address(cpu, detail.operands[2].mem);
+
+        cpu_store_operand(cpu, &detail.operands[0], memreg_read(cpu->mem, value), SIZE_WORD);
+        cpu_store_operand(cpu, &detail.operands[1], memreg_read(cpu->mem, value + 4), SIZE_WORD);
+        break;
 
     case ARM_INS_LSL:
         op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
@@ -442,6 +457,17 @@ void cpu_step(cpu_t *cpu)
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
+        break;
+
+    case ARM_INS_MUL:
+        op0 = OPERAND(1);
+        op1 = OPERAND(2);
+
+        value = op0 * op1;
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+
+        UPDATE_NZ
         break;
 
     case ARM_INS_MVN:
@@ -515,6 +541,18 @@ void cpu_step(cpu_t *cpu)
         }
         break;
 
+    case ARM_INS_STRD:
+        op0 = cpu_load_operand(cpu, &detail.operands[0], 0);
+        op1 = cpu_load_operand(cpu, &detail.operands[1], 0);
+        value = cpu_mem_operand_address(cpu, detail.operands[2].mem);
+
+        cpu_mem_write(cpu, value, op0);
+        cpu_mem_write(cpu, value + 4, op1);
+
+        if (detail.writeback)
+            abort(); // TODO: Implement
+        break;
+
     case ARM_INS_STRH:
         op1 = cpu_mem_operand_address(cpu, detail.operands[1].mem);
 
@@ -537,6 +575,15 @@ void cpu_step(cpu_t *cpu)
         UPDATE_NZCV
         break;
 
+    case ARM_INS_TST:
+        op0 = OPERAND(0);
+        op1 = OPERAND(1);
+
+        value = op0 & op1;
+
+        UPDATE_NZC
+        break;
+
     case ARM_INS_UBFX:
     {
         op1 = OPERAND(1);
@@ -552,7 +599,7 @@ void cpu_step(cpu_t *cpu)
     }
 
     default:
-        fprintf(stderr, "Unhandled instruction %s %s\n", i->mnemonic, i->op_str);
+        fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, pc);
         // abort();
         exit(1);
     }
