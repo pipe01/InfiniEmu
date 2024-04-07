@@ -167,6 +167,11 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
     }
 }
 
+// static bool cpu_is_privileged(cpu_t *cpu)
+// {
+//     return cpu->mode == ARM_MODE_HANDLER || !IS_SET(cpu->control, CONTROL_nPRIV);
+// }
+
 #define UPDATE_N(cpu, value) ((((value) >> 31) == 1) ? SET((cpu)->xpsr, APSR_N) : CLEAR((cpu)->xpsr, APSR_N))
 #define UPDATE_Z(cpu, value) (((value) == 0) ? SET((cpu)->xpsr, APSR_Z) : CLEAR((cpu)->xpsr, APSR_Z))
 #define UPDATE_C(cpu, carry) ((carry) ? SET((cpu)->xpsr, APSR_C) : CLEAR((cpu)->xpsr, APSR_C))
@@ -596,6 +601,12 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
     {
     case ARM_SYSREG_XPSR:
         return cpu->xpsr;
+
+    case ARM_SYSREG_MSP:
+        return cpu->sp_main;
+
+    case ARM_SYSREG_PSP:
+        return cpu->sp_process;
 
     case ARM_SYSREG_CONTROL:
         return cpu->control;

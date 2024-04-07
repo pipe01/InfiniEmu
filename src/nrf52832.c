@@ -10,6 +10,7 @@
 #include "peripherals/nrf52832/power.h"
 #include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/temp.h"
+#include "peripherals/nvic.h"
 #include "peripherals/ppb_scb.h"
 
 #include "../dumps/ficr.h"
@@ -25,6 +26,7 @@ struct NRF52832_inst_t {
     RADIO_t *radio;
     TEMP_t *temp;
     SCB_t *scb;
+    NVIC_t *nvic;
 };
 
 #define NEW_PERIPH(type, name, addr, size, ...) \
@@ -58,6 +60,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     last = last->next = memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len);
 
     NEW_PERIPH(SCB, scb, x(E000, ED00), 0x8F);
+    NEW_PERIPH(NVIC, nvic, x(E000, E100), 0xBFF);
 
     chip->cpu = cpu_new(flash, NRF52832_FLASH_SIZE, mem_first);
 
