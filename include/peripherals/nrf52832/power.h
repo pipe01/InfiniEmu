@@ -1,42 +1,17 @@
 #pragma once
 
-#include <stdlib.h>
+#include "peripherals/peripheral.h"
 
-#include "memory.h"
-#include "arm.h"
-
-typedef struct
+typedef enum
 {
-    arm_resetreason resetreason;
-} POWER_t;
+    RESETREASON_RESETPIN = 1 << 0, // Reset from pin-reset detected
+    RESETREASON_DOG = 1 << 1,      // Reset from watchdog detected
+    RESETREASON_SREQ = 1 << 2,     // Reset from soft reset detected
+    RESETREASON_LOCKUP = 1 << 3,   // Reset from CPU lock-up detected
+    RESETREASON_OFF = 1 << 16,     // Reset due to wake up from System OFF mode when wakeup is triggered from DETECT signal from GPIO
+    RESETREASON_LPCOMP = 1 << 17,  // Reset due to wake up from System OFF mode when wakeup is triggered from ANADETECT signal from LPCOMP
+    RESETREASON_DIF = 1 << 18,     // Reset due to wake up from System OFF mode when wakeup is triggered from entering into debug interface mode
+    RESETREASON_NFC = 1 << 19,     // Reset due to wake up from System OFF mode by NFC field detect
+} nrf_resetreason;
 
-
-OPERATION(power)
-{
-    OP_ASSERT_SIZE(op, WORD);
-
-    POWER_t *power = (POWER_t *)userdata;
-
-    switch (offset)
-    {
-        case 0x400:
-            if (OP_IS_READ(op))
-                *value = power->resetreason;
-            else
-                power->resetreason &= ~*value;
-
-            return MEMREG_RESULT_OK;
-    }
-
-    return MEMREG_RESULT_UNHANDLED;
-}
-
-POWER_t *power_new()
-{
-    return (POWER_t *)malloc(sizeof(POWER_t));
-}
-
-void power_reset(POWER_t *power)
-{
-    power->resetreason = ARM_RESETREASON_RESETPIN;
-}
+PERIPHERAL(POWER, power)
