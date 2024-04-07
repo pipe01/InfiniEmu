@@ -11,6 +11,8 @@ struct CLOCK_inst_t
 
     uint32_t lfclk_source;
     bool lfclk_running;
+
+    uint32_t inten;
 };
 
 OPERATION(clock)
@@ -21,6 +23,12 @@ OPERATION(clock)
 
     switch (offset)
     {
+    case 0x008: // TASKS_LFCLKSTART
+        OP_ASSERT_WRITE(op);
+
+        clock->lfclk_running = true;
+        return MEMREG_RESULT_OK;
+
     case 0x104: // EVENTS_LFCLKSTARTED
         if (OP_IS_READ(op))
             *value = clock->events_lfclkstarted ? 1 : 0;
@@ -37,11 +45,28 @@ OPERATION(clock)
         // Do nothing
         return MEMREG_RESULT_OK;
 
+    case 0x304: // INTENSET
+        if (OP_IS_READ(op))
+            *value = clock->inten;
+        else
+            clock->inten |= *value;
+        return MEMREG_RESULT_OK;
+
+    case 0x308: // INTENCLR
+        if (OP_IS_READ(op))
+            *value = clock->inten;
+        else
+            clock->inten &= ~*value;
+        return MEMREG_RESULT_OK;
+
     case 0x418: // LFCLKSTAT
         OP_ASSERT_READ(op);
 
-        *value = (clock->lfclk_source & 3) | (clock->lfclk_running ? 1 : 0);
+        *value = (clock->lfclk_source & 3) | (clock->lfclk_running ? 1 << 16 : 0);
         return MEMREG_RESULT_OK;
+
+    case 0x518: // LFCLKSRC
+        OP_RETURN_REG(clock->lfclk_source, WORD);
 
     case 0x53C: // Magic, do nothing
         return MEMREG_RESULT_OK;
