@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LOG_CPU
+// #define LOG_CPU
 
 #ifdef LOG_CPU
 #define LOGF(...) printf(__VA_ARGS__)
@@ -214,6 +214,7 @@ void cpu_reset(cpu_t *cpu)
 
     cpu->core_regs[ARM_REG_SP] = READ_UINT32(cpu->program, 0);
     cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
+    cpu->xpsr = 0x1000000;
 
     // cpu->core_regs[ARM_REG_PC] = 0x1d1a8;
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
@@ -514,9 +515,9 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
         return cpu->xpsr;
 
     default:
-        fprintf(stderr, "Unhandled system register %d\n", reg);
-        return 0;
+        // fprintf(stderr, "Unhandled system register %d\n", reg);
         // abort();
+        return 0;
     }
 }
 

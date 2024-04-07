@@ -61,6 +61,8 @@ const char memory_map_xml[] = QUOTE(
 #define HAS_PREFIX(haystack, needle) (strncmp((needle), (haystack), sizeof(needle) - 1) == 0)
 #define SKIP(str) msg += sizeof(str) - 1
 
+#define MAX_BREAKPOINTS 32
+
 bool has_prefix(const char *pre, const char *str)
 {
     return strncmp(pre, str, strlen(pre)) == 0;
@@ -69,7 +71,54 @@ bool has_prefix(const char *pre, const char *str)
 struct gdb_inst_t
 {
     NRF52832_t *nrf;
+
+    pthread_cond_t conn_cond;
+    pthread_mutex_t conn_lock;
+    bool has_connected;
+
+    pthread_cond_t pause_cond;
+    pthread_mutex_t pause_lock;
+    bool is_paused;
+
+    uint32_t breakpoints[MAX_BREAKPOINTS];
+    size_t breakpoint_num;
 };
+
+void gdb_set_paused(gdb_t *gdb, bool paused)
+{
+    pthread_mutex_lock(&gdb->pause_lock);
+    gdb->is_paused = paused;
+    pthread_cond_signal(&gdb->pause_cond);
+    pthread_mutex_unlock(&gdb->pause_lock);
+}
+
+void gdb_add_breakpoint(gdb_t *gdb, uint32_t addr)
+{
+    if (gdb->breakpoint_num >= MAX_BREAKPOINTS)
+    {
+        printf("Maximum number of breakpoints reached\n");
+        return;
+    }
+
+    printf("Adding breakpoint at 0x%08x\n", addr);
+
+    gdb->breakpoints[gdb->breakpoint_num++] = addr;
+}
+
+void gdb_remove_breakpoint(gdb_t *gdb, uint32_t addr)
+{
+    printf("Removing breakpoint at 0x%08x\n", addr);
+
+    for (size_t i = 0; i < gdb->breakpoint_num; i++)
+    {
+        if (gdb->breakpoints[i] == addr)
+        {
+            gdb->breakpoints[i] = gdb->breakpoints[gdb->breakpoint_num - 1];
+            gdb->breakpoint_num--;
+            return;
+        }
+    }
+}
 
 typedef struct
 {
@@ -101,7 +150,7 @@ void send_response_raw(int fd, const char *data, size_t len)
 
     memcpy(buf + buf_size - 2, byte_buf, 2);
 
-    printf("Sending response to GDB: %s\n", buf);
+    // printf("Sending response to GDB: %s\n", buf);
 
     write(fd, buf, buf_size);
 }
@@ -167,8 +216,6 @@ char *gdb_qXfer(gdbstub *gdb, char *msg)
     const char *data;
     size_t data_size;
 
-    printf("msg: %s\n", msg);
-    
     if (has_prefix("features:read:target.xml:", msg))
     {
         msg += sizeof("features:read:target.xml:") - 1;
@@ -267,7 +314,7 @@ char *gdb_queryReadRegisters(gdbstub *gdb, char *msg)
     WRITE_UINT32(registers, 48, cpu_reg_read(cpu, ARM_REG_R12));
     WRITE_UINT32(registers, 52, cpu_reg_read(cpu, ARM_REG_SP));
     WRITE_UINT32(registers, 56, cpu_reg_read(cpu, ARM_REG_LR));
-    WRITE_UINT32(registers, 60, cpu_reg_read(cpu, ARM_REG_PC));
+    WRITE_UINT32(registers, 60, cpu_reg_read(cpu, ARM_REG_PC) - 4);
     WRITE_UINT32(registers, 64, cpu_sysreg_read(cpu, ARM_SYSREG_MSP));
     WRITE_UINT32(registers, 68, cpu_sysreg_read(cpu, ARM_SYSREG_PSP));
     WRITE_UINT32(registers, 72, cpu_sysreg_read(cpu, ARM_SYSREG_PRIMASK));
@@ -326,6 +373,45 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
     return msg;
 }
 
+char *gdb_breakpoint(gdbstub *gdb, char *msg)
+{
+    bool remove = msg[0] == 'z';
+    msg++;
+
+    char kind = msg[0];
+    msg++;
+
+    if (kind != '1')
+    {
+        send_response_str(gdb->fd, "E01");
+        return strchr(msg, '#');
+    }
+
+    msg++; // Skip comma
+
+    char *dup = strdup(msg);
+
+    char *token = strtok(dup, ",");
+    if (token == NULL)
+    {
+        free(dup);
+        return NULL;
+    }
+
+    uint32_t addr = strtol(token, NULL, 16);
+
+    free(dup);
+
+    if (remove)
+        gdb_remove_breakpoint(gdb->gdb, addr);
+    else
+        gdb_add_breakpoint(gdb->gdb, addr);
+
+    send_response_str(gdb->fd, "OK");
+
+    return strchr(msg, '#');
+}
+
 void gdbstub_run(gdbstub *gdb)
 {
     char in_buf[4096];
@@ -342,13 +428,19 @@ void gdbstub_run(gdbstub *gdb)
         msg = in_buf;
         msg[nread] = 0;
 
-        printf("Received message from GDB: %s\n", msg);
+        // printf("Received message from GDB: %s\n", msg);
 
         while (msg[0] != 0)
         {
             if (msg[0] == '+' || msg[0] == '-')
             {
                 // Skip acknowledgement
+                msg++;
+                continue;
+            }
+            if (msg[0] == '\x03') // Control+C
+            {
+                gdb_set_paused(gdb->gdb, true);
                 msg++;
                 continue;
             }
@@ -384,6 +476,20 @@ void gdbstub_run(gdbstub *gdb)
 
             case '?':
                 ret = gdb_queryHalted(gdb, msg);
+                break;
+
+            case 'z':
+            case 'Z':
+                ret = gdb_breakpoint(gdb, msg);
+                break;
+
+            case 'c':
+                msg++;
+                gdb_set_paused(gdb->gdb, false);
+
+                gdb_wait_for_unpause(gdb->gdb);
+
+                send_response_str(gdb->fd, "S05");
                 break;
             }
 
@@ -462,6 +568,11 @@ void *gdb_thread(void *arg)
             .gdb = gdb,
         };
 
+        pthread_mutex_lock(&gdb->conn_lock);
+        gdb->has_connected = true;
+        pthread_cond_signal(&gdb->conn_cond);
+        pthread_mutex_unlock(&gdb->conn_lock);
+
         gdbstub_run(&stub);
 
         close(client_fd);
@@ -473,7 +584,17 @@ void *gdb_thread(void *arg)
 gdb_t *gdb_new(NRF52832_t *nrf52832)
 {
     gdb_t *gdb = (gdb_t *)malloc(sizeof(gdb_t));
+    memset(gdb, 0, sizeof(gdb_t));
+
     gdb->nrf = nrf52832;
+    gdb->is_paused = true;
+
+    pthread_mutex_init(&gdb->conn_lock, NULL);
+    pthread_cond_init(&gdb->conn_cond, NULL);
+
+    pthread_mutex_init(&gdb->pause_lock, NULL);
+    pthread_cond_init(&gdb->pause_cond, NULL);
+
     return gdb;
 }
 
@@ -482,5 +603,47 @@ void gdb_start(gdb_t *gdb)
     pthread_t thread;
 
     pthread_create(&thread, NULL, gdb_thread, gdb);
-    pthread_join(thread, NULL);
+}
+
+void gdb_wait_for_connection(gdb_t *gdb)
+{
+    pthread_mutex_lock(&gdb->conn_lock);
+
+    while (!gdb->has_connected)
+    {
+        pthread_cond_wait(&gdb->conn_cond, &gdb->conn_lock);
+    }
+
+    pthread_mutex_unlock(&gdb->conn_lock);
+}
+
+void gdb_wait_for_unpause(gdb_t *gdb)
+{
+    pthread_mutex_lock(&gdb->pause_lock);
+
+    while (gdb->is_paused)
+    {
+        pthread_cond_wait(&gdb->pause_cond, &gdb->pause_lock);
+    }
+
+    pthread_mutex_unlock(&gdb->pause_lock);
+}
+
+bool gdb_has_breakpoint_at(gdb_t *gdb, uint32_t addr)
+{
+    for (size_t i = 0; i < gdb->breakpoint_num; i++)
+    {
+        if (gdb->breakpoints[i] == addr)
+            return true;
+    }
+
+    return false;
+}
+
+void gdb_check_breakpoint(gdb_t *gdb, uint32_t addr)
+{
+    if (gdb_has_breakpoint_at(gdb, addr))
+    {
+        gdb_set_paused(gdb, true);
+    }
 }
