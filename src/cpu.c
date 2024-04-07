@@ -15,11 +15,16 @@
 #define LOGF(...)
 #endif
 
+#define UNPREDICTABLE abort()
+
 struct cpu_inst_t
 {
     uint32_t core_regs[ARM_REG_ENDING - 1];
     uint32_t sp_main, sp_process;
-    uint32_t xpsr;
+
+    uint32_t xpsr, control, faultmask, basepri, primask;
+
+    arm_mode mode;
 
     uint8_t *program;
     size_t program_size;
@@ -234,11 +239,20 @@ void cpu_reset(cpu_t *cpu)
 {
     memset(cpu->core_regs, 0, sizeof(cpu->core_regs));
 
-    cpu->core_regs[ARM_REG_SP] = READ_UINT32(cpu->program, 0);
+    uint32_t sp = READ_UINT32(cpu->program, 0);
+
+    cpu->mode = ARM_MODE_THREAD;
+    cpu->core_regs[ARM_REG_SP] = sp;
     cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
     cpu->xpsr = 1 << EPSR_T;
+    cpu->control = 0;
+    cpu->faultmask = 0;
+    cpu->basepri = 0;
+    cpu->primask = 0;
 
-    // cpu->core_regs[ARM_REG_PC] = 0x1d1a8;
+    cpu->sp_main = sp;
+    cpu->sp_process = sp;
+
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
 }
 
@@ -475,7 +489,7 @@ void cpu_step(cpu_t *cpu)
 
         value = OPERAND(0);
 
-        memreg_write(cpu->mem, op1, op0, SIZE_HALFWORD);
+        memreg_write(cpu->mem, op1, value, SIZE_HALFWORD);
         break;
 
     case ARM_INS_SUB:
@@ -517,18 +531,46 @@ next_pc:
         cpu_reg_write(cpu, ARM_REG_PC, next | 1);
 }
 
+uint32_t *cpu_get_sp(cpu_t *cpu)
+{
+    if (IS_SET(cpu->control, CONTROL_SPSEL))
+    {
+        if (cpu->mode == ARM_MODE_THREAD)
+        {
+            return &cpu->sp_process;
+        }
+        else
+        {
+            UNPREDICTABLE;
+            return &cpu->sp_process;
+        }
+    }
+    else
+    {
+        return &cpu->sp_main;
+    }
+}
+
 uint32_t cpu_reg_read(cpu_t *cpu, arm_reg reg)
 {
-    if (reg == ARM_REG_PC)
+    switch (reg)
+    {
+    case ARM_REG_PC:
         return cpu->core_regs[ARM_REG_PC] + 4;
 
-    return cpu->core_regs[reg]; // TODO: Bank SP_main and SP_process
+    case ARM_REG_SP:
+        return *cpu_get_sp(cpu);
+
+    default:
+        return cpu->core_regs[reg];
+    }
 }
 
 void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
 {
-    if (reg == ARM_REG_PC)
+    switch (reg)
     {
+    case ARM_REG_PC:
         if ((value & 1) != 1)
         {
             fprintf(stderr, "PC is not aligned\n");
@@ -536,10 +578,15 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
         }
 
         cpu->core_regs[ARM_REG_PC] = value & ~1;
-    }
-    else
-    {
-        cpu->core_regs[reg] = value; // TODO: Bank SP_main and SP_process
+        break;
+
+    case ARM_REG_SP:
+        *cpu_get_sp(cpu) = value;
+        break;
+
+    default:
+        cpu->core_regs[reg] = value;
+        break;
     }
 }
 
@@ -549,6 +596,18 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
     {
     case ARM_SYSREG_XPSR:
         return cpu->xpsr;
+
+    case ARM_SYSREG_CONTROL:
+        return cpu->control;
+
+    case ARM_SYSREG_FAULTMASK:
+        return cpu->faultmask;
+
+    case ARM_SYSREG_BASEPRI:
+        return cpu->basepri;
+
+    case ARM_SYSREG_PRIMASK:
+        return cpu->primask;
 
     default:
         // fprintf(stderr, "Unhandled system register %d\n", reg);

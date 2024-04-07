@@ -63,7 +63,7 @@ int main(int argc, char **argv)
 
     free(program);
 
-    gdb_t *gdb;
+    gdb_t *gdb = NULL;
 
     if (run_gdb)
     {

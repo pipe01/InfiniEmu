@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/infiniemu",
-            "args": ["-dwf", "${workspaceFolder}/infinitime.bin"],
+            "args": ["-f", "${workspaceFolder}/infinitime.bin"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],

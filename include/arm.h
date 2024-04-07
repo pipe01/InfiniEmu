@@ -20,6 +20,10 @@
 
 #define EPSR_T 24
 
+#define CONTROL_nPRIV 0
+#define CONTROL_SPSEL 1
+#define CONTROL_FPCA 2
+
 typedef enum
 {
     ARM_MODE_THREAD = 0,
