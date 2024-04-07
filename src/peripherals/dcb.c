@@ -21,7 +21,7 @@ OPERATION(dcb)
         OP_RETURN_REG(dcb->demcr, WORD);
     }
 
-    return false;
+    return MEMREG_RESULT_UNHANDLED;
 }
 
 DCB_t *dcb_new()

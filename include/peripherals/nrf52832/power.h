@@ -25,10 +25,10 @@ OPERATION(power)
             else
                 power->resetreason &= ~*value;
 
-            return true;
+            return MEMREG_RESULT_OK;
     }
 
-    return false;
+    return MEMREG_RESULT_UNHANDLED;
 }
 
 POWER_t *power_new()

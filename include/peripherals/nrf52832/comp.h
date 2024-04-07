@@ -6,7 +6,7 @@
 
 typedef struct
 {
-    uint32_t cpacr;
+    uint32_t foo;
 } COMP_t;
 
 OPERATION(comp)
@@ -18,10 +18,10 @@ OPERATION(comp)
     switch (offset)
     {
         case 0x540: // Unknown, do nothing
-            return true;
+            return MEMREG_RESULT_OK;
     }
 
-    return false;
+    return MEMREG_RESULT_UNHANDLED;
 }
 
 COMP_t *comp_new()
@@ -31,5 +31,4 @@ COMP_t *comp_new()
 
 void comp_reset(COMP_t *comp)
 {
-    comp->cpacr = 0;
 }

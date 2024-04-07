@@ -3,7 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define OPERATION(name) bool name##_operation(uint32_t offset, uint32_t *value, int op, void *userdata)
+#include "../memory.h"
+
+#define OPERATION(name) memreg_op_result_t name##_operation(uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
 
 #define PERIPHERAL(type, name) \
     typedef struct type##_inst_t type##_t; \

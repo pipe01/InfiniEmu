@@ -30,7 +30,7 @@ OPERATION(temp)
         OP_RETURN_REG(temp->t[(offset - 0x560) / 4], WORD);
     }
 
-    return false;
+    return MEMREG_RESULT_UNHANDLED;
 }
 
 TEMP_t *temp_new()

@@ -18,10 +18,10 @@ OPERATION(radio)
     switch (offset)
     {
         case 0x73C: // Unknown, do nothing
-            return true;
+            return MEMREG_RESULT_OK;
     }
 
-    return false;
+    return MEMREG_RESULT_UNHANDLED;
 }
 
 RADIO_t *radio_new()

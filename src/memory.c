@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
-bool simple_operation(uint32_t offset, uint32_t *value, int op, void *userdata)
+memreg_op_result_t simple_operation(uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
 {
     uint8_t *data = (uint8_t *)userdata;
 
@@ -35,13 +35,12 @@ bool simple_operation(uint32_t offset, uint32_t *value, int op, void *userdata)
     case OP_WRITE_WORD:
         WRITE_UINT32(data, offset, *value);
         break;
-    
+
     default:
-        printf("Unhandled operation %d\n", op);
-        abort();
+        return MEMREG_RESULT_UNHANDLED;
     }
 
-    return true;
+    return MEMREG_RESULT_OK;
 }
 
 memreg_t *memreg_new_simple(uint32_t start, uint8_t *data, size_t data_size)
@@ -83,39 +82,58 @@ bool memreg_is_mapped(memreg_t *region, uint32_t addr)
     return false;
 }
 
-uint32_t memreg_read(memreg_t *region, uint32_t addr)
+void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32_t *value)
 {
-    uint32_t value;
+    memreg_op_result_t result = MEMREG_RESULT_UNHANDLED;
 
     while (region)
     {
         if (addr >= region->start && addr < region->end)
         {
-            if (region->operation(addr - region->start, &value, OP_READ_WORD, region->userdata))
-                return value;
+            result = region->operation(addr - region->start, value, op, region->userdata);
+
+            if (result == MEMREG_RESULT_OK)
+                return;
+
+            if (result == MEMREG_RESULT_UNHANDLED)
+                continue;
+
+            break;
         }
 
         region = region->next;
     }
 
-    printf("Tried to read from unmapped memory at 0x%08X\n", addr);
+    switch (result)
+    {
+    case MEMREG_RESULT_INVALID_ACCESS:
+        printf("Invalid memory access at 0x%08X\n", addr);
+        break;
+
+    case MEMREG_RESULT_INVALID_SIZE:
+        printf("Invalid memory access size at 0x%08X\n", addr);
+        break;
+
+    case MEMREG_RESULT_UNHANDLED:
+        printf("Tried to access unmapped memory at 0x%08X\n", addr);
+        break;
+
+    default:
+        printf("Unknown error on memory operation at 0x%08X\n", addr);
+        break;
+    }
+
     abort(); // TODO: Handle this better
 }
 
-void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, size_t size)
+uint32_t memreg_read(memreg_t *region, uint32_t addr)
 {
-    // printf("Writing to 0x%08X: 0x%08X, size: %ld\n", addr, value, size);
+    uint32_t value;
+    memreg_do_operation(region, addr, OP_READ_WORD, &value);
+    return value;
+}
 
-    while (region)
-    {
-        if (addr >= region->start && addr < region->end)
-        {
-            region->operation(addr - region->start, &value, -size, region->userdata);
-            return;
-        }
-
-        region = region->next;
-    }
-
-    abort(); // TODO: Handle this better
+void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, byte_size_t size)
+{
+    memreg_do_operation(region, addr, -size, &value);
 }

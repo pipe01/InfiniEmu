@@ -25,7 +25,7 @@ OPERATION(dwt)
         OP_RETURN_REG(dwt->cyccnt, WORD);
     }
 
-    return false;
+    return MEMREG_RESULT_UNHANDLED;
 }
 
 DWT_t *dwt_new()

@@ -34,7 +34,7 @@ OPERATION(nvic)
             else if (OP_IS_WRITE(op))
                 *reg |= *value;
 
-            return true;
+            return MEMREG_RESULT_OK;
         }
         else if (OP_IS_SIZE(op, WORD))
         {
@@ -45,7 +45,7 @@ OPERATION(nvic)
             else if (OP_IS_WRITE(op))
                 *reg |= *value;
 
-            return true;
+            return MEMREG_RESULT_OK;
         }
     }
     // NVIC_ICER[n]
@@ -57,11 +57,14 @@ OPERATION(nvic)
         {
         case OP_READ_BYTE:
             *value = *reg;
-            return true;
+            return MEMREG_RESULT_OK;
 
         case OP_WRITE_BYTE:
             *reg &= ~*value;
-            return true;
+            return MEMREG_RESULT_OK;
+
+        default:
+            return MEMREG_RESULT_INVALID_ACCESS;
         }
     }
     // NVIC_IPR[n]
@@ -70,7 +73,7 @@ OPERATION(nvic)
         OP_RETURN_REG(nvic->interrupt_priority[offset - 0x300], BYTE);
     }
 
-    return false;
+    return MEMREG_RESULT_UNHANDLED;
 }
 
 NVIC_t *nvic_new()

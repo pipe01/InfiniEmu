@@ -21,7 +21,7 @@ OPERATION(scb)
         OP_RETURN_REG(scb->cpacr, WORD);
     }
 
-    return false;
+    return MEMREG_RESULT_UNHANDLED;
 }
 
 SCB_t *scb_new()
