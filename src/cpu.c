@@ -167,10 +167,15 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
     }
 }
 
-// static bool cpu_is_privileged(cpu_t *cpu)
-// {
-//     return cpu->mode == ARM_MODE_HANDLER || !IS_SET(cpu->control, CONTROL_nPRIV);
-// }
+static bool cpu_is_privileged(cpu_t *cpu)
+{
+    return cpu->mode == ARM_MODE_HANDLER || !IS_SET(cpu->control, CONTROL_nPRIV);
+}
+
+static int cpu_execution_priority(cpu_t *cpu)
+{
+    return -1; //TODO: Implement
+}
 
 #define UPDATE_N(cpu, value) ((((value) >> 31) == 1) ? SET((cpu)->xpsr, APSR_N) : CLEAR((cpu)->xpsr, APSR_N))
 #define UPDATE_Z(cpu, value) (((value) == 0) ? SET((cpu)->xpsr, APSR_Z) : CLEAR((cpu)->xpsr, APSR_Z))
@@ -364,6 +369,27 @@ void cpu_step(cpu_t *cpu)
         value = AddWithCarry(op0, ~op1, &carry, &overflow);
 
         UPDATE_NZCV
+        break;
+
+    case ARM_INS_CPS:
+        if (cpu_is_privileged(cpu))
+        {
+            if (detail.cps_mode == ARM_CPSMODE_IE)
+            {
+                if ((detail.cps_flag & ARM_CPSFLAG_I) != 0)
+                    CLEAR(cpu->primask, 0);
+                if ((detail.cps_flag & ARM_CPSFLAG_F) != 0)
+                    CLEAR(cpu->faultmask, 0);
+            }
+            else if (detail.cps_mode == ARM_CPSMODE_ID)
+            {
+                if ((detail.cps_flag & ARM_CPSFLAG_I) != 0)
+                    SET(cpu->primask, 0);
+
+                if ((detail.cps_flag & ARM_CPSFLAG_F) != 0 && cpu_execution_priority(cpu) > -1)
+                    SET(cpu->faultmask, 0);
+            }
+        }
         break;
 
     case ARM_INS_DSB:
