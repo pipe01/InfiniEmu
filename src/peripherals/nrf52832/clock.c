@@ -6,17 +6,24 @@
 
 struct CLOCK_inst_t
 {
-    uint32_t foo;
+    bool events_lfclkstarted;
 };
 
 OPERATION(clock)
 {
     OP_ASSERT_SIZE(op, WORD);
 
-    // CLOCK_t *clock = (CLOCK_t *)userdata;
+    CLOCK_t *clock = (CLOCK_t *)userdata;
 
     switch (offset)
     {
+        case 0x104: // EVENTS_LFCLKSTARTED
+            if (OP_IS_READ(op))
+                *value = clock->events_lfclkstarted ? 1 : 0;
+            else if (OP_IS_WRITE(op))
+                clock->events_lfclkstarted = *value;
+            return true;
+
         case 0x53C: // Unknown, do nothing
             return true;
     }

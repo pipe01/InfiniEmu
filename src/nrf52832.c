@@ -10,7 +10,9 @@
 #include "peripherals/nrf52832/power.h"
 #include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/temp.h"
+#include "peripherals/dwt.h"
 #include "peripherals/nvic.h"
+#include "peripherals/ppb_dcb.h"
 #include "peripherals/ppb_scb.h"
 
 #include "../dumps/ficr.h"
@@ -25,7 +27,9 @@ struct NRF52832_inst_t {
     POWER_t *power;
     RADIO_t *radio;
     TEMP_t *temp;
+    DCB_t *dcb;
     SCB_t *scb;
+    DWT_t *dwt;
     NVIC_t *nvic;
 };
 
@@ -59,7 +63,9 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     last = last->next = memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len);
     last = last->next = memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len);
 
-    NEW_PERIPH(SCB, scb, x(E000, ED00), 0x8F);
+    NEW_PERIPH(DWT, dwt, x(E000, 1000), 0x1000);
+    NEW_PERIPH(SCB, scb, x(E000, ED00), 0x90);
+    NEW_PERIPH(DCB, dcb, x(E000, EDF0), 0x110);
     NEW_PERIPH(NVIC, nvic, x(E000, E100), 0xBFF);
 
     chip->cpu = cpu_new(flash, NRF52832_FLASH_SIZE, mem_first);
@@ -77,6 +83,7 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 void nrf52832_step(NRF52832_t *nrf52832)
 {
     cpu_step(nrf52832->cpu);
+    dwt_increment_cycle(nrf52832->dwt);
 }
 
 cpu_t *nrf52832_get_cpu(NRF52832_t *nrf52832)

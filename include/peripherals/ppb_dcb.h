@@ -2,4 +2,4 @@
 
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(SCB, scb)
+PERIPHERAL(DCB, dcb)
