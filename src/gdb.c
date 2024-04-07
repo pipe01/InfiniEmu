@@ -14,6 +14,12 @@
 
 #define QUOTE(...) #__VA_ARGS__
 
+#ifdef LOG_GDB
+#define LOGF(...) printf(__VA_ARGS__)
+#else
+#define LOGF(...)
+#endif
+
 const char target_xml[] = QUOTE(
     <?xml version="1.0"?>
     <target>
@@ -96,18 +102,18 @@ void gdb_add_breakpoint(gdb_t *gdb, uint32_t addr)
 {
     if (gdb->breakpoint_num >= MAX_BREAKPOINTS)
     {
-        printf("Maximum number of breakpoints reached\n");
+        LOGF("Maximum number of breakpoints reached\n");
         return;
     }
 
-    printf("Adding breakpoint at 0x%08x\n", addr);
+    LOGF("Adding breakpoint at 0x%08x\n", addr);
 
     gdb->breakpoints[gdb->breakpoint_num++] = addr;
 }
 
 void gdb_remove_breakpoint(gdb_t *gdb, uint32_t addr)
 {
-    printf("Removing breakpoint at 0x%08x\n", addr);
+    LOGF("Removing breakpoint at 0x%08x\n", addr);
 
     for (size_t i = 0; i < gdb->breakpoint_num; i++)
     {
@@ -151,7 +157,7 @@ void send_response_raw(int fd, const char *data, size_t len)
 
     memcpy(buf + buf_size - 2, byte_buf, 2);
 
-    printf("Sending response to GDB: %s\n", buf);
+    LOGF("Sending response to GDB: %s\n", buf);
 
     write(fd, buf, buf_size);
 }
@@ -430,18 +436,18 @@ void gdbstub_run(gdbstub *gdb)
 
     char *msg;
 
+    gdb_set_paused(gdb->gdb, true);
+
     for (;;)
     {
         nread = read(gdb->fd, in_buf, sizeof(in_buf) - 1);
         if (nread <= 0)
             break;
 
-        printf("Received %ld bytes\n", nread);
-
         msg = in_buf;
         msg[nread] = 0;
 
-        printf("Received message from GDB: %s\n", msg);
+        // LOGF("Received message from GDB: %s\n", msg);
 
         while (msg[0] != 0)
         {
@@ -461,7 +467,7 @@ void gdbstub_run(gdbstub *gdb)
             if (msg[0] != '$')
             {
                 // Invalid message
-                printf("Invalid message received from GDB: %s\n", msg);
+                LOGF("Invalid message received from GDB: %s\n", msg);
                 return;
             }
 
@@ -501,7 +507,7 @@ void gdbstub_run(gdbstub *gdb)
                 msg++;
                 gdb_set_paused(gdb->gdb, false);
 
-                gdb_wait_for_unpause(gdb->gdb);
+                gdb_wait_for_pause(gdb->gdb);
 
                 send_response_str(gdb->fd, "S05");
                 break;
@@ -513,7 +519,7 @@ void gdbstub_run(gdbstub *gdb)
                 if (checksum_start == NULL)
                 {
                     // Invalid message
-                    printf("Invalid message received from GDB: %s\n", msg);
+                    LOGF("Invalid message received from GDB: %s\n", msg);
                     return;
                 }
 
@@ -525,7 +531,7 @@ void gdbstub_run(gdbstub *gdb)
             if (ret[0] != '#')
             {
                 // Invalid message
-                printf("Invalid message received from GDB: %s\n", msg);
+                LOGF("Invalid message received from GDB: %s\n", msg);
                 return;
             }
 
@@ -558,7 +564,7 @@ void *gdb_thread(void *arg)
         {
             if (errno == EADDRINUSE)
             {
-                printf("Port %d is in use, trying next port\n", ntohs(addr.sin_port));
+                LOGF("Port %d is in use, trying next port\n", ntohs(addr.sin_port));
                 addr.sin_port = htons(ntohs(addr.sin_port) + 1);
                 continue;
             }
@@ -596,13 +602,13 @@ void *gdb_thread(void *arg)
     return NULL;
 }
 
-gdb_t *gdb_new(NRF52832_t *nrf52832)
+gdb_t *gdb_new(NRF52832_t *nrf52832, bool start_paused)
 {
     gdb_t *gdb = (gdb_t *)malloc(sizeof(gdb_t));
     memset(gdb, 0, sizeof(gdb_t));
 
     gdb->nrf = nrf52832;
-    gdb->is_paused = true;
+    gdb->is_paused = start_paused;
 
     pthread_mutex_init(&gdb->conn_lock, NULL);
     pthread_cond_init(&gdb->conn_cond, NULL);
@@ -632,16 +638,26 @@ void gdb_wait_for_connection(gdb_t *gdb)
     pthread_mutex_unlock(&gdb->conn_lock);
 }
 
-void gdb_wait_for_unpause(gdb_t *gdb)
+void gdb_wait_for_is_paused(gdb_t *gdb, bool is_paused)
 {
     pthread_mutex_lock(&gdb->pause_lock);
 
-    while (gdb->is_paused)
+    while (gdb->is_paused != is_paused)
     {
         pthread_cond_wait(&gdb->pause_cond, &gdb->pause_lock);
     }
 
     pthread_mutex_unlock(&gdb->pause_lock);
+}
+
+void gdb_wait_for_unpause(gdb_t *gdb)
+{
+    gdb_wait_for_is_paused(gdb, false);
+}
+
+void gdb_wait_for_pause(gdb_t *gdb)
+{
+    gdb_wait_for_is_paused(gdb, true);
 }
 
 bool gdb_has_breakpoint_at(gdb_t *gdb, uint32_t addr)

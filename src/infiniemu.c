@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 
     if (run_gdb)
     {
-        gdb = gdb_new(nrf);
+        gdb = gdb_new(nrf, false);
         gdb_start(gdb);
 
         if (wait_gdb)

@@ -18,6 +18,14 @@
 #define APSR_Q 27
 #define APSR_GE (0b1111 << 16)
 
+#define EPSR_T 24
+
+typedef enum
+{
+    ARM_MODE_THREAD = 0,
+    ARM_MODE_HANDLER = 1,
+} arm_mode;
+
 typedef enum
 {
     ARM_RESETREASON_RESETPIN = 1 << 0, // Reset from pin-reset detected

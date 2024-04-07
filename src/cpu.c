@@ -15,6 +15,24 @@
 #define LOGF(...)
 #endif
 
+struct cpu_inst_t
+{
+    uint32_t core_regs[ARM_REG_ENDING - 1];
+    uint32_t sp_main, sp_process;
+    uint32_t xpsr;
+
+    uint8_t *program;
+    size_t program_size;
+
+    cs_insn *inst;
+    size_t inst_count;
+    cs_insn **inst_by_pc;
+
+    bool branched;
+
+    memreg_t *mem;
+};
+
 static uint32_t cpu_mem_operand_address(cpu_t *cpu, arm_op_mem op)
 {
     uint32_t base = cpu_reg_read(cpu, op.base);
@@ -69,6 +87,10 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
     case ARM_OP_REG:
         cpu_reg_write(cpu, op->reg, value);
         LOGF("register %d\n", op->reg);
+
+        if (op->reg == ARM_REG_PC)
+            cpu->branched = true;
+
         break;
     case ARM_OP_MEM:
     {
@@ -214,7 +236,7 @@ void cpu_reset(cpu_t *cpu)
 
     cpu->core_regs[ARM_REG_SP] = READ_UINT32(cpu->program, 0);
     cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
-    cpu->xpsr = 0x1000000;
+    cpu->xpsr = 1 << EPSR_T;
 
     // cpu->core_regs[ARM_REG_PC] = 0x1d1a8;
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
@@ -246,6 +268,8 @@ void cpu_step(cpu_t *cpu)
     LOGF("\nPC: 0x%08X %s %s\n", pc, i->mnemonic, i->op_str);
 
     uint32_t next = pc + i->size;
+
+    cpu->branched = false;
 
     // TODO: Ignore condition on certain instructions
     if (!cpu_condition_passed(cpu, i))
@@ -291,22 +315,25 @@ void cpu_step(cpu_t *cpu)
     case ARM_INS_B:
     case ARM_INS_BX:
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
-        return;
+        cpu->branched = true;
+        break;
 
     case ARM_INS_BL:
     case ARM_INS_BLX:
         cpu_reg_write(cpu, ARM_REG_LR, next | 1);
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
-        return;
+        cpu->branched = true;
+        break;
 
     case ARM_INS_CBZ:
+    case ARM_INS_CBNZ:
         op1 = OPERAND(0);
         op2 = OPERAND(1);
 
-        if (op1 != 0)
+        if ((op1 == 0) == (i->id == ARM_INS_CBZ))
         {
-            BRANCH_WRITE_PC(cpu, cpu_reg_read(cpu, ARM_REG_PC) + op2);
-            return;
+            BRANCH_WRITE_PC(cpu, op2 | 1);
+            cpu->branched = true;
         }
         break;
 
@@ -443,6 +470,13 @@ void cpu_step(cpu_t *cpu)
         }
         break;
 
+    case ARM_INS_STRH:
+        op1 = OPERAND(0);
+        op2 = cpu_mem_operand_address(cpu, detail.operands[1].mem);
+
+        memreg_write(cpu->mem, op2, op1, SIZE_HALFWORD);
+        break;
+
     case ARM_INS_SUB:
         op1 = cpu_load_operand(cpu, &detail.operands[detail.op_count == 3 ? 1 : 0], 0);
         op2 = cpu_load_operand(cpu, &detail.operands[detail.op_count == 3 ? 2 : 1], 0);
@@ -478,7 +512,8 @@ void cpu_step(cpu_t *cpu)
     }
 
 next_pc:
-    cpu_reg_write(cpu, ARM_REG_PC, next | 1);
+    if (!cpu->branched)
+        cpu_reg_write(cpu, ARM_REG_PC, next | 1);
 }
 
 uint32_t cpu_reg_read(cpu_t *cpu, arm_reg reg)
