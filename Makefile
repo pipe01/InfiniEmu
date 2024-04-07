@@ -3,6 +3,7 @@ DUMPS = $(patsubst dumps/%.bin, dumps/%.h, $(wildcard dumps/*.bin))
 IDIR = include
 ODIR = obj
 LDIR = lib
+SDIR = src
 
 CC = gcc
 CFLAGS = -I$(IDIR) -I$(LDIR) -g -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
@@ -11,7 +12,7 @@ LIBS = -lm -lcapstone
 
 DEPS = $(shell find $(IDIR) -type f -name '*.h')
 
-_OBJ = src/infiniemu.o src/gdb.o src/cpu.o src/nrf52832.o src/memory.o src/peripherals/nvic.o lib/libgdbstub/gdb-stub.o
+_OBJ = $(patsubst %.c,%.o,$(shell find $(SDIR) -type f -name '*.c'))
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 

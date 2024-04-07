@@ -1,11 +1,5 @@
 #pragma once
 
-#include <stdlib.h>
+#include "peripherals/peripheral.h"
 
-#include "memory.h"
-
-typedef struct NVIC_inst_t NVIC_t;
-
-OPERATION(nvic);
-NVIC_t *nvic_new();
-void nvic_reset(NVIC_t *nvic);
+PERIPHERAL(NVIC, nvic)
