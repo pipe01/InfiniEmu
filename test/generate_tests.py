@@ -45,81 +45,94 @@ class CPUState:
 def cpustate_from_spec(spec: any) -> CPUState:
     state = CPUState([])
 
-    if "flags" in spec:
-        flags_spec = spec["flags"]
+    for key, value in spec.items():
+        if key == "memory":
+            memory_spec = value
 
-        if isinstance(flags_spec, bool):
-            state.flags = Flags(flags_spec, flags_spec, flags_spec, flags_spec)
-        else:
+            for addr_spec in memory_spec:
+                fill_spec = memory_spec[addr_spec]
+
+                if isinstance(fill_spec, int):
+                    fill = [fill_spec]
+                elif isinstance(fill_spec, list):
+                    if not all(isinstance(i, int) for i in fill_spec):
+                        raise ValueError("Invalid memory fill value")
+                    fill = fill_spec
+                elif isinstance(fill_spec, str):
+                    fill = list(bytes(fill_spec, "ascii"))
+                else:
+                    raise ValueError("Invalid memory fill value")
+
+                if isinstance(addr_spec, str):
+                    addr_spec = addr_spec.replace("_", "")
+                    if "-" in addr_spec:
+                        start, end = addr_spec.split("-")
+                        start = int(start, 0)
+                        end = int(end, 0)
+                        size = end - start
+                    else:
+                        start = int(addr_spec, 0)
+                        size = len(fill)
+                elif isinstance(addr_spec, int):
+                    start = addr_spec
+                    size = len(fill)
+                else:
+                    raise ValueError("Invalid memory address")
+
+                state.memory.append(Memory(start, size, fill))
+
+        elif key == "registers":
+            registers_spec = value
+
+            core = {}
+
+            for reg_name, value in registers_spec.items():
+                if reg_name[0] == "r":
+                    reg = int(reg_name[1:])
+                elif reg_name == "sp":
+                    reg = 13
+                elif reg_name == "lr":
+                    reg = 14
+                elif reg_name == "pc":
+                    reg = 15
+                else:
+                    raise ValueError("Invalid register name")
+                
+                if not isinstance(value, int):
+                    raise ValueError("Invalid register value")
+                
+                core[reg] = value
+
+            state.registers = Registers(core)
+
+        elif len(key) <= 4 and isinstance(value, str) and len(key) == len(value):
             state.flags = Flags()
 
-            if "negative" in flags_spec:
-                state.flags.negative = flags_spec["negative"]
-            if "carry" in flags_spec:
-                state.flags.carry = flags_spec["carry"]
-            if "overflow" in flags_spec:
-                state.flags.overflow = flags_spec["overflow"]
-            if "zero" in flags_spec:
-                state.flags.zero = flags_spec["zero"]
-
-    if "memory" in spec:
-        memory_spec = spec["memory"]
-
-        for addr_spec in memory_spec:
-            fill_spec = memory_spec[addr_spec]
-
-            if isinstance(fill_spec, int):
-                fill = [fill_spec]
-            elif isinstance(fill_spec, list):
-                if not all(isinstance(i, int) for i in fill_spec):
-                    raise ValueError("Invalid memory fill value")
-                fill = fill_spec
-            elif isinstance(fill_spec, str):
-                fill = list(bytes(fill_spec, "ascii"))
-            else:
-                raise ValueError("Invalid memory fill value")
-
-            if isinstance(addr_spec, str):
-                addr_spec = addr_spec.replace("_", "")
-                if "-" in addr_spec:
-                    start, end = addr_spec.split("-")
-                    start = int(start, 0)
-                    end = int(end, 0)
-                    size = end - start
+            for i in range(len(key)):
+                c = key[i]
+                
+                if value[i] == "0":
+                    on = False
+                elif value[i] == "1":
+                    on = True
+                elif value[i] == "x":
+                    on = None
                 else:
-                    start = int(addr_spec, 0)
-                    size = len(fill)
-            elif isinstance(addr_spec, int):
-                start = addr_spec
-                size = len(fill)
-            else:
-                raise ValueError("Invalid memory address")
+                    raise ValueError(f"Invalid flag value {value[i]}")
 
-            state.memory.append(Memory(start, size, fill))
+                if c == "n":
+                    state.flags.negative = on
+                elif c == "c":
+                    state.flags.carry = on
+                elif c == "v":
+                    state.flags.overflow = on
+                elif c == "z":
+                    state.flags.zero = on
+                else:
+                    raise ValueError(f"Invalid flag {c}")
 
-    if "registers" in spec:
-        registers_spec = spec["registers"]
-
-        core = {}
-
-        for reg_name, value in registers_spec.items():
-            if reg_name[0] == "r":
-                reg = int(reg_name[1:])
-            elif reg_name == "sp":
-                reg = 13
-            elif reg_name == "lr":
-                reg = 14
-            elif reg_name == "pc":
-                reg = 15
-            else:
-                raise ValueError("Invalid register name")
-            
-            if not isinstance(value, int):
-                raise ValueError("Invalid register value")
-            
-            core[reg] = value
-
-        state.registers = Registers(core)
+        else:
+            raise ValueError(f"Invalid key {key}")
     
     return state
 
@@ -255,7 +268,7 @@ with open("main.c", "w") as main:
 
             def test_flag(expected: bool | None, flag_const: str):
                 if expected is not None:
-                    main.write(f"flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & {flag_const}) != 0;\n")
+                    main.write(f"flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << {flag_const})) != 0;\n")
                     main.write(f"if (flag_value != {'true' if expected else 'false'})\n")
                     main.write(f'\tprintf("Flag {flag_const}: expected {1 if expected else 0}, got %d\\n", flag_value);\n')
                 pass

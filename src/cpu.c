@@ -736,6 +736,9 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
     switch (reg)
     {
     case ARM_SYSREG_XPSR:
+    case ARM_SYSREG_APSR:
+    case ARM_SYSREG_EPSR:
+    case ARM_SYSREG_IPSR:
         return cpu->xpsr;
 
     case ARM_SYSREG_MSP:
@@ -757,9 +760,8 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
         return cpu->primask;
 
     default:
-        // fprintf(stderr, "Unhandled system register %d\n", reg);
-        // abort();
-        return 0;
+        fprintf(stderr, "Unhandled system register %d\n", reg);
+        abort();
     }
 }
 
