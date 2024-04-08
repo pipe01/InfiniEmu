@@ -285,6 +285,9 @@ with open("main.c", "w") as main:
                 test_flag(test.expect.flags.overflow, "APSR_V")
                 test_flag(test.expect.flags.zero, "APSR_Z")
 
+            main.write("cpu_free(cpu);\n")
+            main.write("memreg_free(mem_first);\n")
+
             main.write("}\n")
             main.write("\n")
 

@@ -250,6 +250,13 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
     return cpu;
 }
 
+void cpu_free(cpu_t *cpu)
+{
+    cs_free(cpu->inst, cpu->inst_count);
+    free(cpu->inst_by_pc);
+    free(cpu);
+}
+
 void cpu_reset(cpu_t *cpu)
 {
     memset(cpu->core_regs, 0, sizeof(cpu->core_regs));
@@ -439,6 +446,18 @@ void cpu_step(cpu_t *cpu)
             BRANCH_WRITE_PC(cpu, op1 | 1);
             cpu->branched = true;
         }
+        break;
+
+    case ARM_INS_CLZ:
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+
+        op0 = OPERAND_REG(0);
+        op1 = OPERAND_REG(1);
+
+        value = op1 == 0 ? 0 : __builtin_clz(op1);
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
         break;
 
     case ARM_INS_CMP:
