@@ -178,63 +178,66 @@ for test_file in test_files:
 
 with open("main.c", "w") as main:
     main.write(AUTOGEN_HEADER)
-    main.write("#include <stdio.h>\n\n")
-    main.write("typedef void (*test_t)();\n\n")
+    main.write("""#include <stdio.h>
+#include <stdint.h>
+               
+#include "cpu.h"
+
+#define ADD_MEM(start, mem) mem_first = *(mem_last == NULL ? &mem_first : &mem_last->next) = (mem)
+#define ADD_MEM_SIMPLE(start, data) ADD_MEM(start, memreg_new_simple(start, data, sizeof(data)))
+               
+""")
 
     for suite in suites:
-        with open(f"{suite.name}.c", "w") as c:
-            c.write(AUTOGEN_HEADER)
 
-            c.write('#include "./common.h"\n\n')
+        for test in suite.cases:
+            main.write(f"void {test.func_name()}();\n")
 
-            for test in suite.cases:
-                main.write(f"void {test.func_name()}();\n")
+            program = compile("\n".join(test.code) + "\n")
 
-                program = compile("\n".join(test.code) + "\n")
+            test_name = f"{suite.name}/{test.name}"
+        
+            main.write(f"void {test.func_name()}() {{\n")
+            main.write(f'#define TEST_NAME "{test.name}"\n')
 
-                test_name = f"{suite.name}/{test.name}"
-            
-                c.write(f"void {test.func_name()}() {{\n")
-                c.write(f'#define TEST_NAME "{test.name}"\n')
+            main.write("uint8_t program[] = {")
+            main.write(", ".join([str(i) for i in program]))
+            main.write("};\n")
 
-                c.write("uint8_t program[] = {")
-                c.write(", ".join([str(i) for i in program]))
-                c.write("};\n")
+            main.write("memreg_t *mem_first = NULL;\n")
+            if len(test.setup.memory) > 0:
+                main.write("memreg_t *mem_last = NULL;\n")
 
-                c.write("memreg_t *mem_first = NULL;\n")
-                if len(test.setup.memory) > 0:
-                    c.write("memreg_t *mem_last = NULL;\n")
+            memcounter = 0
+            for mem in test.setup.memory:
+                main.write(f"uint8_t memory{memcounter}[{mem.size}] = {{")
+                main.write(", ".join([str(i) for i in mem.value]))
+                main.write("};\n")
+                main.write(f"ADD_MEM_SIMPLE({mem.start}, memory{memcounter});\n")
 
-                memcounter = 0
-                for mem in test.setup.memory:
-                    c.write(f"uint8_t memory{memcounter}[{mem.size}] = {{")
-                    c.write(", ".join([str(i) for i in mem.value]))
-                    c.write("};\n")
-                    c.write(f"ADD_MEM_SIMPLE({mem.start}, memory{memcounter});\n")
+                memcounter += 1
 
-                    memcounter += 1
+            main.write("cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);\n")
 
-                c.write("cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);\n")
+            if test.setup.registers is not None:
+                for reg in test.setup.registers.core:
+                    main.write(f"cpu_reg_write(cpu, {core_register_enum(reg)}, {test.setup.registers.core[reg]});\n")
 
-                if test.setup.registers is not None:
-                    for reg in test.setup.registers.core:
-                        c.write(f"cpu_reg_write(cpu, {core_register_enum(reg)}, {test.setup.registers.core[reg]});\n")
+            main.write(f"for (size_t i = 0; i < {test.steps}; i++) {{\n")
+            main.write("cpu_step(cpu);\n")
+            main.write("}\n")
 
-                c.write(f"for (size_t i = 0; i < {test.steps}; i++) {{\n")
-                c.write("cpu_step(cpu);\n")
-                c.write("}\n")
+            if test.expect.registers is not None:
+                main.write("uint32_t value;\n")
 
-                if test.expect.registers is not None:
-                    c.write("uint32_t value;\n")
+                for reg in test.expect.registers.core:
+                    main.write(f"value = cpu_reg_read(cpu, {core_register_enum(reg)}); \n")
+                    main.write(f"if (value != {test.expect.registers.core[reg]})\n")
+                    main.write(f'\tprintf("Register {core_register_name(reg)}: expected {reg}, got %d\\n", value);\n')
 
-                    for reg in test.expect.registers.core:
-                        c.write(f"value = cpu_reg_read(cpu, {core_register_enum(reg)}); \n")
-                        c.write(f"if (value != {test.expect.registers.core[reg]})\n")
-                        c.write(f'\tprintf("Register {core_register_name(reg)}: expected {reg}, got %d\\n", value);\n')
-
-                c.write("#undef TEST_NAME\n")
-                c.write("}\n")
-                c.write("\n")
+            main.write("#undef TEST_NAME\n")
+            main.write("}\n")
+            main.write("\n")
 
     main.write("\n")
 

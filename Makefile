@@ -14,7 +14,6 @@ LIBS = -lm -lcapstone
 DEPS = $(shell find $(IDIR) -type f -name '*.h')
 
 _OBJ = $(patsubst %.c,%.o,$(shell find $(SDIR) -type f -name '*.c'))
-_TEST_OBJ = $(patsubst %.c,%.o,$(shell find $(TDIR) -type f -name '*.c'))
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 TEST_BIN = /tmp/infiniemu-test
@@ -32,7 +31,7 @@ infiniemu: $(OBJ)
 
 .PHONY: clean test gen-test
 
-test: obj/src/cpu.o obj/src/memory.o $(_TEST_OBJ)
+test: obj/src/cpu.o obj/src/memory.o test/main.o
 	$(CC) -o $(TEST_BIN) $^ $(CFLAGS) $(LIBS)
 	$(TEST_BIN); rm -f $(TEST_BIN)
 
