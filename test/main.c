@@ -21,6 +21,19 @@ uint32_t value;
 value = cpu_reg_read(cpu, ARM_REG_R0); 
 if (value != 0)
 	printf("Register R0: expected 0, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & APSR_N) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & APSR_C) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & APSR_V) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & APSR_Z) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
 }
 
 void test_ADD__immediate___2() {

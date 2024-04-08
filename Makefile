@@ -16,7 +16,7 @@ DEPS = $(shell find $(IDIR) -type f -name '*.h')
 _OBJ = $(patsubst %.c,%.o,$(shell find $(SDIR) -type f -name '*.c'))
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
-TEST_BIN = /tmp/infiniemu-test
+TEST_BIN = ./tests.out
 
 $(ODIR)/$(LDIR)/%.o: $(LDIR)/%.c $(DEPS)
 	mkdir -p $(shell dirname $@)
@@ -29,20 +29,24 @@ $(ODIR)/%.o: %.c $(DEPS)
 infiniemu: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
-.PHONY: clean test gen-test
+dumps/%.h: dumps/%.bin
+	xxd -i $< > $@
 
-test: obj/src/cpu.o obj/src/memory.o test/main.o
-	$(CC) -o $(TEST_BIN) $^ $(CFLAGS) $(LIBS)
+test: gen-test build-test
 	$(TEST_BIN); rm -f $(TEST_BIN)
+.PHONY: test
 
 gen-test:
 	cd $(TDIR) && python generate_tests.py
+.PHONY: gen-test
+
+build-test: obj/src/cpu.o obj/src/memory.o test/main.o
+	$(CC) -o $(TEST_BIN) $^ $(CFLAGS) $(LIBS)
+.PHONY: build-test
 
 clean:
-	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ 
+	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ $(TEST_BIN) $(TDIR)/main.o
+.PHONY: clean
 
 dumps: $(DUMPS)
 .PHONY: dumps
-
-dumps/%.h: dumps/%.bin
-	xxd -i $< > $@
