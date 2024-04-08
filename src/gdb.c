@@ -74,9 +74,17 @@ bool has_prefix(const char *pre, const char *str)
     return strncmp(pre, str, strlen(pre)) == 0;
 }
 
+typedef struct
+{
+    int fd;
+    gdb_t *gdb;
+    bool noack;
+} gdbstub;
+
 struct gdb_inst_t
 {
     NRF52832_t *nrf;
+    gdbstub *current_stub;
 
     pthread_cond_t conn_cond;
     pthread_mutex_t conn_lock;
@@ -89,14 +97,6 @@ struct gdb_inst_t
     uint32_t breakpoints[MAX_BREAKPOINTS];
     size_t breakpoint_num;
 };
-
-void gdb_set_paused(gdb_t *gdb, bool paused)
-{
-    pthread_mutex_lock(&gdb->pause_lock);
-    gdb->is_paused = paused;
-    pthread_cond_signal(&gdb->pause_cond);
-    pthread_mutex_unlock(&gdb->pause_lock);
-}
 
 void gdb_add_breakpoint(gdb_t *gdb, uint32_t addr)
 {
@@ -125,13 +125,6 @@ void gdb_remove_breakpoint(gdb_t *gdb, uint32_t addr)
         }
     }
 }
-
-typedef struct
-{
-    int fd;
-    gdb_t *gdb;
-    bool noack;
-} gdbstub;
 
 void send_response_raw(int fd, const char *data, size_t len)
 {
@@ -429,6 +422,23 @@ char *gdb_breakpoint(gdbstub *gdb, char *msg)
     return strchr(msg, '#');
 }
 
+void gdb_set_paused(gdb_t *gdb, bool paused)
+{
+    LOGF("Setting execution paused to %d\n", paused);
+
+    bool was_paused = gdb->is_paused;
+
+    pthread_mutex_lock(&gdb->pause_lock);
+    gdb->is_paused = paused;
+    pthread_cond_signal(&gdb->pause_cond);
+    pthread_mutex_unlock(&gdb->pause_lock);
+
+    if (!was_paused && paused && gdb->current_stub != NULL)
+    {
+        send_response_str(gdb->current_stub->fd, "S05");
+    }
+}
+
 void gdbstub_run(gdbstub *gdb)
 {
     char in_buf[4096];
@@ -447,7 +457,7 @@ void gdbstub_run(gdbstub *gdb)
         msg = in_buf;
         msg[nread] = 0;
 
-        // LOGF("Received message from GDB: %s\n", msg);
+        LOGF("Received message from GDB: %s\n", msg);
 
         while (msg[0] != 0)
         {
@@ -457,7 +467,7 @@ void gdbstub_run(gdbstub *gdb)
                 msg++;
                 continue;
             }
-            if (msg[0] == '\x03') // Control+C
+            if (msg[0] == 3) // Control+C
             {
                 gdb_set_paused(gdb->gdb, true);
                 msg++;
@@ -504,12 +514,8 @@ void gdbstub_run(gdbstub *gdb)
                 break;
 
             case 'c':
-                msg++;
+                ret = msg + 1;
                 gdb_set_paused(gdb->gdb, false);
-
-                gdb_wait_for_pause(gdb->gdb);
-
-                send_response_str(gdb->fd, "S05");
                 break;
             }
 
@@ -588,6 +594,7 @@ void *gdb_thread(void *arg)
             .gdb = gdb,
             .noack = false,
         };
+        gdb->current_stub = &stub;
 
         pthread_mutex_lock(&gdb->conn_lock);
         gdb->has_connected = true;
@@ -596,6 +603,7 @@ void *gdb_thread(void *arg)
 
         gdbstub_run(&stub);
 
+        gdb->current_stub = NULL;
         close(client_fd);
     }
 

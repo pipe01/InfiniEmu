@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// #define LOG_CPU
+#define LOG_CPU
 
 #ifdef LOG_CPU
 #define LOGF(...) printf(__VA_ARGS__)
@@ -47,12 +47,12 @@ static uint32_t cpu_mem_operand_address(cpu_t *cpu, arm_op_mem op)
         base += cpu_reg_read(cpu, op.index) * op.scale;
     }
 
-    // TODO: Shift
+    assert(op.lshift == 0); // TODO: Shift
 
     return base + op.disp;
 }
 
-static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset)
+static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address)
 {
     uint32_t value;
 
@@ -65,7 +65,8 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset)
         value = op->imm;
         break;
     case ARM_OP_MEM:
-        value = memreg_read(cpu->mem, ALIGN4(cpu_mem_operand_address(cpu, op->mem) + offset));
+        *address = ALIGN4(cpu_mem_operand_address(cpu, op->mem) + offset);
+        value = memreg_read(cpu->mem, *address);
         break;
     default:
         fprintf(stderr, "Unhandled operand type %d\n", op->type);
@@ -204,6 +205,12 @@ static int cpu_execution_priority(cpu_t *cpu)
         UPDATE_V((cpu), (overflow)); \
     }
 
+#define WRITEBACK                                                        \
+    if (i->detail->arm.writeback)                                        \
+    {                                                                    \
+        cpu_store_operand(cpu, &detail.operands[1], address, SIZE_WORD); \
+    }
+
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
 {
     cpu_t *cpu = malloc(sizeof(cpu_t));
@@ -269,14 +276,14 @@ void cpu_reset(cpu_t *cpu)
     cpu_reg_write((cpu), ARM_REG_PC, (pc)); \
     LOGF("Branching to 0x%08X\n", (pc));
 
-#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset))
+#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address)
 #define OPERAND(n) OPERAND_OFF(n, 0)
 
 void cpu_step(cpu_t *cpu)
 {
     uint32_t pc = cpu->core_regs[ARM_REG_PC];
 
-    uint32_t op0, op1, value;
+    uint32_t op0, op1, value, address;
 
     cs_insn *i = cpu->inst_by_pc[pc & ~1];
     if (i == NULL)
@@ -409,6 +416,27 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDR:
+        if (detail.op_count == 3)
+        {
+            assert(detail.operands[2].type == ARM_OP_IMM);
+            op0 = detail.operands[2].imm;
+        }
+        else
+        {
+            op0 = 0;
+        }
+
+        value = OPERAND_OFF(1, detail.post_index ? 0 : op0);
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+
+        if (detail.post_index)
+            address += op0;
+
+        WRITEBACK;
+        UPDATE_NZCV;
+        break;
+
     case ARM_INS_MOV:
     case ARM_INS_MOVS:
         value = OPERAND(1);
@@ -436,16 +464,33 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDRB:
-        value = OPERAND(1);
+        if (detail.op_count == 3)
+        {
+            assert(detail.operands[2].type == ARM_OP_IMM);
+            op0 = detail.operands[2].imm;
+        }
+        else
+        {
+            op0 = 0;
+        }
+
+        value = OPERAND_OFF(1, op0);
 
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_BYTE);
         break;
-    
+
     case ARM_INS_LDRD:
         value = cpu_mem_operand_address(cpu, detail.operands[2].mem);
 
         cpu_store_operand(cpu, &detail.operands[0], memreg_read(cpu->mem, value), SIZE_WORD);
         cpu_store_operand(cpu, &detail.operands[1], memreg_read(cpu->mem, value + 4), SIZE_WORD);
+        break;
+
+    case ARM_INS_LDRH:
+        op1 = OPERAND(1);
+        value = op1 & 0xFFFF;
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
         break;
 
     case ARM_INS_LSL:
@@ -514,7 +559,7 @@ void cpu_step(cpu_t *cpu)
         {
             LOGF("Push reg %d\n", detail.operands[n].reg);
 
-            memreg_write(cpu->mem, op0, cpu_load_operand(cpu, &detail.operands[n], 0), SIZE_WORD);
+            memreg_write(cpu->mem, op0, cpu_load_operand(cpu, &detail.operands[n], 0, &address), SIZE_WORD);
 
             op0 += 4;
         }
@@ -542,8 +587,8 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_STRD:
-        op0 = cpu_load_operand(cpu, &detail.operands[0], 0);
-        op1 = cpu_load_operand(cpu, &detail.operands[1], 0);
+        op0 = OPERAND(0);
+        op1 = OPERAND(1);
         value = cpu_mem_operand_address(cpu, detail.operands[2].mem);
 
         cpu_mem_write(cpu, value, op0);
@@ -562,8 +607,8 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_SUB:
-        op0 = cpu_load_operand(cpu, &detail.operands[detail.op_count == 3 ? 1 : 0], 0);
-        op1 = cpu_load_operand(cpu, &detail.operands[detail.op_count == 3 ? 2 : 1], 0);
+        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
 
         carry = true;
         value = AddWithCarry(op0, ~op1, &carry, &overflow);
@@ -597,6 +642,12 @@ void cpu_step(cpu_t *cpu)
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
         break;
     }
+
+    case ARM_INS_UXTB:
+        op1 = OPERAND(1);
+
+        cpu_store_operand(cpu, &detail.operands[0], op1 & 0xFF, SIZE_WORD);
+        break;
 
     default:
         fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, pc);
