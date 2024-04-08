@@ -41,7 +41,7 @@ struct NRF52832_inst_t
 #define NEW_PERIPH(type, name, field, addr, size, ...) \
     chip->field = name##_new(__VA_ARGS__);       \
     name##_reset(chip->field);                   \
-    last = last->next = memreg_new_operation(addr, size, name##_operation, chip->field);
+    last = memreg_set_next(last, memreg_new_operation(addr, size, name##_operation, chip->field));
 
 NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
 {
@@ -56,7 +56,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     memreg_t *mem_first = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
     memreg_t *last = mem_first;
 
-    last = last->next = memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE);
+    last = memreg_set_next(last, memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE));
 
     NEW_PERIPH(COMP, comp, comp, x(4001, 3000), 0x1000);
     NEW_PERIPH(CLOCK, clock, clock, x(4000, 0000), 0x1000);
@@ -70,9 +70,9 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(TIMER, timer, timer4, x(4001, B000), 0x1000, 6);
     NEW_PERIPH(GPIO, gpio, gpio, x(5000, 0000), 0x1000);
 
-    last = last->next = memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len);
-    last = last->next = memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len);
-    last = last->next = memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len);
+    last = memreg_set_next(last, memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len));
+    last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len));
+    last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len));
 
     NEW_PERIPH(DWT, dwt, dwt, x(E000, 1000), 0x1000);
     NEW_PERIPH(SCB, scb, scb, x(E000, ED00), 0x90);

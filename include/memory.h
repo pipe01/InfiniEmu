@@ -49,18 +49,15 @@ typedef enum {
 
 typedef memreg_op_result_t (*memreg_operation_t)(uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata);
 
-typedef struct memreg_t {
-    void *userdata;
-    uint32_t start, end;
-    memreg_operation_t operation;
-
-    struct memreg_t *next;
-} memreg_t;
+typedef struct memreg_inst_t memreg_t;
 
 memreg_t *memreg_new_simple(uint32_t start, uint8_t *data, size_t data_size);
 memreg_t *memreg_new_simple_copy(uint32_t start, const uint8_t *data, size_t data_size);
 memreg_t *memreg_new_operation(uint32_t start, size_t size, memreg_operation_t operation, void *data);
+void memreg_free(memreg_t *region);
 
 bool memreg_is_mapped(memreg_t *region, uint32_t addr);
 uint32_t memreg_read(memreg_t *region, uint32_t addr);
 void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, byte_size_t size);
+
+memreg_t *memreg_set_next(memreg_t *region, memreg_t *next);

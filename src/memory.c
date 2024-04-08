@@ -6,6 +6,17 @@
 #include <string.h>
 #include <stdio.h>
 
+struct memreg_inst_t
+{
+    void *userdata;
+    bool free_userdata;
+
+    uint32_t start, end;
+    memreg_operation_t operation;
+
+    memreg_t *next;
+};
+
 memreg_op_result_t simple_operation(uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
 {
     uint8_t *data = (uint8_t *)userdata;
@@ -53,7 +64,10 @@ memreg_t *memreg_new_simple_copy(uint32_t start, const uint8_t *data, size_t dat
     uint8_t *data_copy = malloc(data_size);
     memcpy(data_copy, data, data_size);
 
-    return memreg_new_simple(start, data_copy, data_size);
+    memreg_t *region = memreg_new_simple(start, data_copy, data_size);
+    region->free_userdata = true;
+
+    return region;
 }
 
 memreg_t *memreg_new_operation(uint32_t start, size_t size, memreg_operation_t operation, void *data)
@@ -61,12 +75,32 @@ memreg_t *memreg_new_operation(uint32_t start, size_t size, memreg_operation_t o
     memreg_t *region = malloc(sizeof(memreg_t));
 
     region->userdata = data;
+    region->free_userdata = false;
     region->start = start;
     region->end = start + size;
     region->operation = operation;
     region->next = NULL;
 
     return region;
+}
+
+void memreg_free(memreg_t *region)
+{
+    while (region)
+    {
+        memreg_t *next = region->next;
+
+        if (region->free_userdata)
+            free(region->userdata);
+        free(region);
+
+        region = next;
+    }
+}
+
+memreg_t *memreg_set_next(memreg_t *region, memreg_t *next)
+{
+    return region->next = next;
 }
 
 bool memreg_is_mapped(memreg_t *region, uint32_t addr)
