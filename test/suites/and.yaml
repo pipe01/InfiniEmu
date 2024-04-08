@@ -1,0 +1,6 @@
+"AND (immediate)":
+- setup:
+    registers:
+      r0: 10
+  execute:
+    - "add r0, pc, #10"

@@ -1,1 +1,2 @@
-*.o
+main.o
+main.c
