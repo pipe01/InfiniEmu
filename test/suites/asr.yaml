@@ -1,0 +1,74 @@
+"ASR (immediate)":
+- name: "same source and destination register"
+  setup:
+    registers:
+      r0: 0xF0
+  execute:
+    - "asrs r0, r0, #4"
+  expect:
+    registers:
+      r0: 0x0F
+    ncz: "000"
+
+- name: "different source and destination register"
+  setup:
+    registers:
+      r0: 0x00
+      r1: 0xF0
+  execute:
+    - "asrs r0, r1, #4"
+  expect:
+    registers:
+      r0: 0x0F
+      r1: 0xF0
+    ncz: "000"
+
+- name: "shift by 0"
+  setup:
+    registers:
+      r0: 0xF0
+  execute:
+    - "asrs r0, r0, #0"
+  expect:
+    registers:
+      r0: 0xF0
+    ncz: "000"
+
+- name: "result is zero"
+  setup:
+    registers:
+      r0: 0x01
+  execute:
+    - "asrs r0, r0, #1"
+  expect:
+    registers:
+      r0: 0x00
+    ncz: "011"
+
+"ASR (register)":
+- name: "same source and destination register"
+  setup:
+    registers:
+      r0: 0xF0
+      r1: 0x04
+  execute:
+    - "asrs r0, r0, r1"
+  expect:
+    registers:
+      r0: 0x0F
+    ncz: "000"
+
+- name: "shift by 0"
+  setup:
+    registers:
+      r0: 0xF0
+      r1: 0x00
+      r2: 0x00
+  execute:
+    - "asrs r2, r0, r1"
+  expect:
+    registers:
+      r0: 0xF0
+      r1: 0x00
+      r2: 0xF0
+    ncz: "000"

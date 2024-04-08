@@ -1,0 +1,76 @@
+"BIC (immediate)":
+- name: "same source and destination register"
+  setup:
+    registers:
+      r0: 0b0011100
+  execute:
+    - "bics r0, #20"
+  expect:
+    registers:
+      r0: 0b0001000
+  ncz: "000"
+
+- name: "different source and destination register"
+  setup:
+    registers:
+      r0: 0
+      r1: 0b0011100
+  execute:
+    - "bics r0, r1, #20"
+  expect:
+    registers:
+      r0: 0b0001000
+      r1: 0b0011100
+  ncz: "000"
+
+- setup:
+    registers:
+      r0: 0b111
+  execute:
+    - "bics r0, #7"
+  expect:
+    registers:
+      r0: 0
+  ncz: "001"
+
+"BIC (register)":
+- name: "same source and destination register"
+  setup:
+    registers:
+      r0: 0b0111110
+      r1: 0b0010100
+  execute:
+    - "bic r0, r0, r1"
+  expect:
+    registers:
+      r0: 0b0101010
+      r1: 0b0010100
+  ncz: "000"
+
+- name: "different source and destination register"
+  setup:
+    registers:
+      r0: 0b0011100
+      r1: 0b0010100
+      r2: 0b0000000
+  execute:
+    - "bic r2, r0, r1"
+  expect:
+    registers:
+      r0: 0b0011100
+      r1: 0b0010100
+      r2: 0b0001000
+  ncz: "000"
+
+- name: "with shift"
+  setup:
+    registers:
+      r0: 0b0111110
+      r1: 0b0010100
+  execute:
+    - "bic r0, r0, r1, lsl #1"
+  expect:
+    registers:
+      r0: 0b0010110
+      r1: 0b0010100
+  ncz: "000"

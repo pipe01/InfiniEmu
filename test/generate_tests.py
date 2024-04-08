@@ -188,7 +188,9 @@ for test_file in test_files:
             test_num = 1
             
             for test_spec in group_spec:
-                test = TestCase(f"{group_name} #{test_num}", CPUState([], None), test_spec["execute"], 0, CPUState([], None))
+                name = test_spec["name"] if "name" in test_spec else f"#{test_num}"
+
+                test = TestCase(f"{group_name} {name}", CPUState([], None), test_spec["execute"], 0, CPUState([], None))
                 test_num += 1
 
                 if "steps" in test_spec and test_spec["steps"] is int:
@@ -206,8 +208,11 @@ for test_file in test_files:
 
                 suite.cases.append(test)
 
+    suite.cases.sort(key=lambda t: t.name)
+
     suites.append(suite)
 
+suites.sort(key=lambda s: s.name)
 
 with open("main.c", "w") as main:
     main.write(AUTOGEN_HEADER)

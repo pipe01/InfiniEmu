@@ -1,6 +1,61 @@
 "AND (immediate)":
+- name: "same source and destination register"
+  setup:
+    registers:
+      r0: 0xFF
+  execute:
+    - "and r0, #5"
+  expect:
+    registers:
+      r0: 5
+
+- name: "different source and destination register"
+  setup:
+    registers:
+      r0: 0xFF
+      r1: 0x00
+  execute:
+    - "and r1, r0, #5"
+  expect:
+    registers:
+      r0: 0xFF
+      r1: 5
+
+"AND (register)":
 - setup:
     registers:
-      r0: 10
+      r0: 0xFF
+      r1: 0x0A
   execute:
-    - "add r0, pc, #10"
+    - "and r0, r1"
+  expect:
+    registers:
+      r0: 0x0A
+      r1: 0x0A
+
+- setup:
+    registers:
+      r0: 0xF0
+      r1: 0x0F
+  execute:
+    - "ands r0, r1"
+  expect:
+    registers:
+      r0: 0x00
+      r1: 0x0F
+    ncz: "001"
+
+- name: "different source and destination register"
+  setup:
+    registers:
+      r0: 0xFF
+      r1: 0x01
+      r2: 0x00
+  execute:
+    - "ands r2, r0, r1, LSL #1"
+  expect:
+    registers:
+      r0: 0xFF
+      r1: 0x01
+      r2: 0x02
+    ncz: "000"

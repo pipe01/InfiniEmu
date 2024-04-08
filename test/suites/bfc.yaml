@@ -1,0 +1,20 @@
+"BFC":
+- setup:
+    registers:
+      r0: 0xF00
+  execute:
+    - "bfc r0, #8, #4"
+  expect:
+    registers:
+      r0: 0x000
+    ncz: "000"
+
+- setup:
+    registers:
+      r0: 0b111111
+  execute:
+    - "bfc r0, #2, #3"
+  expect:
+    registers:
+      r0: 0b100011
+    ncz: "000"

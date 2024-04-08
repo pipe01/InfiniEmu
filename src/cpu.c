@@ -278,6 +278,7 @@ void cpu_reset(cpu_t *cpu)
 
 #define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address)
 #define OPERAND(n) OPERAND_OFF(n, 0)
+#define OPERAND_REG(n) cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg)
 
 void cpu_step(cpu_t *cpu)
 {
@@ -359,11 +360,63 @@ void cpu_step(cpu_t *cpu)
         cpu->branched = true;
         break;
 
+    case ARM_INS_BFC:
+    {
+        assert(detail.op_count == 3);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_IMM);
+        assert(detail.operands[2].type == ARM_OP_IMM);
+
+        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+
+        uint32_t mask = ((1 << detail.operands[2].imm) - 1) << detail.operands[1].imm;
+        value = op0 & ~mask;
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        break;
+    }
+
+    case ARM_INS_BFI:
+    {
+        assert(detail.op_count == 4);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_IMM);
+        assert(detail.operands[3].type == ARM_OP_IMM);
+
+        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+
+        uint32_t mask = ((1 << detail.operands[3].imm) - 1) << detail.operands[2].imm;
+        
+        op0 &= ~mask;
+        op0 |= op1 & mask;
+
+        cpu_reg_write(cpu, detail.operands[0].reg, op0);
+        break;
+    }
+
     case ARM_INS_BIC:
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        assert(detail.operands[0].type == ARM_OP_REG);
+    
+        if (detail.op_count == 3)
+        {
+            assert(detail.operands[1].type == ARM_OP_REG);
+            op0 = OPERAND_REG(1);
+            op1 = OPERAND(2);
+        }
+        else
+        {
+            assert(detail.op_count == 4);
+            assert(detail.operands[1].type == ARM_OP_REG);
+            assert(detail.operands[2].type == ARM_OP_REG);
+            assert(detail.operands[3].type == ARM_OP_IMM);
+            op0 = OPERAND_REG(1);
+            op1 = OPERAND_REG(2);
+        }
 
         value = op0 & ~op1;
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
 
         // TODO: Update carry
         UPDATE_NZ;

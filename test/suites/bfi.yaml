@@ -1,0 +1,24 @@
+"BFI":
+- setup:
+    registers:
+      r0: 0b0000011
+      r1: 0b1111000
+  execute:
+    - "bfi r0, r1, #3, #4"
+  expect:
+    registers:
+      r0: 0b1111011
+      r1: 0b1111000
+    ncz: "000"
+
+- setup:
+    registers:
+      r0: 0b0000011
+      r1: 0b1101000
+  execute:
+    - "bfi r0, r1, #3, #4"
+  expect:
+    registers:
+      r0: 0b1101011
+      r1: 0b1101000
+    ncz: "000"
