@@ -2,14 +2,13 @@
 #include <stdio.h>
 #include <stdint.h>
                
+#include "arm.h"
 #include "cpu.h"
 
 #define ADD_MEM(start, mem) mem_first = *(mem_last == NULL ? &mem_first : &mem_last->next) = (mem)
 #define ADD_MEM_SIMPLE(start, data) ADD_MEM(start, memreg_new_simple(start, data, sizeof(data)))
                
-void test_ADD__immediate___1();
 void test_ADD__immediate___1() {
-#define TEST_NAME "ADD (immediate) #1"
 uint8_t program[] = {72, 65};
 memreg_t *mem_first = NULL;
 cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
@@ -22,12 +21,9 @@ uint32_t value;
 value = cpu_reg_read(cpu, ARM_REG_R0); 
 if (value != 0)
 	printf("Register R0: expected 0, got %d\n", value);
-#undef TEST_NAME
 }
 
-void test_ADD__immediate___2();
 void test_ADD__immediate___2() {
-#define TEST_NAME "ADD (immediate) #2"
 uint8_t program[] = {72, 65};
 memreg_t *mem_first = NULL;
 cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
@@ -40,7 +36,19 @@ uint32_t value;
 value = cpu_reg_read(cpu, ARM_REG_R0); 
 if (value != 3)
 	printf("Register R0: expected 0, got %d\n", value);
-#undef TEST_NAME
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & APSR_N) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & APSR_C) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & APSR_V) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & APSR_Z) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
 }
 
 

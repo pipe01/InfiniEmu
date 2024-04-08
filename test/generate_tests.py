@@ -30,13 +30,38 @@ class Registers:
     core: Dict[int, int]
 
 @dataclass
+class Flags:
+    negative: bool | None = None
+    carry: bool | None = None
+    overflow: bool | None = None
+    zero: bool | None = None
+
+@dataclass
 class CPUState:
     memory: List[Memory]
-    registers: Registers | None
+    registers: Registers | None = None
+    flags: Flags | None = None
 
 def cpustate_from_spec(spec: any) -> CPUState:
-    state = CPUState([], None)
-    
+    state = CPUState([])
+
+    if "flags" in spec:
+        flags_spec = spec["flags"]
+
+        if isinstance(flags_spec, bool):
+            state.flags = Flags(flags_spec, flags_spec, flags_spec, flags_spec)
+        else:
+            state.flags = Flags()
+
+            if "negative" in flags_spec:
+                state.flags.negative = flags_spec["negative"]
+            if "carry" in flags_spec:
+                state.flags.carry = flags_spec["carry"]
+            if "overflow" in flags_spec:
+                state.flags.overflow = flags_spec["overflow"]
+            if "zero" in flags_spec:
+                state.flags.zero = flags_spec["zero"]
+
     if "memory" in spec:
         memory_spec = spec["memory"]
 
@@ -77,27 +102,22 @@ def cpustate_from_spec(spec: any) -> CPUState:
 
         core = {}
 
-        if "core" in registers_spec:
-            core_spec = registers_spec["core"]
-
-            for reg_spec in core_spec:
-                value_spec = core_spec[reg_spec]
-
-                if reg_spec == "sp":
-                    reg = 13
-                elif reg_spec == "lr":
-                    reg = 14
-                elif reg_spec == "pc":
-                    reg = 15
-                elif isinstance(reg_spec, int):
-                    reg = reg_spec
-                else:
-                    raise ValueError("Invalid register key")
-                
-                if not isinstance(value_spec, int):
-                    raise ValueError("Invalid register value")
-
-                core[reg] = value_spec
+        for reg_name, value in registers_spec.items():
+            if reg_name[0] == "r":
+                reg = int(reg_name[1:])
+            elif reg_name == "sp":
+                reg = 13
+            elif reg_name == "lr":
+                reg = 14
+            elif reg_name == "pc":
+                reg = 15
+            else:
+                raise ValueError("Invalid register name")
+            
+            if not isinstance(value, int):
+                raise ValueError("Invalid register value")
+            
+            core[reg] = value
 
         state.registers = Registers(core)
     
@@ -181,6 +201,7 @@ with open("main.c", "w") as main:
     main.write("""#include <stdio.h>
 #include <stdint.h>
                
+#include "arm.h"
 #include "cpu.h"
 
 #define ADD_MEM(start, mem) mem_first = *(mem_last == NULL ? &mem_first : &mem_last->next) = (mem)
@@ -191,14 +212,11 @@ with open("main.c", "w") as main:
     for suite in suites:
 
         for test in suite.cases:
-            main.write(f"void {test.func_name()}();\n")
-
             program = compile("\n".join(test.code) + "\n")
 
             test_name = f"{suite.name}/{test.name}"
         
             main.write(f"void {test.func_name()}() {{\n")
-            main.write(f'#define TEST_NAME "{test.name}"\n')
 
             main.write("uint8_t program[] = {")
             main.write(", ".join([str(i) for i in program]))
@@ -235,7 +253,20 @@ with open("main.c", "w") as main:
                     main.write(f"if (value != {test.expect.registers.core[reg]})\n")
                     main.write(f'\tprintf("Register {core_register_name(reg)}: expected {reg}, got %d\\n", value);\n')
 
-            main.write("#undef TEST_NAME\n")
+            def test_flag(expected: bool | None, flag_const: str):
+                if expected is not None:
+                    main.write(f"flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & {flag_const}) != 0;\n")
+                    main.write(f"if (flag_value != {'true' if expected else 'false'})\n")
+                    main.write(f'\tprintf("Flag {flag_const}: expected {1 if expected else 0}, got %d\\n", flag_value);\n')
+                pass
+
+            if test.expect.flags != None:
+                main.write("uint32_t flag_value;\n")
+                test_flag(test.expect.flags.negative, "APSR_N")
+                test_flag(test.expect.flags.carry, "APSR_C")
+                test_flag(test.expect.flags.overflow, "APSR_V")
+                test_flag(test.expect.flags.zero, "APSR_Z")
+
             main.write("}\n")
             main.write("\n")
 
