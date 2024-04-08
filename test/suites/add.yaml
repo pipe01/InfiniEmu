@@ -1,0 +1,106 @@
+"ADD (immediate)":
+- setup:
+    registers:
+      r0: 0
+      r1: 10
+  execute:
+    - "adds r0, r1, #4"
+  expect:
+    registers:
+      r0: 14
+      r1: 10
+    nczv: "0000"
+
+- setup:
+    registers:
+      r0: 10
+  execute:
+    - "adds r0, #4"
+  expect:
+    registers:
+      r0: 14
+    nczv: "0000"
+
+"ADD (register)":
+- setup:
+    registers:
+      r0: 0
+      r1: 0
+  execute:
+    - "adds r0, r1"
+  expect:
+    registers:
+      r0: 0
+    nczv: "0010"
+
+- setup:
+    registers:
+      r0: 1
+      r1: 2
+  execute:
+    - "adds r0, r1"
+  expect:
+    registers:
+      r0: 3
+    nczv: "0000"
+
+- setup:
+    registers:
+      r0: -1
+      r1: 2
+  execute:
+    - "adds r0, r1"
+  expect:
+    registers:
+      r0: 1
+      r1: 2
+    nczv: "0100"
+
+- setup:
+    registers:
+      r0: 0xFFFFFFFF
+      r1: 0xFFFFFFFF
+  execute:
+    - "adds r0, r1"
+  expect:
+    registers:
+      r0: 0xFFFFFFFE
+      r1: 0xFFFFFFFF
+    nczv: "1100"
+
+- setup:
+    registers:
+      r0: 0xFFFFFFFF
+      r1: 1
+  execute:
+    - "adds r0, r1"
+  expect:
+    registers:
+      r0: 0
+    nczv: "0110"
+
+"ADD (SP plus immediate)":
+- setup:
+    registers:
+      r0: 0
+      sp: 100
+  execute:
+    - "adds r0, sp, #4"
+  expect:
+    registers:
+      r0: 104
+      sp: 100
+    nczv: "0000"
+
+"ADD (SP plus register)":
+- setup:
+    registers:
+      r0: 10
+      sp: 100
+  execute:
+    - "adds r0, sp, r0"
+  expect:
+    registers:
+      r0: 110
+      sp: 100
+    nczv: "0000"

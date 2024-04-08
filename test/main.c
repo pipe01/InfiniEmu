@@ -8,7 +8,65 @@
 #define ADD_MEM(start, mem) mem_first = *(mem_last == NULL ? &mem_first : &mem_last->next) = (mem)
 #define ADD_MEM_SIMPLE(start, data) ADD_MEM(start, memreg_new_simple(start, data, sizeof(data)))
                
-void test_ADD__immediate___1() {
+void test_ADC__register___1() {
+uint8_t program[] = {81, 241, 4, 0};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 0);
+cpu_reg_write(cpu, ARM_REG_R1, 10);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 14)
+	printf("Register R0: expected 14, got %d\n", value);
+value = cpu_reg_read(cpu, ARM_REG_R1); 
+if (value != 10)
+	printf("Register R1: expected 10, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
+}
+
+void test_ADC__register___2() {
+uint8_t program[] = {80, 241, 4, 0};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 10);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 14)
+	printf("Register R0: expected 14, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
+}
+
+void test_ADC__immediate___1() {
 uint8_t program[] = {72, 65};
 memreg_t *mem_first = NULL;
 cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
@@ -36,7 +94,7 @@ if (flag_value != true)
 	printf("Flag APSR_Z: expected 1, got %d\n", flag_value);
 }
 
-void test_ADD__immediate___2() {
+void test_ADC__immediate___2() {
 uint8_t program[] = {72, 65};
 memreg_t *mem_first = NULL;
 cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
@@ -48,7 +106,7 @@ cpu_step(cpu);
 uint32_t value;
 value = cpu_reg_read(cpu, ARM_REG_R0); 
 if (value != 3)
-	printf("Register R0: expected 0, got %d\n", value);
+	printf("Register R0: expected 3, got %d\n", value);
 uint32_t flag_value;
 flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
 if (flag_value != false)
@@ -64,7 +122,7 @@ if (flag_value != false)
 	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
 }
 
-void test_ADD__immediate___3() {
+void test_ADC__immediate___3() {
 uint8_t program[] = {72, 65};
 memreg_t *mem_first = NULL;
 cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
@@ -76,7 +134,7 @@ cpu_step(cpu);
 uint32_t value;
 value = cpu_reg_read(cpu, ARM_REG_R0); 
 if (value != 1)
-	printf("Register R0: expected 0, got %d\n", value);
+	printf("Register R0: expected 1, got %d\n", value);
 uint32_t flag_value;
 flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
 if (flag_value != false)
@@ -92,7 +150,7 @@ if (flag_value != false)
 	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
 }
 
-void test_ADD__immediate___4() {
+void test_ADC__immediate___4() {
 uint8_t program[] = {72, 65};
 memreg_t *mem_first = NULL;
 cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
@@ -120,15 +178,317 @@ if (flag_value != true)
 	printf("Flag APSR_Z: expected 1, got %d\n", flag_value);
 }
 
+void test_ADR__1() {
+uint8_t program[] = {15, 242, 10, 0};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 10);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+}
+
+void test_ADD__immediate___1() {
+uint8_t program[] = {8, 29};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 0);
+cpu_reg_write(cpu, ARM_REG_R1, 10);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 14)
+	printf("Register R0: expected 14, got %d\n", value);
+value = cpu_reg_read(cpu, ARM_REG_R1); 
+if (value != 10)
+	printf("Register R1: expected 10, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
+}
+
+void test_ADD__immediate___2() {
+uint8_t program[] = {4, 48};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 10);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 14)
+	printf("Register R0: expected 14, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
+}
+
+void test_ADD__register___1() {
+uint8_t program[] = {64, 24};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 0);
+cpu_reg_write(cpu, ARM_REG_R1, 0);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 0)
+	printf("Register R0: expected 0, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != true)
+	printf("Flag APSR_Z: expected 1, got %d\n", flag_value);
+}
+
+void test_ADD__register___2() {
+uint8_t program[] = {64, 24};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 1);
+cpu_reg_write(cpu, ARM_REG_R1, 2);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 3)
+	printf("Register R0: expected 3, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
+}
+
+void test_ADD__register___3() {
+uint8_t program[] = {64, 24};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, -1);
+cpu_reg_write(cpu, ARM_REG_R1, 2);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 1)
+	printf("Register R0: expected 1, got %d\n", value);
+value = cpu_reg_read(cpu, ARM_REG_R1); 
+if (value != 2)
+	printf("Register R1: expected 2, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != true)
+	printf("Flag APSR_C: expected 1, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
+}
+
+void test_ADD__register___4() {
+uint8_t program[] = {64, 24};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 4294967295);
+cpu_reg_write(cpu, ARM_REG_R1, 4294967295);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 4294967294)
+	printf("Register R0: expected 4294967294, got %d\n", value);
+value = cpu_reg_read(cpu, ARM_REG_R1); 
+if (value != 4294967295)
+	printf("Register R1: expected 4294967295, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != true)
+	printf("Flag APSR_N: expected 1, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != true)
+	printf("Flag APSR_C: expected 1, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
+}
+
+void test_ADD__register___5() {
+uint8_t program[] = {64, 24};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 4294967295);
+cpu_reg_write(cpu, ARM_REG_R1, 1);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 0)
+	printf("Register R0: expected 0, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != true)
+	printf("Flag APSR_C: expected 1, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != true)
+	printf("Flag APSR_Z: expected 1, got %d\n", flag_value);
+}
+
+void test_ADD__SP_plus_immediate___1() {
+uint8_t program[] = {29, 241, 4, 0};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 0);
+cpu_reg_write(cpu, ARM_REG_R13, 100);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 104)
+	printf("Register R0: expected 104, got %d\n", value);
+value = cpu_reg_read(cpu, ARM_REG_R13); 
+if (value != 100)
+	printf("Register SP: expected 100, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
+}
+
+void test_ADD__SP_plus_register___1() {
+uint8_t program[] = {29, 235, 0, 0};
+memreg_t *mem_first = NULL;
+cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);
+cpu_reg_write(cpu, ARM_REG_R0, 10);
+cpu_reg_write(cpu, ARM_REG_R13, 100);
+for (size_t i = 0; i < 1; i++) {
+cpu_step(cpu);
+}
+uint32_t value;
+value = cpu_reg_read(cpu, ARM_REG_R0); 
+if (value != 110)
+	printf("Register R0: expected 110, got %d\n", value);
+value = cpu_reg_read(cpu, ARM_REG_R13); 
+if (value != 100)
+	printf("Register SP: expected 100, got %d\n", value);
+uint32_t flag_value;
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_N)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_N: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_C)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_C: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_V)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_V: expected 0, got %d\n", flag_value);
+flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << APSR_Z)) != 0;
+if (flag_value != false)
+	printf("Flag APSR_Z: expected 0, got %d\n", flag_value);
+}
+
 
 int main() {
 printf("Running tests for adc\n");
+printf("  [*] ADC (register) #1\n");
+test_ADC__register___1();
+printf("  [*] ADC (register) #2\n");
+test_ADC__register___2();
+printf("  [*] ADC (immediate) #1\n");
+test_ADC__immediate___1();
+printf("  [*] ADC (immediate) #2\n");
+test_ADC__immediate___2();
+printf("  [*] ADC (immediate) #3\n");
+test_ADC__immediate___3();
+printf("  [*] ADC (immediate) #4\n");
+test_ADC__immediate___4();
+printf("Running tests for adr\n");
+printf("  [*] ADR #1\n");
+test_ADR__1();
+printf("Running tests for add\n");
 printf("  [*] ADD (immediate) #1\n");
 test_ADD__immediate___1();
 printf("  [*] ADD (immediate) #2\n");
 test_ADD__immediate___2();
-printf("  [*] ADD (immediate) #3\n");
-test_ADD__immediate___3();
-printf("  [*] ADD (immediate) #4\n");
-test_ADD__immediate___4();
+printf("  [*] ADD (register) #1\n");
+test_ADD__register___1();
+printf("  [*] ADD (register) #2\n");
+test_ADD__register___2();
+printf("  [*] ADD (register) #3\n");
+test_ADD__register___3();
+printf("  [*] ADD (register) #4\n");
+test_ADD__register___4();
+printf("  [*] ADD (register) #5\n");
+test_ADD__register___5();
+printf("  [*] ADD (SP plus immediate) #1\n");
+test_ADD__SP_plus_immediate___1();
+printf("  [*] ADD (SP plus register) #1\n");
+test_ADD__SP_plus_register___1();
 }

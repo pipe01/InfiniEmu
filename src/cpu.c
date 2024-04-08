@@ -320,7 +320,7 @@ void cpu_step(cpu_t *cpu)
 
         UPDATE_NZCV;
         break;
-    
+
     case ARM_INS_ADD:
         op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
