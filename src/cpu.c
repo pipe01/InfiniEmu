@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LOG_CPU
+// #define LOG_CPU
 
 #ifdef LOG_CPU
 #define LOGF(...) printf(__VA_ARGS__)
@@ -309,6 +309,18 @@ void cpu_step(cpu_t *cpu)
 
     switch (i->id)
     {
+    case ARM_INS_ADC:
+        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+
+        carry = IS_SET(cpu->xpsr, APSR_C);
+        value = AddWithCarry(op0, op1, &carry, &overflow);
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+
+        UPDATE_NZCV;
+        break;
+    
     case ARM_INS_ADD:
         op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail.op_count == 3 ? 2 : 1);

@@ -4,6 +4,7 @@ IDIR = include
 ODIR = obj
 LDIR = lib
 SDIR = src
+TDIR = test
 
 CC = gcc
 CFLAGS = -I$(IDIR) -I$(LDIR) -g -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
@@ -13,8 +14,10 @@ LIBS = -lm -lcapstone
 DEPS = $(shell find $(IDIR) -type f -name '*.h')
 
 _OBJ = $(patsubst %.c,%.o,$(shell find $(SDIR) -type f -name '*.c'))
+_TEST_OBJ = $(patsubst %.c,%.o,$(shell find $(TDIR) -type f -name '*.c'))
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
+TEST_BIN = /tmp/infiniemu-test
 
 $(ODIR)/$(LDIR)/%.o: $(LDIR)/%.c $(DEPS)
 	mkdir -p $(shell dirname $@)
@@ -27,7 +30,14 @@ $(ODIR)/%.o: %.c $(DEPS)
 infiniemu: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
-.PHONY: clean
+.PHONY: clean test gen-test
+
+test: obj/src/cpu.o obj/src/memory.o $(_TEST_OBJ)
+	$(CC) -o $(TEST_BIN) $^ $(CFLAGS) $(LIBS)
+	$(TEST_BIN); rm -f $(TEST_BIN)
+
+gen-test:
+	cd $(TDIR) && python generate_tests.py
 
 clean:
 	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ 

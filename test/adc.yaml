@@ -1,0 +1,25 @@
+"ADD (immediate)":
+- setup:
+    registers:
+      core:
+        0: 0
+        1: 0
+  execute:
+    - "adc r0, r1"
+  expect:
+    registers:
+      core:
+        0: 0
+
+- setup:
+    registers:
+      core:
+        0: 1
+        1: 2
+
+  execute:
+    - "adc r0, r1"
+  expect:
+    registers:
+      core:
+        0: 3
