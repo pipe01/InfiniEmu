@@ -48,3 +48,33 @@
     registers:
       r0: 104
       r1: 123
+
+"LDR (register)":
+- setup:
+    registers:
+      r0: 100
+      r1: 4
+    memory:
+      "104": [123, 0, 0, 0]
+  execute:
+    - "ldr r2, [r0, r1]"
+  expect:
+    registers:
+      r0: ==
+      r1: ==
+      r2: 123
+
+- name: "shifted"
+  setup:
+    registers:
+      r0: 100
+      r1: 1
+    memory:
+      "104": [123, 0, 0, 0]
+  execute:
+    - "ldr r2, [r0, r1, LSL 2]"
+  expect:
+    registers:
+      r0: ==
+      r1: ==
+      r2: 123

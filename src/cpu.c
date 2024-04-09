@@ -181,23 +181,23 @@ static int cpu_execution_priority(cpu_t *cpu)
 #define UPDATE_C(cpu, carry) ((carry) ? SET((cpu)->xpsr, APSR_C) : CLEAR((cpu)->xpsr, APSR_C))
 #define UPDATE_V(cpu, overflow) ((overflow) ? SET((cpu)->xpsr, APSR_V) : CLEAR((cpu)->xpsr, APSR_V))
 
-#define UPDATE_NZ                    \
-    if (i->detail->arm.update_flags) \
-    {                                \
-        UPDATE_N((cpu), (value));    \
-        UPDATE_Z((cpu), (value));    \
+#define UPDATE_NZ                 \
+    if (detail.update_flags)      \
+    {                             \
+        UPDATE_N((cpu), (value)); \
+        UPDATE_Z((cpu), (value)); \
     }
 
-#define UPDATE_NZC                   \
-    if (i->detail->arm.update_flags) \
-    {                                \
-        UPDATE_N((cpu), (value));    \
-        UPDATE_Z((cpu), (value));    \
-        UPDATE_C((cpu), (carry));    \
+#define UPDATE_NZC                \
+    if (detail.update_flags)      \
+    {                             \
+        UPDATE_N((cpu), (value)); \
+        UPDATE_Z((cpu), (value)); \
+        UPDATE_C((cpu), (carry)); \
     }
 
 #define UPDATE_NZCV                  \
-    if (i->detail->arm.update_flags) \
+    if (detail.update_flags)         \
     {                                \
         UPDATE_N((cpu), (value));    \
         UPDATE_Z((cpu), (value));    \
@@ -205,11 +205,11 @@ static int cpu_execution_priority(cpu_t *cpu)
         UPDATE_V((cpu), (overflow)); \
     }
 
-#define WRITEBACK(op_n)                                                     \
-    if (detail.writeback)                                           \
-    {                                                                       \
-        assert(detail.operands[op_n].type == ARM_OP_REG);           \
-        cpu_reg_write(cpu, detail.operands[op_n].reg, address);     \
+#define WRITEBACK(op_n)                                         \
+    if (detail.writeback)                                       \
+    {                                                           \
+        assert(detail.operands[op_n].type == ARM_OP_REG);       \
+        cpu_reg_write(cpu, detail.operands[op_n].reg, address); \
     }
 
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
@@ -277,6 +277,38 @@ void cpu_reset(cpu_t *cpu)
     cpu->sp_process = sp;
 
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
+}
+
+void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask)
+{
+    assert(detail->op_count == 2 || detail->op_count == 3);
+    assert(detail->operands[0].type == ARM_OP_REG);
+    assert(detail->operands[1].type == ARM_OP_MEM);
+
+    uint32_t address = cpu_reg_read(cpu, detail->operands[1].mem.base);
+    uint32_t offset;
+
+    if (detail->op_count == 3)
+    {
+        assert(detail->operands[1].mem.disp == 0);
+        assert(detail->operands[2].type == ARM_OP_IMM);
+        offset = detail->operands[2].imm;
+    }
+    else
+    {
+        offset = detail->operands[1].mem.disp;
+
+        if (detail->operands[1].mem.index != ARM_REG_INVALID)
+            address += (cpu_reg_read(cpu, detail->operands[1].mem.index) * detail->operands[1].mem.scale) << detail->operands[1].shift.value;
+    }
+
+    uint32_t value = memreg_read(cpu->mem, address + (detail->post_index ? 0 : offset));
+    cpu_reg_write(cpu, detail->operands[0].reg, value);
+
+    address += offset;
+
+    if (detail->writeback)
+        cpu_reg_write(cpu, detail->operands[1].mem.base, address);
 }
 
 // TODO: Implement
@@ -576,48 +608,11 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDR:
-        assert(detail.op_count == 2 || detail.op_count == 3);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_MEM);
-
-        address = cpu_reg_read(cpu, detail.operands[1].mem.base);
-
-        if (detail.op_count == 3)
-        {
-            assert(detail.operands[1].mem.disp == 0);
-            assert(detail.operands[2].type == ARM_OP_IMM);
-            op0 = detail.operands[2].imm;
-        }
-        else
-        {
-            op0 = detail.operands[1].mem.disp;
-        }
-
-        value = memreg_read(cpu->mem, address + (detail.post_index ? 0 : op0));
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
-
-        address += op0;
-
-        if (detail.writeback)
-            cpu_reg_write(cpu, detail.operands[1].mem.base, address);
-
-        UPDATE_NZCV;
+        do_load(cpu, &detail, 0xFFFFFFFF);
         break;
 
     case ARM_INS_LDRB:
-        if (detail.op_count == 3)
-        {
-            assert(detail.operands[2].type == ARM_OP_IMM);
-            op0 = detail.operands[2].imm;
-        }
-        else
-        {
-            op0 = 0;
-        }
-
-        value = OPERAND_OFF(1, op0);
-
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_BYTE);
+        do_load(cpu, &detail, 0xFF);
         break;
 
     case ARM_INS_LDRD:
@@ -628,10 +623,7 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDRH:
-        op1 = OPERAND(1);
-        value = op1 & 0xFFFF;
-
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        do_load(cpu, &detail, 0xFFFF);
         break;
 
     case ARM_INS_LSL:
