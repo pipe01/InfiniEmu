@@ -1,0 +1,33 @@
+"LDMDB":
+- setup:
+    registers:
+      r0: 0x100
+    memory:
+      "0x0FC": [1, 0, 0, 0]
+      "0x0F8": [2, 0, 0, 0]
+      "0x0F4": [3, 0, 0, 0]
+  execute:
+    - "ldmdb r0, {r1, r2, r3}"
+  expect:
+    registers:
+      r0: ==
+      r1: 3
+      r2: 2
+      r3: 1
+
+- name: "writeback"
+  setup:
+    registers:
+      r0: 0x100
+    memory:
+      "0x0FC": [1, 0, 0, 0]
+      "0x0F8": [2, 0, 0, 0]
+      "0x0F4": [3, 0, 0, 0]
+  execute:
+    - "ldmdb r0!, {r1, r2, r3}"
+  expect:
+    registers:
+      r0: 0x0F4
+      r1: 3
+      r2: 2
+      r3: 1

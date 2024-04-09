@@ -1,0 +1,50 @@
+"LDR (immediate)":
+- setup:
+    registers:
+      r0: 100
+    memory:
+      "100": [123, 0, 0, 0]
+  execute:
+    - "ldr r1, [r0]"
+  expect:
+    registers:
+      r0: ==
+      r1: 123
+
+- setup:
+    registers:
+      r0: 100
+    memory:
+      "104": [123, 0, 0, 0]
+  execute:
+    - "ldr r1, [r0, #4]"
+  expect:
+    registers:
+      r0: ==
+      r1: 123
+
+- name: "pre-indexed, writeback"
+  setup:
+    registers:
+      r0: 100
+    memory:
+      "104": [123, 0, 0, 0]
+  execute:
+    - "ldr r1, [r0, #4]!"
+  expect:
+    registers:
+      r0: 104
+      r1: 123
+
+- name: "post-indexed, writeback"
+  setup:
+    registers:
+      r0: 100
+    memory:
+      "100": [123, 0, 0, 0]
+  execute:
+    - "ldr r1, [r0], #4"
+  expect:
+    registers:
+      r0: 104
+      r1: 123

@@ -206,9 +206,10 @@ static int cpu_execution_priority(cpu_t *cpu)
     }
 
 #define WRITEBACK(op_n)                                                     \
-    if (i->detail->arm.writeback)                                           \
+    if (detail.writeback)                                           \
     {                                                                       \
-        cpu_store_operand(cpu, &detail.operands[op_n], address, SIZE_WORD); \
+        assert(detail.operands[op_n].type == ARM_OP_REG);           \
+        cpu_reg_write(cpu, detail.operands[op_n].reg, address);     \
     }
 
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
@@ -546,49 +547,60 @@ void cpu_step(cpu_t *cpu)
             value = memreg_read(cpu->mem, address);
             address += 4;
 
-            cpu_store_operand(cpu, &detail.operands[n + 1], value, SIZE_WORD);
+            cpu_reg_write(cpu, detail.operands[n + 1].reg, value);
         }
 
         // TODO: Check if registers<n> == '0', else don't write back
-        WRITEBACK(0);
+        if (detail.writeback)
+            cpu_reg_write(cpu, detail.operands[0].reg, address);
         break;
 
     case ARM_INS_LDMDB:
         assert(detail.op_count >= 2);
         assert(detail.operands[0].type == ARM_OP_REG);
 
-        address = cpu_reg_read(cpu, detail.operands[0].reg) - 4 * (detail.op_count - 1);
+        op0 = cpu_reg_read(cpu, detail.operands[0].reg) - 4 * (detail.op_count - 1);
+        address = op0;
 
         for (int n = 0; n < detail.op_count - 1; n++)
         {
             value = memreg_read(cpu->mem, address);
             address += 4;
 
-            cpu_store_operand(cpu, &detail.operands[n + 1], value, SIZE_WORD);
+            cpu_reg_write(cpu, detail.operands[n + 1].reg, value);
         }
 
-        WRITEBACK(0);
+        // TODO: Check if registers<n> == '0', else don't write back
+        if (detail.writeback)
+            cpu_reg_write(cpu, detail.operands[0].reg, op0);
         break;
 
     case ARM_INS_LDR:
+        assert(detail.op_count == 2 || detail.op_count == 3);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_MEM);
+
+        address = cpu_reg_read(cpu, detail.operands[1].mem.base);
+
         if (detail.op_count == 3)
         {
+            assert(detail.operands[1].mem.disp == 0);
             assert(detail.operands[2].type == ARM_OP_IMM);
             op0 = detail.operands[2].imm;
         }
         else
         {
-            op0 = 0;
+            op0 = detail.operands[1].mem.disp;
         }
 
-        value = OPERAND_OFF(1, detail.post_index ? 0 : op0);
+        value = memreg_read(cpu->mem, address + (detail.post_index ? 0 : op0));
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        address += op0;
 
-        if (detail.post_index)
-            address += op0;
+        if (detail.writeback)
+            cpu_reg_write(cpu, detail.operands[1].mem.base, address);
 
-        WRITEBACK(1);
         UPDATE_NZCV;
         break;
 
@@ -840,6 +852,7 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
     case ARM_REG_PC:
         if ((value & 1) != 1)
         {
+            // TODO: Handle better
             fprintf(stderr, "PC is not aligned\n");
             abort();
         }
