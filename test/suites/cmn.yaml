@@ -1,0 +1,80 @@
+"CMN (immediate)":
+- setup:
+    registers:
+      r0: 0x20
+  execute:
+    - "cmn r0, #0x10"
+  expect:
+    registers:
+      r0: ==
+    nczv: "0000"
+
+- setup:
+    registers:
+      r0: 0xFFFF_FFFF
+  execute:
+    - "cmn r0, #1"
+  expect:
+    registers:
+      r0: ==
+    nczv: "0110"
+
+- setup:
+    registers:
+      r0: 0xFFFF_FFFE
+  execute:
+    - "cmn r0, #1"
+  expect:
+    registers:
+      r0: ==
+    nczv: "1000"
+
+"CMN (register)":
+- setup:
+    registers:
+      r0: 0x20
+      r1: 0x10
+  execute:
+    - "cmn r0, r1"
+  expect:
+    registers:
+      r0: ==
+      r1: ==
+    nczv: "0000"
+
+- setup:
+    registers:
+      r0: 0xFFFF_FFFF
+      r1: 1
+  execute:
+    - "cmn r0, r1"
+  expect:
+    registers:
+      r0: ==
+      r1: ==
+    nczv: "0110"
+
+- setup:
+    registers:
+      r0: 0xFFFF_FFFE
+      r1: 1
+  execute:
+    - "cmn r0, r1"
+  expect:
+    registers:
+      r0: ==
+      r1: ==
+    nczv: "1000"
+
+- name: "shifted"
+  setup:
+    registers:
+      r0: 0xFFFF_FFFC
+      r1: 1
+  execute:
+    - "cmn r0, r1, LSL 2"
+  expect:
+    registers:
+      r0: ==
+      r1: ==
+    nczv: "0110"

@@ -1,0 +1,32 @@
+"LDM":
+- setup:
+    registers:
+      r0: 0x100
+    memory:
+      "0x100": [1, 0, 0, 0]
+      "0x104": [2, 0, 0, 0]
+      "0x108": [3, 0, 0, 0]
+  execute:
+    - "ldm r0, {r1, r2, r3}"
+  expect:
+    registers:
+      r1: 1
+      r2: 2
+      r3: 3
+
+- name: "writeback"
+  setup:
+    registers:
+      r0: 0x100
+    memory:
+      "0x100": [1, 0, 0, 0]
+      "0x104": [2, 0, 0, 0]
+      "0x108": [3, 0, 0, 0]
+  execute:
+    - "ldm r0!, {r1, r2, r3}"
+  expect:
+    registers:
+      r0: 0x10C
+      r1: 1
+      r2: 2
+      r3: 3

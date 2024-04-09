@@ -1,0 +1,58 @@
+"EOR (immediate)":
+- setup:
+    registers:
+      r0: 0b111
+  execute:
+    - "eor r0, #0b101"
+  expect:
+    registers:
+      r0: 0b010
+    nczv: "0000"
+
+- setup:
+    registers:
+      r0: 0b111
+  execute:
+    - "eors r0, #0b111"
+  expect:
+    registers:
+      r0: 0b000
+    nczv: "0010"
+
+"EOR (register)":
+- setup:
+    registers:
+      r0: 0b111
+      r1: 0b101
+  execute:
+    - "eor r0, r1"
+  expect:
+    registers:
+      r0: 0b010
+      r1: ==
+    nczv: "0000"
+
+- setup:
+    registers:
+      r0: 0b111
+      r1: 0b111
+  execute:
+    - "eors r0, r1"
+  expect:
+    registers:
+      r0: 0b000
+      r1: ==
+    nczv: "0010"
+
+- name: "shifted"
+  setup:
+    registers:
+      r0: 0b1110
+      r1: 0b111
+  execute:
+    - "eors r0, r0, r1, LSL 1"
+  expect:
+    registers:
+      r0: 0b0000
+      r1: ==
+    nczv: "0010"

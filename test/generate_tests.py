@@ -42,7 +42,7 @@ class CPUState:
     registers: Registers | None = None
     flags: Flags | None = None
 
-def cpustate_from_spec(spec: any) -> CPUState:
+def cpustate_from_spec(spec: any, setupState: CPUState | None) -> CPUState:
     state = CPUState([])
 
     for key, value in spec.items():
@@ -97,8 +97,10 @@ def cpustate_from_spec(spec: any) -> CPUState:
                     reg = 15
                 else:
                     raise ValueError("Invalid register name")
-                
-                if not isinstance(value, int):
+
+                if value == "==" and setupState is not None:
+                    value = setupState.registers.core[reg]
+                elif not isinstance(value, int):
                     raise ValueError("Invalid register value")
                 
                 core[reg] = value
@@ -200,15 +202,13 @@ for test_file in test_files:
 
                 if "setup" in test_spec:
                     setup_spec = test_spec["setup"]
-                    test.setup = cpustate_from_spec(setup_spec)
+                    test.setup = cpustate_from_spec(setup_spec, None)
 
                 if "expect" in test_spec:
                     expect_spec = test_spec["expect"]
-                    test.expect = cpustate_from_spec(expect_spec)
+                    test.expect = cpustate_from_spec(expect_spec, test.setup)
 
                 suite.cases.append(test)
-
-    suite.cases.sort(key=lambda t: t.name)
 
     suites.append(suite)
 
@@ -222,9 +222,6 @@ with open("main.c", "w") as main:
 #include "arm.h"
 #include "cpu.h"
 
-#define ADD_MEM(start, mem) mem_first = *(mem_last == NULL ? &mem_first : &mem_last->next) = (mem)
-#define ADD_MEM_SIMPLE(start, data) ADD_MEM(start, memreg_new_simple(start, data, sizeof(data)))
-               
 """)
 
     for suite in suites:
@@ -247,9 +244,14 @@ with open("main.c", "w") as main:
             memcounter = 0
             for mem in test.setup.memory:
                 main.write(f"uint8_t memory{memcounter}[{mem.size}] = {{")
-                main.write(", ".join([str(i) for i in mem.value]))
+                main.write(", ".join([str(i) for i in mem.value])) #TODO: Repeat values if necessary to fill array
                 main.write("};\n")
-                main.write(f"ADD_MEM_SIMPLE({mem.start}, memory{memcounter});\n")
+
+                reg = f"memreg_new_simple({mem.start}, memory{memcounter}, sizeof(memory{memcounter}))"
+                if memcounter == 0:
+                    main.write(f"mem_first = mem_last = {reg};\n")
+                else:
+                    main.write(f"mem_last = memreg_set_next(mem_last, {reg});\n")
 
                 memcounter += 1
 
@@ -268,7 +270,7 @@ with open("main.c", "w") as main:
 
                 for reg in test.expect.registers.core:
                     main.write(f"value = cpu_reg_read(cpu, {core_register_enum(reg)}); \n")
-                    main.write(f"if (value != {test.expect.registers.core[reg]})\n")
+                    main.write(f"if (value != (uint32_t)({test.expect.registers.core[reg]}))\n")
                     main.write(f'\tprintf("Register {core_register_name(reg)}: expected {test.expect.registers.core[reg]}, got %d\\n", value);\n')
 
             def test_flag(expected: bool | None, flag_const: str):

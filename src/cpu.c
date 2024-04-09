@@ -205,10 +205,10 @@ static int cpu_execution_priority(cpu_t *cpu)
         UPDATE_V((cpu), (overflow)); \
     }
 
-#define WRITEBACK                                                        \
-    if (i->detail->arm.writeback)                                        \
-    {                                                                    \
-        cpu_store_operand(cpu, &detail.operands[1], address, SIZE_WORD); \
+#define WRITEBACK(op_n)                                                     \
+    if (i->detail->arm.writeback)                                           \
+    {                                                                       \
+        cpu_store_operand(cpu, &detail.operands[op_n], address, SIZE_WORD); \
     }
 
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
@@ -363,6 +363,8 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_B:
     case ARM_INS_BX:
+        assert(detail.op_count == 1);
+
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
         cpu->branched = true;
         break;
@@ -395,7 +397,7 @@ void cpu_step(cpu_t *cpu)
         op1 = cpu_reg_read(cpu, detail.operands[1].reg);
 
         uint32_t mask = ((1 << detail.operands[3].imm) - 1) << detail.operands[2].imm;
-        
+
         op0 &= ~mask;
         op0 |= op1 & mask;
 
@@ -405,7 +407,7 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_BIC:
         assert(detail.operands[0].type == ARM_OP_REG);
-    
+
         if (detail.op_count == 3)
         {
             assert(detail.operands[1].type == ARM_OP_REG);
@@ -431,6 +433,8 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_BL:
     case ARM_INS_BLX:
+        assert(detail.op_count == 1);
+
         cpu_reg_write(cpu, ARM_REG_LR, next | 1);
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
         cpu->branched = true;
@@ -438,6 +442,7 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_CBZ:
     case ARM_INS_CBNZ:
+        assert(detail.op_count == 2);
         op0 = OPERAND(0);
         op1 = OPERAND(1);
 
@@ -456,12 +461,29 @@ void cpu_step(cpu_t *cpu)
         op0 = OPERAND_REG(0);
         op1 = OPERAND_REG(1);
 
-        value = op1 == 0 ? 0 : __builtin_clz(op1);
+        value = op1 == 0 ? 32 : __builtin_clz(op1);
         cpu_reg_write(cpu, detail.operands[0].reg, value);
         break;
 
+    case ARM_INS_CMN:
+        assert(detail.update_flags);
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+        op1 = OPERAND(1);
+
+        value = AddWithCarry(op0, op1, &carry, &overflow);
+
+        UPDATE_NZCV
+        break;
+
     case ARM_INS_CMP:
-        op0 = OPERAND(0);
+        assert(detail.update_flags);
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
         op1 = OPERAND(1);
 
         carry = true;
@@ -491,12 +513,61 @@ void cpu_step(cpu_t *cpu)
         }
         break;
 
+    case ARM_INS_DBG:
+    case ARM_INS_DMB:
     case ARM_INS_DSB:
     case ARM_INS_ISB:
     case ARM_INS_NOP:
     case ARM_INS_HINT:
     case ARM_INS_IT:
         // Do nothing
+        break;
+
+    case ARM_INS_EOR:
+        assert(detail.op_count == 2 || detail.op_count == 3);
+
+        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+
+        value = op0 ^ op1;
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        UPDATE_NZC
+        break;
+
+    case ARM_INS_LDM:
+        assert(detail.op_count >= 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+
+        address = cpu_reg_read(cpu, detail.operands[0].reg);
+
+        for (int n = 0; n < detail.op_count - 1; n++)
+        {
+            value = memreg_read(cpu->mem, address);
+            address += 4;
+
+            cpu_store_operand(cpu, &detail.operands[n + 1], value, SIZE_WORD);
+        }
+
+        // TODO: Check if registers<n> == '0', else don't write back
+        WRITEBACK(0);
+        break;
+
+    case ARM_INS_LDMDB:
+        assert(detail.op_count >= 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+
+        address = cpu_reg_read(cpu, detail.operands[0].reg) - 4 * (detail.op_count - 1);
+
+        for (int n = 0; n < detail.op_count - 1; n++)
+        {
+            value = memreg_read(cpu->mem, address);
+            address += 4;
+
+            cpu_store_operand(cpu, &detail.operands[n + 1], value, SIZE_WORD);
+        }
+
+        WRITEBACK(0);
         break;
 
     case ARM_INS_LDR:
@@ -517,34 +588,8 @@ void cpu_step(cpu_t *cpu)
         if (detail.post_index)
             address += op0;
 
-        WRITEBACK;
+        WRITEBACK(1);
         UPDATE_NZCV;
-        break;
-
-    case ARM_INS_MOV:
-    case ARM_INS_MOVS:
-        value = OPERAND(1);
-
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
-
-        UPDATE_NZCV;
-        break;
-
-    case ARM_INS_LDM:
-        abort();
-        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
-
-        for (int n = 0; n < detail.op_count - 1; n++)
-        {
-            value = memreg_read(cpu->mem, op0 + 4 * n);
-
-            cpu_store_operand(cpu, &detail.operands[n + 1], value, SIZE_WORD);
-        }
-
-        if (detail.writeback)
-        {
-            cpu_store_operand(cpu, &detail.operands[0], op0 + 4 * (detail.op_count - 1), SIZE_WORD);
-        }
         break;
 
     case ARM_INS_LDRB:
@@ -586,6 +631,15 @@ void cpu_step(cpu_t *cpu)
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
+        break;
+
+    case ARM_INS_MOV:
+    case ARM_INS_MOVS:
+        value = OPERAND(1);
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+
+        UPDATE_NZCV;
         break;
 
     case ARM_INS_MUL:

@@ -1,6 +1,15 @@
 "CLZ":
 - setup:
     registers:
+      r0: 0b1000
+  execute:
+    - "clz r0, r0"
+  expect:
+    registers:
+      r0: 28
+
+- setup:
+    registers:
       r0: 0
       r1: 0b1000
   execute:
@@ -8,3 +17,15 @@
   expect:
     registers:
       r0: 28
+      r1: 0b1000
+
+- setup:
+    registers:
+      r0: 0
+      r1: 0
+  execute:
+    - "clz r0, r1"
+  expect:
+    registers:
+      r0: 32
+      r1: 0
