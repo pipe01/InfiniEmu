@@ -275,13 +275,13 @@ void cpu_reset(cpu_t *cpu)
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
 }
 
-void do_load(cpu_t *cpu, cs_arm* detail, uint32_t mask)
+static void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignment)
 {
     assert(detail->op_count == 2 || detail->op_count == 3);
     assert(detail->operands[0].type == ARM_OP_REG);
     assert(detail->operands[1].type == ARM_OP_MEM);
 
-    uint32_t address = cpu_reg_read(cpu, detail->operands[1].mem.base);
+    uint32_t address = cpu_reg_read(cpu, detail->operands[1].mem.base) & alignment; // TODO: Why do we need to align the address?
     uint32_t offset;
 
     if (detail->op_count == 3)
@@ -604,11 +604,11 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDR:
-        do_load(cpu, &detail, 0xFFFFFFFF);
+        do_load(cpu, &detail, x(FFFF, FFFF), x(FFFF, FFFF) << 2);
         break;
 
     case ARM_INS_LDRB:
-        do_load(cpu, &detail, 0xFF);
+        do_load(cpu, &detail, 0xFF, x(FFFF, FFFF));
         break;
 
     case ARM_INS_LDRD:
@@ -619,7 +619,7 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDRH:
-        do_load(cpu, &detail, 0xFFFF);
+        do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1);
         break;
 
     case ARM_INS_LSL:
