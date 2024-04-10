@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// #define LOG_CPU
+#define LOG_CPU
 
 #ifdef LOG_CPU
 #define LOGF(...) printf(__VA_ARGS__)
@@ -63,10 +63,6 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uin
         break;
     case ARM_OP_IMM:
         value = op->imm;
-        break;
-    case ARM_OP_MEM:
-        *address = ALIGN4(cpu_mem_operand_address(cpu, op->mem) + offset);
-        value = memreg_read(cpu->mem, *address);
         break;
     default:
         fprintf(stderr, "Unhandled operand type %d\n", op->type);
@@ -279,7 +275,7 @@ void cpu_reset(cpu_t *cpu)
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
 }
 
-void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask)
+void do_load(cpu_t *cpu, cs_arm* detail, uint32_t mask)
 {
     assert(detail->op_count == 2 || detail->op_count == 3);
     assert(detail->operands[0].type == ARM_OP_REG);
@@ -299,11 +295,11 @@ void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask)
         offset = detail->operands[1].mem.disp;
 
         if (detail->operands[1].mem.index != ARM_REG_INVALID)
-            address += (cpu_reg_read(cpu, detail->operands[1].mem.index) * detail->operands[1].mem.scale) << detail->operands[1].shift.value;
+            offset += (cpu_reg_read(cpu, detail->operands[1].mem.index) * detail->operands[1].mem.scale) << detail->operands[1].shift.value;
     }
 
     uint32_t value = memreg_read(cpu->mem, address + (detail->post_index ? 0 : offset));
-    cpu_reg_write(cpu, detail->operands[0].reg, value);
+    cpu_reg_write(cpu, detail->operands[0].reg, value & mask);
 
     address += offset;
 

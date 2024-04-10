@@ -1,0 +1,80 @@
+"LDRB (immediate)":
+- setup:
+    registers:
+      r0: 100
+    memory:
+      "100": [123, 0, 0, 0]
+  execute:
+    - "ldrb r1, [r0]"
+  expect:
+    registers:
+      r0: ==
+      r1: 123
+
+- setup:
+    registers:
+      r0: 100
+    memory:
+      "104": [123, 0, 0, 0]
+  execute:
+    - "ldrb r1, [r0, #4]"
+  expect:
+    registers:
+      r0: ==
+      r1: 123
+
+- name: "pre-indexed, writeback"
+  setup:
+    registers:
+      r0: 100
+    memory:
+      "104": [123, 0, 0, 0]
+  execute:
+    - "ldrb r1, [r0, #4]!"
+  expect:
+    registers:
+      r0: 104
+      r1: 123
+
+- name: "post-indexed, writeback"
+  setup:
+    registers:
+      r0: 100
+    memory:
+      "100": [123, 0, 0, 0]
+  execute:
+    - "ldrb r1, [r0], #4"
+  expect:
+    registers:
+      r0: 104
+      r1: 123
+
+"LDRB (register)":
+- setup:
+    registers:
+      r0: 100
+      r1: 4
+    memory:
+      "104": [123, 0, 0, 0]
+  execute:
+    - "ldrb r2, [r0, r1]"
+  expect:
+    registers:
+      r0: ==
+      r1: ==
+      r2: 123
+
+- name: "shifted"
+  setup:
+    registers:
+      r0: 100
+      r1: 1
+    memory:
+      "104": [123, 0, 0, 0]
+  execute:
+    - "ldrb r2, [r0, r1, LSL 2]"
+  expect:
+    registers:
+      r0: ==
+      r1: ==
+      r2: 123
