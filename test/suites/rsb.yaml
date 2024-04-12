@@ -1,0 +1,30 @@
+"RSB (immediate)":
+- setup:
+    registers:
+      r0: 10
+  execute:
+    - "rsb r0, #30"
+  expect:
+    registers:
+      r0: 20
+
+- setup:
+    registers:
+      r0: 10
+  execute:
+    - "rsbs r0, #30"
+  expect:
+    registers:
+      r0: 20
+    nczv: "0100"
+
+- setup:
+    registers:
+      r0: 0
+      r1: 10
+  execute:
+    - "rsb r0, r1, #30"
+  expect:
+    registers:
+      r0: 20
+      r1: ==

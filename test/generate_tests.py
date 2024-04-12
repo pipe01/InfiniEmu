@@ -271,13 +271,13 @@ with open("main.c", "w") as main:
                 for reg in test.expect.registers.core:
                     main.write(f"value = cpu_reg_read(cpu, {core_register_enum(reg)}); \n")
                     main.write(f"if (value != (uint32_t)({test.expect.registers.core[reg]}))\n")
-                    main.write(f'\tprintf("Register {core_register_name(reg)}: expected {test.expect.registers.core[reg]}, got %d\\n", value);\n')
+                    main.write(f'\tprintf("    [!] Register {core_register_name(reg)}: expected {test.expect.registers.core[reg]}, got %d\\n", value);\n')
 
             def test_flag(expected: bool | None, flag_const: str):
                 if expected is not None:
                     main.write(f"flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << {flag_const})) != 0;\n")
                     main.write(f"if (flag_value != {'true' if expected else 'false'})\n")
-                    main.write(f'\tprintf("Flag {flag_const}: expected {1 if expected else 0}, got %d\\n", flag_value);\n')
+                    main.write(f'\tprintf("    [!] Flag {flag_const}: expected {1 if expected else 0}, got %d\\n", flag_value);\n')
                 pass
 
             if test.expect.flags != None:

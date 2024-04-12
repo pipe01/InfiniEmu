@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LOG_CPU
+// #define LOG_CPU
 
 #ifdef LOG_CPU
 #define LOGF(...) printf(__VA_ARGS__)
@@ -275,7 +275,7 @@ void cpu_reset(cpu_t *cpu)
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
 }
 
-static void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignment)
+static void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignment, bool sign_extend)
 {
     assert(detail->op_count == 2 || detail->op_count == 3);
     assert(detail->operands[0].type == ARM_OP_REG);
@@ -298,7 +298,14 @@ static void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignmen
             offset += (cpu_reg_read(cpu, detail->operands[1].mem.index) * detail->operands[1].mem.scale) << detail->operands[1].shift.value;
     }
 
-    uint32_t value = memreg_read(cpu->mem, address + (detail->post_index ? 0 : offset));
+    uint32_t value = memreg_read(cpu->mem, address + (detail->post_index ? 0 : offset)) & mask;
+
+    if (sign_extend)
+    {
+        uint32_t sign_bit = value & ((mask + 1) >> 1);
+        assert(sign_bit == 0); // TODO: Implement sign extension
+    }
+
     cpu_reg_write(cpu, detail->operands[0].reg, value & mask);
 
     address += offset;
@@ -604,11 +611,11 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDR:
-        do_load(cpu, &detail, x(FFFF, FFFF), x(FFFF, FFFF) << 2);
+        do_load(cpu, &detail, x(FFFF, FFFF), x(FFFF, FFFF) << 2, false);
         break;
 
     case ARM_INS_LDRB:
-        do_load(cpu, &detail, 0xFF, x(FFFF, FFFF));
+        do_load(cpu, &detail, 0xFF, x(FFFF, FFFF), false);
         break;
 
     case ARM_INS_LDRD:
@@ -619,7 +626,11 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDRH:
-        do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1);
+        do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1, false);
+        break;
+
+    case ARM_INS_LDRSH:
+        do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1, true);
         break;
 
     case ARM_INS_LSL:
@@ -632,6 +643,24 @@ void cpu_step(cpu_t *cpu)
 
         UPDATE_NZC;
         break;
+
+    case ARM_INS_MLS:
+    {
+        assert(detail.op_count == 4);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_REG);
+        assert(detail.operands[3].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail.operands[2].reg);
+        uint32_t addend = cpu_reg_read(cpu, detail.operands[3].reg);
+
+        value = addend - op0 * op1;
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        break;
+    }
 
     case ARM_INS_MOV:
     case ARM_INS_MOVS:
@@ -703,6 +732,38 @@ void cpu_step(cpu_t *cpu)
         }
         break;
 
+    case ARM_INS_RSB:
+        assert(detail.op_count == 3);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+
+        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+
+        carry = true;
+        value = AddWithCarry(~op1, detail.operands[2].imm, &carry, &overflow);
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
+
+        UPDATE_NZCV
+        break;
+
+    case ARM_INS_SDIV:
+        assert(detail.op_count == 2 || detail.op_count == 3);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.op_count < 3 || detail.operands[2].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[detail.op_count == 3 ? 1 : 0].reg);
+        op1 = cpu_reg_read(cpu, detail.operands[detail.op_count == 3 ? 2 : 1].reg);
+
+        // TODO: Exception if op1 is zero
+        assert(op1 != 0);
+
+        value = div(op0, op1).quot;
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        break;
+
     case ARM_INS_STR:
         value = OPERAND(0);
 
@@ -758,6 +819,15 @@ void cpu_step(cpu_t *cpu)
         UPDATE_NZCV
         break;
 
+    case ARM_INS_SXTH:
+        assert(detail.op_count == 2); // TODO: Handle rotation case
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+
+        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+        value = (uint32_t)(int16_t)(op1 & 0xFFFF);
+        break;
+
     case ARM_INS_TST:
         op0 = OPERAND(0);
         op1 = OPERAND(1);
@@ -782,9 +852,23 @@ void cpu_step(cpu_t *cpu)
     }
 
     case ARM_INS_UXTB:
-        op1 = OPERAND(1);
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
 
-        cpu_store_operand(cpu, &detail.operands[0], op1 & 0xFF, SIZE_WORD);
+        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+
+        cpu_reg_write(cpu, detail.operands[0].reg, op1 & 0xFF);
+        break;
+
+    case ARM_INS_UXTH:
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+
+        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+
+        cpu_reg_write(cpu, detail.operands[0].reg, op1 & 0xFFFF);
         break;
 
     default:
