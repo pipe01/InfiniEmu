@@ -287,7 +287,7 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alig
     assert(detail->operands[0].type == ARM_OP_REG);
     assert(detail->operands[1].type == ARM_OP_MEM);
 
-    uint32_t address = cpu_reg_read(cpu, detail->operands[1].mem.base) & alignment; // TODO: Why do we need to align the address?
+    uint32_t address = cpu_reg_read(cpu, detail->operands[1].mem.base);
     uint32_t offset;
 
     if (detail->op_count == 3)
@@ -304,7 +304,8 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alig
             offset += (cpu_reg_read(cpu, detail->operands[1].mem.index) * detail->operands[1].mem.scale) << detail->operands[1].shift.value;
     }
 
-    uint32_t value = memreg_read(cpu->mem, address + (detail->post_index ? 0 : offset)) & mask;
+    // TODO: Why do we need to align the address?
+    uint32_t value = memreg_read(cpu->mem, (address & alignment) + (detail->post_index ? 0 : offset)) & mask;
 
     if (sign_extend)
     {
@@ -383,9 +384,7 @@ static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual
 }
 
 // TODO: Implement
-#define BRANCH_WRITE_PC(cpu, pc)            \
-    cpu_reg_write((cpu), ARM_REG_PC, (pc)); \
-    LOGF("Branching to 0x%08X\n", (pc));
+#define BRANCH_WRITE_PC(cpu, pc) cpu_reg_write(cpu, ARM_REG_PC, pc)
 
 #define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address)
 #define OPERAND(n) OPERAND_OFF(n, 0)
@@ -444,6 +443,16 @@ void cpu_step(cpu_t *cpu)
         UPDATE_NZCV;
         break;
 
+    case ARM_INS_ADR:
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_IMM);
+
+        value = cpu_reg_read(cpu, ARM_REG_PC) + detail.operands[1].imm;
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        break;
+
     case ARM_INS_AND:
         op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
@@ -470,7 +479,6 @@ void cpu_step(cpu_t *cpu)
         assert(detail.op_count == 1);
 
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
-        cpu->branched = true;
         break;
 
     case ARM_INS_BFC:
@@ -541,7 +549,6 @@ void cpu_step(cpu_t *cpu)
 
         cpu_reg_write(cpu, ARM_REG_LR, next | 1);
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
-        cpu->branched = true;
         break;
 
     case ARM_INS_CBZ:
@@ -551,10 +558,7 @@ void cpu_step(cpu_t *cpu)
         op1 = OPERAND(1);
 
         if ((op0 == 0) == (i->id == ARM_INS_CBZ))
-        {
             BRANCH_WRITE_PC(cpu, op1 | 1);
-            cpu->branched = true;
-        }
         break;
 
     case ARM_INS_CLZ:
@@ -815,7 +819,8 @@ void cpu_step(cpu_t *cpu)
         UPDATE_NZCV
         break;
 
-    case ARM_INS_SDIV:
+    case ARM_INS_SDIV: // TODO: Perform signed division
+    case ARM_INS_UDIV:
         assert(detail.op_count == 2 || detail.op_count == 3);
         assert(detail.operands[0].type == ARM_OP_REG);
         assert(detail.operands[1].type == ARM_OP_REG);
@@ -830,6 +835,26 @@ void cpu_step(cpu_t *cpu)
         value = div(op0, op1).quot;
 
         cpu_reg_write(cpu, detail.operands[0].reg, value);
+        break;
+
+    case ARM_INS_STM:
+        assert(detail.op_count >= 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+
+        for (size_t n = 0; n < detail.op_count; n++)
+        {
+            assert(detail.operands[n].type == ARM_OP_REG);
+            LOGF("Push reg %d\n", detail.operands[n].reg);
+
+            memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail.operands[n].reg), SIZE_WORD);
+
+            op0 += 4;
+        }
+
+        if (detail.writeback)
+            cpu_reg_write(cpu, detail.operands[0].reg, op0);
         break;
 
     case ARM_INS_STR:
@@ -923,6 +948,8 @@ void cpu_step(cpu_t *cpu)
 next_pc:
     if (!cpu->branched)
         cpu_reg_write(cpu, ARM_REG_PC, next | 1);
+    else
+        LOGF("Branched from 0x%08X to 0x%08X\n", pc, cpu->core_regs[ARM_REG_PC]);
 }
 
 uint32_t *cpu_get_sp(cpu_t *cpu)
@@ -973,6 +1000,7 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
         }
 
         cpu->core_regs[ARM_REG_PC] = value & ~1;
+        cpu->branched = true;
         break;
 
     case ARM_REG_SP:
