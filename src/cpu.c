@@ -38,18 +38,24 @@ struct cpu_inst_t
     memreg_t *mem;
 };
 
-static uint32_t cpu_mem_operand_address(cpu_t *cpu, arm_op_mem op)
+static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
 {
-    uint32_t base = cpu_reg_read(cpu, op.base);
+    uint32_t base = cpu_reg_read(cpu, op->mem.base);
 
-    if (op.index != ARM_REG_INVALID)
+    if (op->mem.index != ARM_REG_INVALID)
     {
-        base += cpu_reg_read(cpu, op.index) * op.scale;
+        uint32_t offset = cpu_reg_read(cpu, op->mem.index) * op->mem.scale;
+
+        if (op->shift.type != ARM_SFT_INVALID)
+        {
+            assert(op->shift.type == ARM_SFT_LSL);
+            offset <<= op->shift.value;
+        }
+
+        base += offset;
     }
 
-    assert(op.lshift == 0); // TODO: Shift
-
-    return base + op.disp;
+    return base + op->mem.disp;
 }
 
 static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address)
@@ -94,7 +100,7 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
         break;
     case ARM_OP_MEM:
     {
-        uint32_t addr = ALIGN4(cpu_mem_operand_address(cpu, op->mem));
+        uint32_t addr = ALIGN4(cpu_mem_operand_address(cpu, op));
         LOGF("memory 0x%08X\n", addr);
 
         memreg_write(cpu->mem, addr, value, size);
@@ -312,6 +318,60 @@ static void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignmen
 
     if (detail->writeback)
         cpu_reg_write(cpu, detail->operands[1].mem.base, address);
+}
+
+static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
+{
+    uint32_t base, offset_addr;
+    
+    if (dual)
+    {
+        assert(size == SIZE_WORD);
+        assert(detail->op_count == 3 || detail->op_count == 4);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_MEM);
+        base = offset_addr = cpu_reg_read(cpu, detail->operands[2].mem.base);
+    }
+    else
+    {
+        assert(detail->op_count == 2 || detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_MEM);
+        base = offset_addr = cpu_reg_read(cpu, detail->operands[1].mem.base);
+
+        if (detail->op_count == 3)
+        {
+            assert(detail->operands[2].type == ARM_OP_IMM);
+            offset_addr += detail->operands[2].imm;
+        }
+        else
+        {
+            offset_addr += detail->operands[1].mem.disp;
+
+            if (detail->operands[1].mem.index != ARM_REG_INVALID)
+            {
+                if (detail->operands[1].shift.type != ARM_SFT_INVALID)
+                    assert(detail->operands[1].shift.type == ARM_SFT_LSL);
+
+                offset_addr += (cpu_reg_read(cpu, detail->operands[1].mem.index) << detail->operands[1].shift.value) * detail->operands[1].mem.scale;
+            }
+        }
+    }
+
+    uint32_t value = cpu_reg_read(cpu, detail->operands[0].reg) & size_mask(size);
+    uint32_t address = detail->post_index ? base : offset_addr;
+
+    memreg_write(cpu->mem, address, value, size);
+
+    if (dual)
+    {
+        value = cpu_reg_read(cpu, detail->operands[1].reg);
+        memreg_write(cpu->mem, address + 4, value, size);
+    }
+
+    if (detail->writeback)
+        cpu_reg_write(cpu, detail->operands[1].mem.base, offset_addr);
 }
 
 // TODO: Implement
@@ -619,7 +679,7 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDRD:
-        value = cpu_mem_operand_address(cpu, detail.operands[2].mem);
+        value = cpu_mem_operand_address(cpu, &detail.operands[2]);
 
         cpu_store_operand(cpu, &detail.operands[0], memreg_read(cpu->mem, value), SIZE_WORD);
         cpu_store_operand(cpu, &detail.operands[1], memreg_read(cpu->mem, value + 4), SIZE_WORD);
@@ -765,44 +825,19 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_STR:
-        value = OPERAND(0);
-
-        cpu_store_operand(cpu, &detail.operands[1], value, SIZE_WORD);
+        cpu_do_store(cpu, &detail, SIZE_WORD, false);
         break;
 
     case ARM_INS_STRB:
-        op1 = cpu_mem_operand_address(cpu, detail.operands[1].mem);
-
-        value = OPERAND(0);
-
-        memreg_write(cpu->mem, op1, value, SIZE_BYTE);
-
-        if (detail.post_index)
-        {
-            assert(detail.op_count == 3);
-
-            cpu_reg_write(cpu, detail.operands[1].reg, op1 + detail.operands[2].imm);
-        }
+        cpu_do_store(cpu, &detail, SIZE_BYTE, false);
         break;
 
     case ARM_INS_STRD:
-        op0 = OPERAND(0);
-        op1 = OPERAND(1);
-        value = cpu_mem_operand_address(cpu, detail.operands[2].mem);
-
-        cpu_mem_write(cpu, value, op0);
-        cpu_mem_write(cpu, value + 4, op1);
-
-        if (detail.writeback)
-            abort(); // TODO: Implement
+        cpu_do_store(cpu, &detail, SIZE_WORD, true);
         break;
 
     case ARM_INS_STRH:
-        op1 = cpu_mem_operand_address(cpu, detail.operands[1].mem);
-
-        value = OPERAND(0);
-
-        memreg_write(cpu->mem, op1, value, SIZE_HALFWORD);
+        cpu_do_store(cpu, &detail, SIZE_HALFWORD, false);
         break;
 
     case ARM_INS_SUB:

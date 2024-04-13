@@ -1,0 +1,19 @@
+"STRD (immediate)":
+- setup:
+    memory:
+      200: [0, 0, 0, 0]
+      204: [0, 0, 0, 0]
+    registers:
+      r0: 200
+      r1: 10
+      r2: 20
+  execute:
+    - "strd r1, r2, [r0]"
+  expect:
+    memory:
+      200: [10, 0, 0, 0]
+      204: [20, 0, 0, 0]
+    registers:
+      r0: ==
+      r1: ==
+      r2: ==

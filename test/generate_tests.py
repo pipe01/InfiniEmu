@@ -273,6 +273,13 @@ with open("main.c", "w") as main:
                     main.write(f"if (value != (uint32_t)({test.expect.registers.core[reg]}))\n")
                     main.write(f'\tprintf("    [!] Register {core_register_name(reg)}: expected {test.expect.registers.core[reg]}, got %d\\n", value);\n')
 
+            if len(test.expect.memory) > 0:
+                for mem in test.expect.memory:
+                    for i in range(len(mem.value)):
+                        addr = mem.start + i
+                        main.write(f"if ((memreg_read(mem_first, {addr}) & 0xFF) != {mem.value[i]})\n")
+                        main.write(f'\tprintf("    [!] Memory at 0x{addr:08X}: expected {mem.value[i]}, got %d\\n", memreg_read(mem_first, {addr}) & 0xFF);\n')
+
             def test_flag(expected: bool | None, flag_const: str):
                 if expected is not None:
                     main.write(f"flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << {flag_const})) != 0;\n")
@@ -303,4 +310,6 @@ with open("main.c", "w") as main:
             main.write(f'printf("  [*] {test.name}\\n");\n')
 
             main.write(f"{test.func_name()}();\n")
+
+        main.write('printf("\\n");\n')
     main.write("}\n")

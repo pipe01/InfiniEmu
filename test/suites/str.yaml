@@ -1,0 +1,148 @@
+"STR (immediate)":
+- name: "index, !writeback"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+    registers:
+      r0: 190
+      r1: 123
+  execute:
+    - "str r1, [r0, #10]"
+  expect:
+    memory:
+      200: [123, 0, 0, 0]
+    registers:
+      r0: ==
+      r1: ==
+
+- name: "index, !writeback, subtract"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+    registers:
+      r0: 210
+      r1: 123
+  execute:
+    - "str r1, [r0, #-10]"
+  expect:
+    memory:
+      200: [123, 0, 0, 0]
+    registers:
+      r0: ==
+      r1: ==
+
+- name: "index, !writeback, no offset"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+    registers:
+      r0: 200
+      r1: 123
+  execute:
+    - "str r1, [r0]"
+  expect:
+    memory:
+      200: [123, 0, 0, 0]
+    registers:
+      r0: ==
+      r1: ==
+
+- name: "index, writeback"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+    registers:
+      r0: 190
+      r1: 123
+  execute:
+    - "str r1, [r0, #10]!"
+  expect:
+    memory:
+      200: [123, 0, 0, 0]
+    registers:
+      r0: 200
+      r1: ==
+
+- name: "index, writeback, subtract"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+    registers:
+      r0: 210
+      r1: 123
+  execute:
+    - "str r1, [r0, #-10]!"
+  expect:
+    memory:
+      200: [123, 0, 0, 0]
+    registers:
+      r0: 200
+      r1: ==
+
+- name: "!index, writeback"
+  setup:
+    memory:
+      190: [0, 0, 0, 0]
+    registers:
+      r0: 190
+      r1: 123
+  execute:
+    - "str r1, [r0], #10"
+  expect:
+    memory:
+      190: [123, 0, 0, 0]
+    registers:
+      r0: 200
+      r1: ==
+
+- name: "!index, writeback, subtract"
+  setup:
+    memory:
+      190: [0, 0, 0, 0]
+    registers:
+      r0: 190
+      r1: 123
+  execute:
+    - "str r1, [r0], #-10"
+  expect:
+    memory:
+      190: [123, 0, 0, 0]
+    registers:
+      r0: 180
+      r1: ==
+
+"STR (register)":
+- setup:
+    memory:
+      200: [0, 0, 0, 0]
+    registers:
+      r0: 190
+      r1: 10
+      r2: 123
+  execute:
+    - "str r2, [r0, r1]"
+  expect:
+    memory:
+      200: [123, 0, 0, 0]
+    registers:
+      r0: ==
+      r1: ==
+      r2: ==
+
+- name: "shifted offset"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+    registers:
+      r0: 190
+      r1: 5
+      r2: 123
+  execute:
+    - "str r2, [r0, r1, LSL #1]"
+  expect:
+    memory:
+      200: [123, 0, 0, 0]
+    registers:
+      r0: ==
+      r1: ==
+      r2: ==

@@ -11,6 +11,11 @@ typedef enum {
     SIZE_WORD = 4,
 } byte_size_t;
 
+static inline uint32_t size_mask(byte_size_t size)
+{
+    return size == SIZE_WORD ? 0xFFFFFFFF : (uint32_t)((1 << (size * 8)) - 1);
+}
+
 typedef enum {
     OP_READ_BYTE        = SIZE_BYTE,
     OP_READ_HALFWORD    = SIZE_HALFWORD,

@@ -21,7 +21,7 @@ OPERATION(gpio)
     GPIO_t *gpio = (GPIO_t *)userdata;
 
     // PIN_CNF[n]
-    if (offset >= 0x700 && offset <= 0x71C)
+    if (offset >= 0x700 && offset <= 0x77C)
     {
         uint32_t pin = (offset - 0x700) / 4;
 
