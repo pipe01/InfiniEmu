@@ -323,39 +323,47 @@ static void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignmen
 static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
 {
     uint32_t base, offset_addr;
-    
+    bool is_long;
+
+    uint8_t op_count = detail->op_count;
+    cs_arm_op *mem_op;
+
     if (dual)
     {
         assert(size == SIZE_WORD);
-        assert(detail->op_count == 3 || detail->op_count == 4);
+        assert(op_count == 3 || op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
         assert(detail->operands[2].type == ARM_OP_MEM);
         base = offset_addr = cpu_reg_read(cpu, detail->operands[2].mem.base);
+        is_long = op_count == 4;
+        mem_op = &detail->operands[2];
     }
     else
     {
-        assert(detail->op_count == 2 || detail->op_count == 3);
+        assert(op_count == 2 || op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_MEM);
         base = offset_addr = cpu_reg_read(cpu, detail->operands[1].mem.base);
+        is_long = op_count == 3;
+        mem_op = &detail->operands[1];
+    }
 
-        if (detail->op_count == 3)
+    if (is_long)
+    {
+        assert(detail->operands[op_count - 1].type == ARM_OP_IMM);
+        offset_addr += detail->operands[op_count - 1].imm;
+    }
+    else
+    {
+        offset_addr += mem_op->mem.disp;
+
+        if (mem_op->mem.index != ARM_REG_INVALID)
         {
-            assert(detail->operands[2].type == ARM_OP_IMM);
-            offset_addr += detail->operands[2].imm;
-        }
-        else
-        {
-            offset_addr += detail->operands[1].mem.disp;
+            if (mem_op->shift.type != ARM_SFT_INVALID)
+                assert(mem_op->shift.type == ARM_SFT_LSL);
 
-            if (detail->operands[1].mem.index != ARM_REG_INVALID)
-            {
-                if (detail->operands[1].shift.type != ARM_SFT_INVALID)
-                    assert(detail->operands[1].shift.type == ARM_SFT_LSL);
-
-                offset_addr += (cpu_reg_read(cpu, detail->operands[1].mem.index) << detail->operands[1].shift.value) * detail->operands[1].mem.scale;
-            }
+            offset_addr += (cpu_reg_read(cpu, mem_op->mem.index) << mem_op->shift.value) * mem_op->mem.scale;
         }
     }
 
@@ -371,7 +379,7 @@ static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual
     }
 
     if (detail->writeback)
-        cpu_reg_write(cpu, detail->operands[1].mem.base, offset_addr);
+        cpu_reg_write(cpu, mem_op->mem.base, offset_addr);
 }
 
 // TODO: Implement

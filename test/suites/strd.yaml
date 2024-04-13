@@ -1,5 +1,46 @@
 "STRD (immediate)":
-- setup:
+- name: "index, !writeback"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+      204: [0, 0, 0, 0]
+    registers:
+      r0: 196
+      r1: 10
+      r2: 20
+  execute:
+    - "strd r1, r2, [r0, #4]"
+  expect:
+    memory:
+      200: [10, 0, 0, 0]
+      204: [20, 0, 0, 0]
+    registers:
+      r0: ==
+      r1: ==
+      r2: ==
+
+- name: "index, !writeback, subtract"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+      204: [0, 0, 0, 0]
+    registers:
+      r0: 208
+      r1: 10
+      r2: 20
+  execute:
+    - "strd r1, r2, [r0, #-8]"
+  expect:
+    memory:
+      200: [10, 0, 0, 0]
+      204: [20, 0, 0, 0]
+    registers:
+      r0: ==
+      r1: ==
+      r2: ==
+
+- name: "index, !writeback, no offset"
+  setup:
     memory:
       200: [0, 0, 0, 0]
       204: [0, 0, 0, 0]
@@ -15,5 +56,85 @@
       204: [20, 0, 0, 0]
     registers:
       r0: ==
+      r1: ==
+      r2: ==
+
+- name: "index, writeback"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+      204: [20, 0, 0, 0]
+    registers:
+      r0: 192
+      r1: 10
+      r2: 20
+  execute:
+    - "strd r1, r2, [r0, #8]!"
+  expect:
+    memory:
+      200: [10, 0, 0, 0]
+      204: [20, 0, 0, 0]
+    registers:
+      r0: 200
+      r1: ==
+      r2: ==
+
+- name: "index, writeback, subtract"
+  setup:
+    memory:
+      200: [0, 0, 0, 0]
+      204: [0, 0, 0, 0]
+    registers:
+      r0: 208
+      r1: 10
+      r2: 20
+  execute:
+    - "strd r1, r2, [r0, #-8]!"
+  expect:
+    memory:
+      200: [10, 0, 0, 0]
+      204: [20, 0, 0, 0]
+    registers:
+      r0: 200
+      r1: ==
+      r2: ==
+
+- name: "!index, writeback"
+  setup:
+    memory:
+      190: [0, 0, 0, 0]
+      194: [0, 0, 0, 0]
+    registers:
+      r0: 190
+      r1: 10
+      r2: 20
+  execute:
+    - "strd r1, r2, [r0], #8"
+  expect:
+    memory:
+      190: [10, 0, 0, 0]
+      194: [20, 0, 0, 0]
+    registers:
+      r0: 198
+      r1: ==
+      r2: ==
+
+- name: "!index, writeback, subtract"
+  setup:
+    memory:
+      190: [0, 0, 0, 0]
+      194: [0, 0, 0, 0]
+    registers:
+      r0: 190
+      r1: 10
+      r2: 20
+  execute:
+    - "strd r1, r2, [r0], #-8"
+  expect:
+    memory:
+      190: [10, 0, 0, 0]
+      194: [20, 0, 0, 0]
+    registers:
+      r0: 182
       r1: ==
       r2: ==
