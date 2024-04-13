@@ -862,6 +862,16 @@ void cpu_step(cpu_t *cpu)
         UPDATE_NZCV;
         break;
 
+    case ARM_INS_MSR:
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_SYSREG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+
+        value = cpu_reg_read(cpu, detail.operands[1].reg);
+
+        cpu_sysreg_write(cpu, detail.operands[0].reg, value);
+        break;
+
     case ARM_INS_MUL:
         op0 = OPERAND(1);
         op1 = OPERAND(2);
@@ -1004,6 +1014,11 @@ void cpu_step(cpu_t *cpu)
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
 
         UPDATE_NZCV
+        break;
+
+    case ARM_INS_SVC:
+        // TODO: Implement
+
         break;
 
     case ARM_INS_SXTH:
@@ -1162,6 +1177,47 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
 
     case ARM_SYSREG_PRIMASK:
         return cpu->primask;
+
+    default:
+        fprintf(stderr, "Unhandled system register %d\n", reg);
+        abort();
+    }
+}
+
+void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value)
+{
+    switch (reg)
+    {
+    case ARM_SYSREG_XPSR:
+    case ARM_SYSREG_APSR:
+    case ARM_SYSREG_EPSR:
+    case ARM_SYSREG_IPSR:
+        cpu->xpsr = value;
+        break;
+
+    case ARM_SYSREG_MSP:
+        cpu->sp_main = value;
+        break;
+
+    case ARM_SYSREG_PSP:
+        cpu->sp_process = value;
+        break;
+
+    case ARM_SYSREG_CONTROL:
+        cpu->control = value;
+        break;
+
+    case ARM_SYSREG_FAULTMASK:
+        cpu->faultmask = value;
+        break;
+
+    case ARM_SYSREG_BASEPRI:
+        cpu->basepri = value;
+        break;
+
+    case ARM_SYSREG_PRIMASK:
+        cpu->primask = value;
+        break;
 
     default:
         fprintf(stderr, "Unhandled system register %d\n", reg);
