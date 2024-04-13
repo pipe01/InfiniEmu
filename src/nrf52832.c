@@ -10,6 +10,7 @@
 #include "peripherals/nrf52832/comp.h"
 #include "peripherals/nrf52832/gpio.h"
 #include "peripherals/nrf52832/power.h"
+#include "peripherals/nrf52832/rtc.h"
 #include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/temp.h"
 #include "peripherals/nrf52832/timer.h"
@@ -28,6 +29,7 @@ struct NRF52832_inst_t
     RADIO_t *radio;
     TEMP_t *temp;
     GPIO_t *gpio;
+    RTC_t *rtc[3];
     TIMER_t *timer[5];
 };
 
@@ -53,9 +55,12 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, TIMER, timer, timer[0], x(4000, 8000), 0x1000, 4);
     NEW_PERIPH(chip, TIMER, timer, timer[1], x(4000, 9000), 0x1000, 4);
     NEW_PERIPH(chip, TIMER, timer, timer[2], x(4000, A000), 0x1000, 4);
+    NEW_PERIPH(chip, RTC, rtc, rtc[0], x(4000, B000), 0x1000, 3);
     NEW_PERIPH(chip, TEMP, temp, temp, x(4000, C000), 0x1000);
+    NEW_PERIPH(chip, RTC, rtc, rtc[1], x(4001, 1000), 0x1000, 4);
     NEW_PERIPH(chip, TIMER, timer, timer[3], x(4001, A000), 0x1000, 6);
     NEW_PERIPH(chip, TIMER, timer, timer[4], x(4001, B000), 0x1000, 6);
+    NEW_PERIPH(chip, RTC, rtc, rtc[2], x(4002, 4000), 0x1000, 4);
     NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000);
 
     last = memreg_set_next(last, memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len));

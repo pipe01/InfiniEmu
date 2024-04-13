@@ -48,7 +48,7 @@ typedef enum {
         else if ((op) == OP_WRITE_##size)           \
             (reg) = *value;                         \
         else                                        \
-            return MEMREG_RESULT_INVALID_ACCESS;    \
+            return MEMREG_RESULT_INVALID_SIZE;      \
         return MEMREG_RESULT_OK;                    \
     } while (0)
 

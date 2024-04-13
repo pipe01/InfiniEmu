@@ -37,3 +37,5 @@ typedef enum
     ARM_EXC_EXTERNAL_START = 16,
     ARM_EXC_EXTERNAL_END = 512,
 } arm_exception;
+
+#define ARM_EXC_EXTERNAL(n) (ARM_EXC_EXTERNAL_START + (n))
