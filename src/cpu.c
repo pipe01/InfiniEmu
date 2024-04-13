@@ -281,7 +281,7 @@ void cpu_reset(cpu_t *cpu)
     cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
 }
 
-static void do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignment, bool sign_extend)
+static void cpu_do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignment, bool sign_extend)
 {
     assert(detail->op_count == 2 || detail->op_count == 3);
     assert(detail->operands[0].type == ARM_OP_REG);
@@ -679,11 +679,11 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDR:
-        do_load(cpu, &detail, x(FFFF, FFFF), x(FFFF, FFFF) << 2, false);
+        cpu_do_load(cpu, &detail, x(FFFF, FFFF), x(FFFF, FFFF) << 2, false);
         break;
 
     case ARM_INS_LDRB:
-        do_load(cpu, &detail, 0xFF, x(FFFF, FFFF), false);
+        cpu_do_load(cpu, &detail, 0xFF, x(FFFF, FFFF), false);
         break;
 
     case ARM_INS_LDRD:
@@ -694,11 +694,11 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDRH:
-        do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1, false);
+        cpu_do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1, false);
         break;
 
     case ARM_INS_LDRSH:
-        do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1, true);
+        cpu_do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1, true);
         break;
 
     case ARM_INS_LSL:

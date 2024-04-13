@@ -225,7 +225,6 @@ with open("main.c", "w") as main:
 """)
 
     for suite in suites:
-
         for test in suite.cases:
             program = compile(".syntax unified\n" + "\n".join(test.code) + "\n")
 
