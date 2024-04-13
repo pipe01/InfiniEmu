@@ -28,7 +28,7 @@ struct NRF52832_inst_t
     RADIO_t *radio;
     TEMP_t *temp;
     GPIO_t *gpio;
-    TIMER_t *timer0, *timer1, *timer2, *timer3, *timer4;
+    TIMER_t *timer[5];
 };
 
 NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
@@ -50,12 +50,12 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, CLOCK, clock, clock, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, POWER, power, power, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, RADIO, radio, radio, x(4000, 1000), 0x1000);
-    NEW_PERIPH(chip, TIMER, timer, timer0, x(4000, 8000), 0x1000, 4);
-    NEW_PERIPH(chip, TIMER, timer, timer1, x(4000, 9000), 0x1000, 4);
-    NEW_PERIPH(chip, TIMER, timer, timer2, x(4000, A000), 0x1000, 4);
+    NEW_PERIPH(chip, TIMER, timer, timer[0], x(4000, 8000), 0x1000, 4);
+    NEW_PERIPH(chip, TIMER, timer, timer[1], x(4000, 9000), 0x1000, 4);
+    NEW_PERIPH(chip, TIMER, timer, timer[2], x(4000, A000), 0x1000, 4);
     NEW_PERIPH(chip, TEMP, temp, temp, x(4000, C000), 0x1000);
-    NEW_PERIPH(chip, TIMER, timer, timer3, x(4001, A000), 0x1000, 6);
-    NEW_PERIPH(chip, TIMER, timer, timer4, x(4001, B000), 0x1000, 6);
+    NEW_PERIPH(chip, TIMER, timer, timer[3], x(4001, A000), 0x1000, 6);
+    NEW_PERIPH(chip, TIMER, timer, timer[4], x(4001, B000), 0x1000, 6);
     NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000);
 
     last = memreg_set_next(last, memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len));
