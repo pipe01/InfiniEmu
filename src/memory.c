@@ -103,6 +103,17 @@ memreg_t *memreg_set_next(memreg_t *region, memreg_t *next)
     return region->next = next;
 }
 
+memreg_t *memreg_find_last(memreg_t *region)
+{
+    if (!region)
+        return NULL;
+
+    while (region->next)
+        region = region->next;
+
+    return region;
+}
+
 bool memreg_is_mapped(memreg_t *region, uint32_t addr)
 {
     while (region)

@@ -66,3 +66,4 @@ uint32_t memreg_read(memreg_t *region, uint32_t addr);
 void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, byte_size_t size);
 
 memreg_t *memreg_set_next(memreg_t *region, memreg_t *next);
+memreg_t *memreg_find_last(memreg_t *region);

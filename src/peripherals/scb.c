@@ -2,12 +2,8 @@
 
 #include <stdlib.h>
 
+#include "byte_util.h"
 #include "memory.h"
-
-struct SCB_inst_t
-{
-    uint32_t cpacr;
-};
 
 OPERATION(scb)
 {
@@ -17,6 +13,25 @@ OPERATION(scb)
 
     switch (offset)
     {
+    case 0x0C: // AIRCR
+        OP_ASSERT_SIZE(op, WORD);
+
+        if (OP_IS_READ(op))
+        {
+            *value = 0xFA050000;
+
+            abort(); // TODO: Implement
+        }
+        else if (OP_IS_WRITE(op))
+        {
+            if ((*value & x(FFFF, 0000)) != x(05FA, 0000))
+                return MEMREG_RESULT_INVALID_ACCESS;
+
+            abort(); // TODO: Implement
+        }
+
+        break;
+
     case 0x88: // CPACR
         OP_RETURN_REG(scb->cpacr, WORD);
     }

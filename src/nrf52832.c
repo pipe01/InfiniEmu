@@ -5,6 +5,7 @@
 #include "nrf52832.h"
 #include "byte_util.h"
 
+#include "peripherals/peripheral.h"
 #include "peripherals/nrf52832/clock.h"
 #include "peripherals/nrf52832/comp.h"
 #include "peripherals/nrf52832/gpio.h"
@@ -12,10 +13,6 @@
 #include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/temp.h"
 #include "peripherals/nrf52832/timer.h"
-#include "peripherals/dwt.h"
-#include "peripherals/nvic.h"
-#include "peripherals/dcb.h"
-#include "peripherals/scb.h"
 
 #include "../dumps/ficr.h"
 #include "../dumps/uicr.h"
@@ -30,18 +27,9 @@ struct NRF52832_inst_t
     POWER_t *power;
     RADIO_t *radio;
     TEMP_t *temp;
-    DCB_t *dcb;
-    SCB_t *scb;
-    DWT_t *dwt;
-    NVIC_t *nvic;
     GPIO_t *gpio;
     TIMER_t *timer0, *timer1, *timer2, *timer3, *timer4;
 };
-
-#define NEW_PERIPH(type, name, field, addr, size, ...) \
-    chip->field = name##_new(__VA_ARGS__);       \
-    name##_reset(chip->field);                   \
-    last = memreg_set_next(last, memreg_new_operation(addr, size, name##_operation, chip->field));
 
 NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
 {
@@ -58,28 +46,23 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
 
     last = memreg_set_next(last, memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE));
 
-    NEW_PERIPH(COMP, comp, comp, x(4001, 3000), 0x1000);
-    NEW_PERIPH(CLOCK, clock, clock, x(4000, 0000), 0x1000);
-    NEW_PERIPH(POWER, power, power, x(4000, 0000), 0x1000);
-    NEW_PERIPH(RADIO, radio, radio, x(4000, 1000), 0x1000);
-    NEW_PERIPH(TIMER, timer, timer0, x(4000, 8000), 0x1000, 4);
-    NEW_PERIPH(TIMER, timer, timer1, x(4000, 9000), 0x1000, 4);
-    NEW_PERIPH(TIMER, timer, timer2, x(4000, A000), 0x1000, 4);
-    NEW_PERIPH(TEMP, temp, temp, x(4000, C000), 0x1000);
-    NEW_PERIPH(TIMER, timer, timer3, x(4001, A000), 0x1000, 6);
-    NEW_PERIPH(TIMER, timer, timer4, x(4001, B000), 0x1000, 6);
-    NEW_PERIPH(GPIO, gpio, gpio, x(5000, 0000), 0x1000);
+    NEW_PERIPH(chip, COMP, comp, comp, x(4001, 3000), 0x1000);
+    NEW_PERIPH(chip, CLOCK, clock, clock, x(4000, 0000), 0x1000);
+    NEW_PERIPH(chip, POWER, power, power, x(4000, 0000), 0x1000);
+    NEW_PERIPH(chip, RADIO, radio, radio, x(4000, 1000), 0x1000);
+    NEW_PERIPH(chip, TIMER, timer, timer0, x(4000, 8000), 0x1000, 4);
+    NEW_PERIPH(chip, TIMER, timer, timer1, x(4000, 9000), 0x1000, 4);
+    NEW_PERIPH(chip, TIMER, timer, timer2, x(4000, A000), 0x1000, 4);
+    NEW_PERIPH(chip, TEMP, temp, temp, x(4000, C000), 0x1000);
+    NEW_PERIPH(chip, TIMER, timer, timer3, x(4001, A000), 0x1000, 6);
+    NEW_PERIPH(chip, TIMER, timer, timer4, x(4001, B000), 0x1000, 6);
+    NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000);
 
     last = memreg_set_next(last, memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len));
     last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len));
     last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len));
 
-    NEW_PERIPH(DWT, dwt, dwt, x(E000, 1000), 0x1000);
-    NEW_PERIPH(SCB, scb, scb, x(E000, ED00), 0x90);
-    NEW_PERIPH(DCB, dcb, dcb, x(E000, EDF0), 0x110);
-    NEW_PERIPH(NVIC, nvic, nvic, x(E000, E100), 0xBFF);
-
-    chip->cpu = cpu_new(flash, NRF52832_FLASH_SIZE, mem_first);
+    chip->cpu = cpu_new(flash, NRF52832_FLASH_SIZE, mem_first, NRF52832_MAX_EXTERNAL_INTERRUPTS);
 
     cpu_reset(chip->cpu);
 
@@ -94,7 +77,6 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 void nrf52832_step(NRF52832_t *nrf52832)
 {
     cpu_step(nrf52832->cpu);
-    dwt_increment_cycle(nrf52832->dwt);
 }
 
 cpu_t *nrf52832_get_cpu(NRF52832_t *nrf52832)

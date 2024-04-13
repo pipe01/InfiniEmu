@@ -3,6 +3,12 @@
 #include "byte_util.h"
 #include "psudocode.h"
 
+#include "peripherals/peripheral.h"
+#include "peripherals/dwt.h"
+#include "peripherals/nvic.h"
+#include "peripherals/dcb.h"
+#include "peripherals/scb.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,6 +66,18 @@
         cpu_reg_write(cpu, detail.operands[op_n].reg, address); \
     }
 
+#define MAX_EXECUTING_EXCEPTIONS 64
+
+typedef struct
+{
+    arm_exception number;
+    int16_t priority;
+    bool fixed_priority;
+    bool enabled;
+    bool fixed_enabled;
+    bool active;
+} exception_t;
+
 struct cpu_inst_t
 {
     uint32_t core_regs[ARM_REG_ENDING - 1];
@@ -76,9 +94,20 @@ struct cpu_inst_t
     size_t inst_count;
     cs_insn **inst_by_pc;
 
+    size_t exception_count;
+    exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
+
+    size_t executing_exception_count;
+    arm_exception executing_exceptions[MAX_EXECUTING_EXCEPTIONS];
+
     bool branched;
 
     memreg_t *mem;
+
+    DWT_t *dwt;
+    SCB_t *scb;
+    DCB_t *dcb;
+    NVIC_t *nvic;
 };
 
 static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
@@ -323,7 +352,18 @@ static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual
         cpu_reg_write(cpu, mem_op->mem.base, offset_addr);
 }
 
-cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
+static void cpu_add_arm_memregs(cpu_t *cpu)
+{
+    memreg_t *first = memreg_find_last(cpu->mem);
+    memreg_t *last = first;
+
+    NEW_PERIPH(cpu, DWT, dwt, dwt, x(E000, 1000), 0x1000);
+    NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90);
+    NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110);
+    NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF);
+}
+
+cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts)
 {
     cpu_t *cpu = malloc(sizeof(cpu_t));
     memset(cpu, 0, sizeof(cpu_t));
@@ -331,6 +371,9 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
     cpu->program = program;
     cpu->program_size = program_size;
     cpu->mem = mem;
+    cpu->exception_count = 16 + max_external_interrupts;
+
+    cpu_add_arm_memregs(cpu);
 
     csh handle;
 
@@ -373,10 +416,7 @@ void cpu_reset(cpu_t *cpu)
 {
     memset(cpu->core_regs, 0, sizeof(cpu->core_regs));
 
-    uint32_t sp = READ_UINT32(cpu->program, 0);
-
     cpu->mode = ARM_MODE_THREAD;
-    cpu->core_regs[ARM_REG_SP] = sp;
     cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
     cpu->xpsr = 1 << EPSR_T;
     cpu->control = 0;
@@ -384,14 +424,49 @@ void cpu_reset(cpu_t *cpu)
     cpu->basepri = 0;
     cpu->primask = 0;
 
-    cpu->sp_main = sp;
-    cpu->sp_process = sp;
+    cpu->sp_main = READ_UINT32(cpu->program, 0);
+    cpu->sp_process = 0;
 
-    cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
+    memset(cpu->exceptions, 0, sizeof(cpu->exceptions));
+
+    for (size_t n = 1; n < cpu->exception_count; n++)
+    {
+        cpu->exceptions[n].number = n;
+    }
+
+    cpu->exceptions[ARM_EXC_RESET].priority = -3;
+    cpu->exceptions[ARM_EXC_RESET].fixed_priority = true;
+    cpu->exceptions[ARM_EXC_RESET].enabled = true;
+    cpu->exceptions[ARM_EXC_RESET].fixed_enabled = true;
+
+    cpu->exceptions[ARM_EXC_NMI].priority = -2;
+    cpu->exceptions[ARM_EXC_NMI].fixed_priority = true;
+    cpu->exceptions[ARM_EXC_NMI].enabled = true;
+    cpu->exceptions[ARM_EXC_NMI].fixed_enabled = true;
+
+    cpu->exceptions[ARM_EXC_HARDFAULT].priority = -1;
+    cpu->exceptions[ARM_EXC_HARDFAULT].fixed_priority = true;
+    cpu->exceptions[ARM_EXC_HARDFAULT].enabled = true;
+    cpu->exceptions[ARM_EXC_HARDFAULT].fixed_enabled = true;
+
+    cpu->exceptions[ARM_EXC_MEMMANAGE].enabled = true;
+    cpu->exceptions[ARM_EXC_BUSFAULT].enabled = true;
+    cpu->exceptions[ARM_EXC_USAGEFAULT].enabled = true;
+
+    cpu->exceptions[ARM_EXC_SVC].enabled = true;
+    cpu->exceptions[ARM_EXC_SVC].fixed_enabled = true;
+    cpu->exceptions[ARM_EXC_PENDSV].enabled = true;
+    cpu->exceptions[ARM_EXC_PENDSV].fixed_enabled = true;
+    cpu->exceptions[ARM_EXC_SYSTICK].enabled = true;
+    cpu->exceptions[ARM_EXC_SYSTICK].fixed_enabled = true;
+
+    cpu_jump_exception(cpu, ARM_EXC_RESET);
 }
 
 void cpu_step(cpu_t *cpu)
 {
+    dwt_increment_cycle(cpu->dwt);
+
     uint32_t pc = cpu->core_regs[ARM_REG_PC];
 
     uint32_t op0, op1, value, address;
@@ -1069,11 +1144,7 @@ bool cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value)
     return true;
 }
 
-void cpu_jump_exception(cpu_t *cpu, int exception_num)
+void cpu_jump_exception(cpu_t *cpu, arm_exception ex)
 {
-    // TODO: Implement
-
-    uint32_t addr = READ_UINT32(cpu->program, exception_num * 4);
-
-    cpu_reg_write(cpu, ARM_REG_PC, addr);
+    cpu_reg_write(cpu, ARM_REG_PC, READ_UINT32(cpu->program, ex * 4));
 }
