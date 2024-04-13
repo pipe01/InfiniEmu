@@ -399,7 +399,7 @@ static void cpu_add_arm_memregs(cpu_t *cpu)
     memreg_t *last = first;
 
     NEW_PERIPH(cpu, DWT, dwt, dwt, x(E000, 1000), 0x1000);
-    NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90);
+    NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90, cpu);
     NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110);
     NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF);
 }
