@@ -4,8 +4,4 @@
 
 PERIPHERAL(SCB, scb)
 
-struct SCB_inst_t
-{
-    uint32_t cpacr;
-    uint32_t prigroup;
-};
+uint32_t scb_get_prigroup(SCB_t *scb);

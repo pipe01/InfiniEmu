@@ -247,7 +247,48 @@ static bool cpu_is_privileged(cpu_t *cpu)
 
 static int cpu_execution_priority(cpu_t *cpu)
 {
-    return -1; // TODO: Implement
+    int64_t highestpri = 256;
+    int64_t boostedpri = 256;
+
+    uint32_t subgroupshift = scb_get_prigroup(cpu->scb);
+    uint32_t groupvalue = 2 << subgroupshift;
+
+    int32_t subgroupvalue = 0;
+
+    for (size_t i = 2; i < ARM_EXC_EXTERNAL_END; i++)
+    {
+        if (cpu->exceptions[i].active)
+        {
+            if (cpu->exceptions[i].priority < highestpri)
+            {
+                highestpri = cpu->exceptions[i].priority;
+
+                subgroupvalue = highestpri % groupvalue;
+                highestpri -= subgroupvalue;
+            }
+        }
+    }
+
+    if ((cpu->primask & 1) == 1)
+    {
+        boostedpri = 0;
+    }
+    else if ((cpu->faultmask & 1) == 1)
+    {
+        boostedpri = -1;
+    }
+    else if ((cpu->basepri & 0xFF) != 0)
+    {
+        boostedpri = cpu->basepri & 0xFF;
+
+        subgroupvalue = boostedpri % groupvalue;
+        boostedpri -= subgroupvalue;
+    }
+
+    if (boostedpri < highestpri)
+        return boostedpri;
+
+    return highestpri;
 }
 
 static void cpu_do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignment, bool sign_extend)
@@ -1147,4 +1188,14 @@ bool cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value)
 void cpu_jump_exception(cpu_t *cpu, arm_exception ex)
 {
     cpu_reg_write(cpu, ARM_REG_PC, READ_UINT32(cpu->program, ex * 4));
+}
+
+int16_t cpu_get_exception_priority(cpu_t *cpu, arm_exception ex)
+{
+    return cpu->exceptions[ex].priority;
+}
+
+void cpu_set_exception_priority(cpu_t *cpu, arm_exception ex, int16_t priority)
+{
+    cpu->exceptions[ex].priority = priority;
 }

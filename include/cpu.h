@@ -22,3 +22,5 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value);
 uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg);
 
 void cpu_jump_exception(cpu_t *cpu, arm_exception ex);
+int16_t cpu_get_exception_priority(cpu_t *cpu, arm_exception ex);
+void cpu_set_exception_priority(cpu_t *cpu, arm_exception ex, int16_t priority);

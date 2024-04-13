@@ -3,12 +3,19 @@
 #include <stdlib.h>
 
 #include "byte_util.h"
+#include "cpu.h"
 #include "memory.h"
+
+struct SCB_inst_t
+{
+    uint32_t cpacr;
+    uint32_t prigroup;
+
+    cpu_t *cpu;
+};
 
 OPERATION(scb)
 {
-    OP_ASSERT_SIZE(op, WORD);
-
     SCB_t *scb = (SCB_t *)userdata;
 
     switch (offset)
@@ -33,18 +40,43 @@ OPERATION(scb)
         break;
 
     case 0x88: // CPACR
+        OP_ASSERT_SIZE(op, WORD);
+
         OP_RETURN_REG(scb->cpacr, WORD);
+    }
+
+    // SHPR[n]
+    if (offset >= 0x18 && offset <= 0x23)
+    {
+        OP_ASSERT_SIZE(op, BYTE);
+        
+        arm_exception ex = (offset - 0x18) + 4;
+        
+        if (OP_IS_READ(op))
+            *value = cpu_get_exception_priority(scb->cpu, ex);
+        else
+            cpu_set_exception_priority(scb->cpu, ex, *value);
+
+        return MEMREG_RESULT_OK;
     }
 
     return MEMREG_RESULT_UNHANDLED;
 }
 
-SCB_t *scb_new()
+SCB_t *scb_new(cpu_t *cpu)
 {
-    return (SCB_t *)malloc(sizeof(SCB_t));
+    SCB_t *scb = (SCB_t *)malloc(sizeof(SCB_t));
+    scb->cpu = cpu;
+
+    return scb;
 }
 
 void scb_reset(SCB_t *scb)
 {
     scb->cpacr = 0;
+}
+
+uint32_t scb_get_prigroup(SCB_t *scb)
+{
+    return scb->prigroup;
 }
