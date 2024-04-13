@@ -17,6 +17,49 @@
 
 #define UNPREDICTABLE abort()
 
+// TODO: Implement
+#define BRANCH_WRITE_PC(cpu, pc) cpu_reg_write(cpu, ARM_REG_PC, pc)
+
+#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address)
+#define OPERAND(n) OPERAND_OFF(n, 0)
+#define OPERAND_REG(n) cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg)
+
+#define UPDATE_N(cpu, value) ((((value) >> 31) == 1) ? SET((cpu)->xpsr, APSR_N) : CLEAR((cpu)->xpsr, APSR_N))
+#define UPDATE_Z(cpu, value) (((value) == 0) ? SET((cpu)->xpsr, APSR_Z) : CLEAR((cpu)->xpsr, APSR_Z))
+#define UPDATE_C(cpu, carry) ((carry) ? SET((cpu)->xpsr, APSR_C) : CLEAR((cpu)->xpsr, APSR_C))
+#define UPDATE_V(cpu, overflow) ((overflow) ? SET((cpu)->xpsr, APSR_V) : CLEAR((cpu)->xpsr, APSR_V))
+
+#define UPDATE_NZ                 \
+    if (detail.update_flags)      \
+    {                             \
+        UPDATE_N((cpu), (value)); \
+        UPDATE_Z((cpu), (value)); \
+    }
+
+#define UPDATE_NZC                \
+    if (detail.update_flags)      \
+    {                             \
+        UPDATE_N((cpu), (value)); \
+        UPDATE_Z((cpu), (value)); \
+        UPDATE_C((cpu), (carry)); \
+    }
+
+#define UPDATE_NZCV                  \
+    if (detail.update_flags)         \
+    {                                \
+        UPDATE_N((cpu), (value));    \
+        UPDATE_Z((cpu), (value));    \
+        UPDATE_C((cpu), (carry));    \
+        UPDATE_V((cpu), (overflow)); \
+    }
+
+#define WRITEBACK(op_n)                                         \
+    if (detail.writeback)                                       \
+    {                                                           \
+        assert(detail.operands[op_n].type == ARM_OP_REG);       \
+        cpu_reg_write(cpu, detail.operands[op_n].reg, address); \
+    }
+
 struct cpu_inst_t
 {
     uint32_t core_regs[ARM_REG_ENDING - 1];
@@ -178,109 +221,6 @@ static int cpu_execution_priority(cpu_t *cpu)
     return -1; // TODO: Implement
 }
 
-#define UPDATE_N(cpu, value) ((((value) >> 31) == 1) ? SET((cpu)->xpsr, APSR_N) : CLEAR((cpu)->xpsr, APSR_N))
-#define UPDATE_Z(cpu, value) (((value) == 0) ? SET((cpu)->xpsr, APSR_Z) : CLEAR((cpu)->xpsr, APSR_Z))
-#define UPDATE_C(cpu, carry) ((carry) ? SET((cpu)->xpsr, APSR_C) : CLEAR((cpu)->xpsr, APSR_C))
-#define UPDATE_V(cpu, overflow) ((overflow) ? SET((cpu)->xpsr, APSR_V) : CLEAR((cpu)->xpsr, APSR_V))
-
-#define UPDATE_NZ                 \
-    if (detail.update_flags)      \
-    {                             \
-        UPDATE_N((cpu), (value)); \
-        UPDATE_Z((cpu), (value)); \
-    }
-
-#define UPDATE_NZC                \
-    if (detail.update_flags)      \
-    {                             \
-        UPDATE_N((cpu), (value)); \
-        UPDATE_Z((cpu), (value)); \
-        UPDATE_C((cpu), (carry)); \
-    }
-
-#define UPDATE_NZCV                  \
-    if (detail.update_flags)         \
-    {                                \
-        UPDATE_N((cpu), (value));    \
-        UPDATE_Z((cpu), (value));    \
-        UPDATE_C((cpu), (carry));    \
-        UPDATE_V((cpu), (overflow)); \
-    }
-
-#define WRITEBACK(op_n)                                         \
-    if (detail.writeback)                                       \
-    {                                                           \
-        assert(detail.operands[op_n].type == ARM_OP_REG);       \
-        cpu_reg_write(cpu, detail.operands[op_n].reg, address); \
-    }
-
-cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
-{
-    cpu_t *cpu = malloc(sizeof(cpu_t));
-    memset(cpu, 0, sizeof(cpu_t));
-
-    cpu->program = program;
-    cpu->program_size = program_size;
-    cpu->mem = mem;
-
-    csh handle;
-
-    if (cs_open(CS_ARCH_ARM, CS_MODE_THUMB + CS_MODE_MCLASS, &handle) != CS_ERR_OK)
-    {
-        fprintf(stderr, "Failed to initialize Capstone\n");
-        return NULL;
-    }
-
-    cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
-    cs_option(handle, CS_OPT_SKIPDATA, CS_OPT_ON);
-
-    cpu->inst_count = cs_disasm(handle, program, program_size, 0, 0, &cpu->inst);
-    if (cpu->inst_count == 0)
-    {
-        fprintf(stderr, "Failed to disassemble program\n");
-        return NULL;
-    }
-
-    LOGF("Disassembled %ld instructions\n", cpu->inst_count);
-
-    cpu->inst_by_pc = calloc(program_size, sizeof(cs_insn *));
-
-    for (uint32_t i = 0; i < cpu->inst_count; i++)
-    {
-        cpu->inst_by_pc[cpu->inst[i].address] = &cpu->inst[i];
-    }
-
-    return cpu;
-}
-
-void cpu_free(cpu_t *cpu)
-{
-    cs_free(cpu->inst, cpu->inst_count);
-    free(cpu->inst_by_pc);
-    free(cpu);
-}
-
-void cpu_reset(cpu_t *cpu)
-{
-    memset(cpu->core_regs, 0, sizeof(cpu->core_regs));
-
-    uint32_t sp = READ_UINT32(cpu->program, 0);
-
-    cpu->mode = ARM_MODE_THREAD;
-    cpu->core_regs[ARM_REG_SP] = sp;
-    cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
-    cpu->xpsr = 1 << EPSR_T;
-    cpu->control = 0;
-    cpu->faultmask = 0;
-    cpu->basepri = 0;
-    cpu->primask = 0;
-
-    cpu->sp_main = sp;
-    cpu->sp_process = sp;
-
-    cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
-}
-
 static void cpu_do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignment, bool sign_extend)
 {
     assert(detail->op_count == 2 || detail->op_count == 3);
@@ -383,12 +323,72 @@ static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual
         cpu_reg_write(cpu, mem_op->mem.base, offset_addr);
 }
 
-// TODO: Implement
-#define BRANCH_WRITE_PC(cpu, pc) cpu_reg_write(cpu, ARM_REG_PC, pc)
+cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem)
+{
+    cpu_t *cpu = malloc(sizeof(cpu_t));
+    memset(cpu, 0, sizeof(cpu_t));
 
-#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address)
-#define OPERAND(n) OPERAND_OFF(n, 0)
-#define OPERAND_REG(n) cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg)
+    cpu->program = program;
+    cpu->program_size = program_size;
+    cpu->mem = mem;
+
+    csh handle;
+
+    if (cs_open(CS_ARCH_ARM, CS_MODE_THUMB + CS_MODE_MCLASS, &handle) != CS_ERR_OK)
+    {
+        fprintf(stderr, "Failed to initialize Capstone\n");
+        return NULL;
+    }
+
+    cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
+    cs_option(handle, CS_OPT_SKIPDATA, CS_OPT_ON);
+
+    cpu->inst_count = cs_disasm(handle, program, program_size, 0, 0, &cpu->inst);
+    if (cpu->inst_count == 0)
+    {
+        fprintf(stderr, "Failed to disassemble program\n");
+        return NULL;
+    }
+
+    LOGF("Disassembled %ld instructions\n", cpu->inst_count);
+
+    cpu->inst_by_pc = calloc(program_size, sizeof(cs_insn *));
+
+    for (uint32_t i = 0; i < cpu->inst_count; i++)
+    {
+        cpu->inst_by_pc[cpu->inst[i].address] = &cpu->inst[i];
+    }
+
+    return cpu;
+}
+
+void cpu_free(cpu_t *cpu)
+{
+    cs_free(cpu->inst, cpu->inst_count);
+    free(cpu->inst_by_pc);
+    free(cpu);
+}
+
+void cpu_reset(cpu_t *cpu)
+{
+    memset(cpu->core_regs, 0, sizeof(cpu->core_regs));
+
+    uint32_t sp = READ_UINT32(cpu->program, 0);
+
+    cpu->mode = ARM_MODE_THREAD;
+    cpu->core_regs[ARM_REG_SP] = sp;
+    cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
+    cpu->xpsr = 1 << EPSR_T;
+    cpu->control = 0;
+    cpu->faultmask = 0;
+    cpu->basepri = 0;
+    cpu->primask = 0;
+
+    cpu->sp_main = sp;
+    cpu->sp_process = sp;
+
+    cpu_jump_exception(cpu, ARM_EXCEPTION_RESET);
+}
 
 void cpu_step(cpu_t *cpu)
 {
@@ -947,9 +947,13 @@ void cpu_step(cpu_t *cpu)
 
 next_pc:
     if (!cpu->branched)
+    {
         cpu_reg_write(cpu, ARM_REG_PC, next | 1);
+    }
     else
+    {
         LOGF("Branched from 0x%08X to 0x%08X\n", pc, cpu->core_regs[ARM_REG_PC]);
+    }
 }
 
 uint32_t *cpu_get_sp(cpu_t *cpu)
