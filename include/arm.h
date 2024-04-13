@@ -7,6 +7,8 @@
 #define APSR_Q 27
 #define APSR_GE (0b1111 << 16)
 
+#define IPSR_MASK ((1 << 9) - 1)
+
 #define EPSR_T 24
 
 #define CONTROL_nPRIV 0
@@ -14,6 +16,7 @@
 #define CONTROL_FPCA 2
 
 #define ARM_MAX_EXCEPTIONS 512
+#define ARM_MAX_PRIORITY 255
 
 typedef enum
 {

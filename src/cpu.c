@@ -69,6 +69,8 @@
 
 #define MAX_EXECUTING_EXCEPTIONS 64
 
+#define HAS_FP false
+
 typedef struct
 {
     arm_exception number;
@@ -77,6 +79,7 @@ typedef struct
     bool enabled;
     bool fixed_enabled;
     bool active;
+    bool pending;
 } exception_t;
 
 struct cpu_inst_t
@@ -293,6 +296,246 @@ static int cpu_execution_priority(cpu_t *cpu)
     return highestpri;
 }
 
+static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool sync)
+{
+    uint32_t this_addr = cpu->core_regs[ARM_REG_PC];
+    uint32_t next_addr = this_addr + cpu->inst_by_pc[cpu->core_regs[ARM_REG_PC]]->size;
+
+    switch (ex)
+    {
+    case ARM_EXC_HARDFAULT:
+    case ARM_EXC_BUSFAULT:
+    case ARM_EXC_DEBUGMONITOR:
+        if (sync)
+            return this_addr;
+        return next_addr;
+
+    case ARM_EXC_MEMMANAGE:
+    case ARM_EXC_USAGEFAULT:
+        return this_addr;
+
+    default:
+        return next_addr;
+    }
+}
+
+static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
+{
+    // Copied as closely as possible from the ARMv7-M Architecture Reference Manual's pseudocode at B1.5.6
+
+    uint32_t framesize;
+    uint32_t forcealign;
+
+    if (HAS_FP)
+    {
+        abort();
+    }
+    else
+    {
+        framesize = 0x20;
+        forcealign = 0; // TODO: CCR.STKALIGN
+    }
+
+    uint32_t spmask = ~(forcealign << 2);
+
+    uint32_t frameptralign, frameptr;
+
+    if (IS_SET(cpu->control, CONTROL_SPSEL) && cpu->mode == ARM_MODE_THREAD)
+    {
+        frameptralign = ((cpu->sp_process >> 2) & 1) & forcealign;
+        cpu->sp_process = (cpu->sp_process - framesize) & spmask;
+        frameptr = cpu->sp_process;
+    }
+    else
+    {
+        frameptralign = ((cpu->sp_main >> 2) & 1) & forcealign;
+        cpu->sp_main = (cpu->sp_main - framesize) & spmask;
+        frameptr = cpu->sp_main;
+    }
+
+    memreg_write(cpu->mem, frameptr, cpu->core_regs[ARM_REG_R0], SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0x4, cpu->core_regs[ARM_REG_R1], SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0x8, cpu->core_regs[ARM_REG_R2], SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0xC, cpu->core_regs[ARM_REG_R3], SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0x10, cpu->core_regs[ARM_REG_R12], SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0x14, cpu->core_regs[ARM_REG_LR], SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0x18, cpu_exception_return_address(cpu, ex, sync), SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0x1C, (cpu->xpsr & ~(1 << 9)) | (frameptralign << 9), SIZE_WORD);
+
+    if (HAS_FP)
+    {
+        abort();
+    }
+
+    if (cpu->mode == ARM_MODE_HANDLER)
+        cpu_reg_write(cpu, ARM_REG_LR, x(FFFF, FFF1));
+    else
+        cpu_reg_write(cpu, ARM_REG_LR, x(FFFF, FFF9) | (IS_SET(cpu->control, CONTROL_SPSEL) << 2));
+}
+
+static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
+{
+    uint32_t framesize;
+    uint32_t forcealign;
+    
+    if (HAS_FP)
+    {
+        abort();
+    }
+    else
+    {
+        framesize = 0x20;
+        forcealign = 0; // TODO: CCR.STKALIGN
+    }
+
+    cpu->core_regs[ARM_REG_R0] = memreg_read(cpu->mem, sp);
+    cpu->core_regs[ARM_REG_R1] = memreg_read(cpu->mem, sp+0x4);
+    cpu->core_regs[ARM_REG_R2] = memreg_read(cpu->mem, sp+0x8);
+    cpu->core_regs[ARM_REG_R3] = memreg_read(cpu->mem, sp+0xC);
+    cpu->core_regs[ARM_REG_R12] = memreg_read(cpu->mem, sp+0x10);
+    cpu->core_regs[ARM_REG_LR] = memreg_read(cpu->mem, sp+0x14);
+    cpu_reg_write(cpu, ARM_REG_PC, memreg_read(cpu->mem, sp+0x18));
+    uint32_t psr = memreg_read(cpu->mem, sp+0x1C);
+
+    printf("Returning from exception to 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
+
+    uint32_t spmask = (((psr >> 9) & 1) & forcealign) << 2;
+
+    switch (exc_return & 0xF)
+    {
+    case 1:
+    case 9:
+        cpu->sp_main = (cpu->sp_main + framesize) | spmask;
+        break;
+    
+    case 13:
+        cpu->sp_process = (cpu->sp_process + framesize) | spmask;
+        break;
+    }
+
+    uint32_t new_psr = 0;
+    new_psr |= (psr >> 27) << 27;
+    new_psr |= psr & IPSR_MASK;
+    new_psr |= psr & 0x700FC00;
+    cpu->xpsr = new_psr;
+}
+
+static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
+{
+    uint32_t tmp;
+
+    tmp = memreg_read(cpu->mem, 4 * ex);
+    cpu->core_regs[ARM_REG_PC] = tmp & ~1;
+
+    if ((tmp & 1) != 1)
+        abort();
+
+    cpu->mode = ARM_MODE_HANDLER;
+
+    cpu->xpsr &= ~IPSR_MASK;
+    cpu->xpsr |= ex & IPSR_MASK;
+    // TODO: Clear EPSR IT
+
+    cpu->control &= ~(1 << CONTROL_FPCA);
+    cpu->control &= ~(1 << CONTROL_SPSEL);
+
+    cpu->exceptions[ex].active = true;
+
+    // TODO: SCS_UpdateStatusRegs
+}
+
+static void cpu_exception_entry(cpu_t *cpu, arm_exception ex, bool sync)
+{
+    printf("Entering exception %d from 0x%08X\n", ex, cpu->core_regs[ARM_REG_PC]);
+    
+    cpu_push_stack(cpu, ex, sync);
+    cpu_exception_taken(cpu, ex);
+
+    cpu->exceptions[ex].pending = false;
+}
+
+static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
+{
+    assert(cpu->mode == ARM_MODE_HANDLER);
+
+    arm_exception returning_exception_number = cpu->xpsr & IPSR_MASK;
+    uint32_t nested_activation = 0;
+
+    for (size_t i = 0; i < cpu->exception_count; i++)
+    {
+        if (cpu->exceptions[i].active)
+            nested_activation++;
+    }
+    
+    assert(cpu->exceptions[returning_exception_number].active);
+
+    uint32_t frameptr;
+
+    switch (exc_return & 0xF)
+    {
+    case 1:
+        frameptr = cpu->sp_main;
+        cpu->mode = ARM_MODE_HANDLER;
+        cpu->control &= ~(1 << CONTROL_SPSEL);
+        break;
+
+    case 9:
+        // TODO: Check NestedActivation and CCR.NONBASETHRDENA
+
+        frameptr = cpu->sp_main;
+        cpu->mode = ARM_MODE_THREAD;
+        cpu->control &= ~(1 << CONTROL_SPSEL);
+        break;
+
+    case 13:
+        // TODO: Check NestedActivation and CCR.NONBASETHRDENA
+
+        frameptr = cpu->sp_process;
+        cpu->mode = ARM_MODE_THREAD;
+        cpu->control |= 1 << CONTROL_SPSEL;
+        break;
+    
+    default:
+        abort();
+        break;
+    }
+
+    cpu->exceptions[returning_exception_number].active = false;
+
+    if ((cpu->xpsr & IPSR_MASK) != 2)
+        cpu->faultmask = 0;
+    
+    cpu_pop_stack(cpu, frameptr, exc_return);
+}
+
+static void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
+{
+    if (cpu->exceptions[ex].enabled)
+        cpu->exceptions[ex].pending = true;
+}
+
+static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_priority)
+{
+    int16_t min_priority = ARM_MAX_PRIORITY;
+    arm_exception min_ex = 0;
+
+    for (arm_exception i = 1; i < cpu->exception_count; i++)
+    {
+        exception_t *ex = &cpu->exceptions[i];
+        
+        if (ex->enabled && ex->pending && ex->priority <= min_priority)
+        {
+            min_priority = ex->priority;
+            min_ex = i;
+        }
+    }
+
+    if (min_priority >= current_priority)
+        return 0;
+
+    return min_ex;
+}
+
 static void cpu_do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignment, bool sign_extend)
 {
     assert(detail->op_count == 2 || detail->op_count == 3);
@@ -461,15 +704,16 @@ void cpu_reset(cpu_t *cpu)
     memset(cpu->core_regs, 0, sizeof(cpu->core_regs));
 
     cpu->mode = ARM_MODE_THREAD;
-    cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
-    cpu->xpsr = 1 << EPSR_T;
-    cpu->control = 0;
+    cpu->primask = 0;
     cpu->faultmask = 0;
     cpu->basepri = 0;
-    cpu->primask = 0;
+    cpu->control = 0;
 
-    cpu->sp_main = READ_UINT32(cpu->program, 0);
+    cpu->sp_main = READ_UINT32(cpu->program, 0) & x(FFFF, FFFC);
     cpu->sp_process = 0;
+
+    cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
+    cpu->xpsr = 1 << EPSR_T;
 
     memset(cpu->exceptions, 0, sizeof(cpu->exceptions));
 
@@ -510,6 +754,12 @@ void cpu_reset(cpu_t *cpu)
 void cpu_step(cpu_t *cpu)
 {
     dwt_increment_cycle(cpu->dwt);
+
+    arm_exception pending = cpu_exception_get_pending(cpu, cpu_execution_priority(cpu));
+    if (pending != 0)
+    {
+        cpu_exception_entry(cpu, pending, false);
+    }
 
     uint32_t pc = cpu->core_regs[ARM_REG_PC];
 
@@ -1017,8 +1267,7 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_SVC:
-        // TODO: Implement
-
+        cpu_exception_set_pending(cpu, ARM_EXC_SVC);
         break;
 
     case ARM_INS_SXTH:
@@ -1129,6 +1378,13 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
     switch (reg)
     {
     case ARM_REG_PC:
+        if (cpu->mode == ARM_MODE_HANDLER && (value & x(F000, 0000)) != 0)
+        {
+            // TODO: Only do this on certain instructions
+            cpu_exception_return(cpu, value & x(0FFF, FFFF));
+            break;
+        }
+    
         if ((value & 1) != 1)
         {
             // TODO: Handle better
