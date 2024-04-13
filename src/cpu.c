@@ -8,6 +8,7 @@
 #include "peripherals/nvic.h"
 #include "peripherals/dcb.h"
 #include "peripherals/scb.h"
+#include "peripherals/scb_fp.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -106,6 +107,7 @@ struct cpu_inst_t
 
     DWT_t *dwt;
     SCB_t *scb;
+    SCB_FP_t *scb_fp;
     DCB_t *dcb;
     NVIC_t *nvic;
 };
@@ -401,6 +403,7 @@ static void cpu_add_arm_memregs(cpu_t *cpu)
     NEW_PERIPH(cpu, DWT, dwt, dwt, x(E000, 1000), 0x1000);
     NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90, cpu);
     NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110);
+    NEW_PERIPH(cpu, SCB_FP, scb_fp, scb_fp, x(E000, EF00), 0x90, cpu);
     NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF);
 }
 
@@ -1057,8 +1060,7 @@ void cpu_step(cpu_t *cpu)
 
     default:
         fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, pc);
-        // abort();
-        exit(1);
+        abort();
     }
 
 next_pc:

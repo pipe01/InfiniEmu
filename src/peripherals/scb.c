@@ -10,6 +10,9 @@ struct SCB_inst_t
 {
     uint32_t cpacr;
     uint32_t prigroup;
+    uint32_t scr;
+
+    uint32_t fpccr;
 
     cpu_t *cpu;
 };
@@ -38,6 +41,9 @@ OPERATION(scb)
         }
 
         break;
+
+    case 0x10: // SCR
+        OP_RETURN_REG(scb->scr, WORD);
 
     case 0x88: // CPACR
         OP_ASSERT_SIZE(op, WORD);
