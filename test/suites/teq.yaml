@@ -1,0 +1,44 @@
+"TEQ (immediate)":
+- setup:
+    registers:
+      r0: 0b1111
+  execute:
+    - "teq r0, #0b1111"
+  expect:
+    registers:
+      r0: ==
+    nzcv: "0100"
+
+- setup:
+    registers:
+      r0: 0b1111
+  execute:
+    - "teq r0, #0b1010"
+  expect:
+    registers:
+      r0: ==
+    nzcv: "0000"
+
+"TEQ (register)":
+- setup:
+    registers:
+      r0: 0b1111
+      r1: 0b1111
+  execute:
+    - "teq r0, r1"
+  expect:
+    registers:
+      r0: ==
+    nzcv: "0100"
+
+- setup:
+    registers:
+      r0: 0b1111
+      r1: 0b11110
+  execute:
+    - "teq r0, r1, LSR #1"
+  expect:
+    registers:
+      r0: ==
+      r1: ==
+    nzcv: "0100"

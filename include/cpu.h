@@ -13,6 +13,7 @@ void cpu_free(cpu_t *cpu);
 void cpu_reset(cpu_t *cpu);
 void cpu_step(cpu_t *cpu);
 
+memreg_t *cpu_mem(cpu_t *cpu);
 bool cpu_mem_read(cpu_t *cpu, uint32_t addr, uint8_t *value);
 bool cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value);
 

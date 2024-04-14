@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+
 #include <capstone/capstone.h>
 
 uint32_t AddWithCarry(uint32_t x, uint32_t y, bool *carry, bool *overflow) {
@@ -48,5 +49,24 @@ uint32_t Shift_C(uint32_t value, arm_shifter type, uint32_t amount, bool *carry)
     default:
         fprintf(stderr, "Unhandled shift type %d\n", type);
         abort();
+    }
+}
+
+bool UnsignedSatQ(int32_t i, uint32_t n, uint32_t *result)
+{
+    if (i > (2 << n) - 1)
+    {
+        *result = (2 << n) - 1;
+        return true;
+    }
+    else if (i < 0)
+    {
+        *result = 0;
+        return true;
+    }
+    else
+    {
+        *result = i;
+        return false;
     }
 }

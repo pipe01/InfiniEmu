@@ -1,10 +1,11 @@
 #include "memory.h"
 #include "byte_util.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 struct memreg_inst_t
 {
@@ -100,6 +101,9 @@ void memreg_free(memreg_t *region)
 
 memreg_t *memreg_set_next(memreg_t *region, memreg_t *next)
 {
+    if (!region)
+        return region;
+
     return region->next = next;
 }
 
@@ -181,7 +185,44 @@ uint32_t memreg_read(memreg_t *region, uint32_t addr)
     return value;
 }
 
+uint8_t memreg_read_byte(memreg_t *region, uint32_t addr) {
+    uint32_t value;
+    memreg_do_operation(region, addr, OP_READ_BYTE, &value);
+    return (uint8_t)value;
+}
+
+uint16_t memreg_read_halfword(memreg_t *region, uint32_t addr) {
+    uint32_t value;
+    memreg_do_operation(region, addr, OP_READ_HALFWORD, &value);
+    return (uint16_t)value;
+}
+
 void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, byte_size_t size)
 {
     memreg_do_operation(region, addr, -size, &value);
+}
+
+uint32_t memreg_find_data(memreg_t *region, uint32_t start_addr, uint32_t search_length, uint8_t *data, size_t data_size)
+{
+    assert(search_length > 0);
+    assert(data_size > 0);
+
+    size_t match_len = 0;
+
+    for (uint32_t addr = start_addr; addr < start_addr + search_length; addr++)
+    {
+        if (memreg_read_byte(region, addr) == data[match_len])
+        {
+            match_len++;
+
+            if (match_len == data_size)
+                return addr - data_size + 1;
+        }
+        else
+        {
+            match_len = 0;
+        }
+    }
+
+    return MEMREG_FIND_NOT_FOUND;
 }

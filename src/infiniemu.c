@@ -3,8 +3,13 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#include "config.h"
 #include "nrf52832.h"
 #include "gdb.h"
+
+#ifdef ENABLE_SEGGER_RTT
+#include "segger_rtt.h"
+#endif
 
 int main(int argc, char **argv)
 {
@@ -61,6 +66,11 @@ int main(int argc, char **argv)
     NRF52832_t *nrf = nrf52832_new(program, fsize);
     cpu_t *cpu = nrf52832_get_cpu(nrf);
 
+#ifdef ENABLE_SEGGER_RTT
+    rtt_t *rtt = rtt_new(cpu_mem(cpu));
+    size_t rtt_counter = 0;
+#endif
+
     free(program);
 
     gdb_t *gdb = NULL;
@@ -77,6 +87,7 @@ int main(int argc, char **argv)
         }
     }
 
+
     for (;;)
     {
         if (gdb != NULL)
@@ -86,6 +97,14 @@ int main(int argc, char **argv)
         }
 
         nrf52832_step(nrf);
+
+#ifdef ENABLE_SEGGER_RTT
+        if ((rtt_counter++ % 2000) == 0)
+        {
+            rtt_find_control(rtt);
+            rtt_flush_buffers(rtt);
+        }
+#endif
     }
 
     return 0;

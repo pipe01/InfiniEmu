@@ -272,6 +272,66 @@ char *gdb_qXfer(gdbstub *gdb, char *msg)
     return msg;
 }
 
+char *gdb_qSearchMemory(gdbstub *gdb, char *msg)
+{
+    cpu_t *cpu = nrf52832_get_cpu(gdb->gdb->nrf);
+
+    msg += sizeof("memory:") - 1;
+
+    size_t start, length;
+
+    char *dup = strdup(msg);
+
+    char *token = strtok(dup, ";");
+    if (token == NULL)
+    {
+        free(dup);
+        return NULL;
+    }
+    start = strtol(token, NULL, 16);
+
+    token = strtok(NULL, ";");
+    if (token == NULL)
+    {
+        free(dup);
+        return NULL;
+    }
+    length = strtol(token, NULL, 16);
+
+    msg += token + strlen(token) - dup + 1;
+
+    free(dup);
+
+    (void)start;
+    (void)length;
+
+    char *pattern = msg;
+    uint32_t pattern_size = 0;
+
+    (void)pattern;
+
+    do
+    {
+        pattern_size++;
+        msg++;
+    } while (*msg != '#');
+
+    uint32_t match_addr = memreg_find_data(cpu_mem(cpu), start, length, (uint8_t *)pattern, pattern_size);
+    if (match_addr != MEMREG_FIND_NOT_FOUND)
+    {
+        char resp[30];
+        snprintf(resp, sizeof(resp), "1,%x", match_addr);
+
+        send_response_str(gdb->fd, resp);
+    }
+    else
+    {
+        send_response_str(gdb->fd, "0");
+    }
+
+    return msg;
+}
+
 char *gdb_queryGeneral(gdbstub *gdb, char *msg)
 {
     bool isSet = msg[0] == 'Q';
@@ -285,7 +345,9 @@ char *gdb_queryGeneral(gdbstub *gdb, char *msg)
         return gdb_qSupported(gdb, rest);
     if (strncmp(msg, "Xfer", query_len) == 0)
         return gdb_qXfer(gdb, rest);
-    
+    if (strncmp(msg, "Search:memory:", query_len) == 0)
+        return gdb_qSearchMemory(gdb, rest);
+
     if (isSet && HAS_PREFIX("StartNoAckMode", msg))
     {
         gdb->noack = true;

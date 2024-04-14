@@ -1,3 +1,4 @@
+#include "config.h"
 #include "cpu.h"
 #include "arm.h"
 #include "byte_util.h"
@@ -14,12 +15,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-// #define LOG_CPU
+#define LOG(tag, msg, ...) printf("0x%08X: [" tag "] " msg "\n", cpu->core_regs[ARM_REG_PC], __VA_ARGS__)
 
-#ifdef LOG_CPU
-#define LOGF(...) printf(__VA_ARGS__)
+#ifdef ENABLE_LOG_CPU_EXCEPTIONS
+#define LOG_CPU_EX(msg, ...) LOG("CPU_EX", msg, __VA_ARGS__)
 #else
-#define LOGF(...)
+#define LOG_CPU_EX(...)
+#endif
+
+#ifdef ENABLE_LOG_CPU_INSTRUCTIONS
+#define LOG_CPU_INST(msg, ...) LOG("CPU_INST", msg, __VA_ARGS__)
+#else
+#define LOG_CPU_INST(...)
 #endif
 
 #define UNPREDICTABLE abort()
@@ -163,13 +170,10 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uin
 
 static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t size)
 {
-    LOGF("store 0x%08X into ", value);
-
     switch (op->type)
     {
     case ARM_OP_REG:
         cpu_reg_write(cpu, op->reg, value);
-        LOGF("register %d\n", op->reg);
 
         if (op->reg == ARM_REG_PC)
             cpu->branched = true;
@@ -178,7 +182,6 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
     case ARM_OP_MEM:
     {
         uint32_t addr = ALIGN4(cpu_mem_operand_address(cpu, op));
-        LOGF("memory 0x%08X\n", addr);
 
         memreg_write(cpu->mem, addr, value, size);
         break;
@@ -200,8 +203,6 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
         // TODO: IT blocks
         return true;
     }
-
-    LOGF("N:%d Z:%d C:%d V:%d\n", IS_SET(cpu->xpsr, APSR_N), IS_SET(cpu->xpsr, APSR_Z), IS_SET(cpu->xpsr, APSR_C), IS_SET(cpu->xpsr, APSR_V));
 
     switch (cc)
     {
@@ -397,7 +398,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     cpu_reg_write(cpu, ARM_REG_PC, memreg_read(cpu->mem, sp + 0x18) | 1);
     uint32_t psr = memreg_read(cpu->mem, sp + 0x1C);
 
-    printf("Returning from exception to 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
+    LOG_CPU_EX("Returning from exception to 0x%08X", cpu->core_regs[ARM_REG_PC]);
 
     uint32_t spmask = (((psr >> 9) & 1) & forcealign) << 2;
 
@@ -447,7 +448,7 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
 
 static void cpu_exception_entry(cpu_t *cpu, arm_exception ex, bool sync)
 {
-    printf("Entering exception %d from 0x%08X\n", ex, cpu->core_regs[ARM_REG_PC]);
+    LOG_CPU_EX("Entering exception %d from 0x%08X", ex, cpu->core_regs[ARM_REG_PC]);
 
     cpu_push_stack(cpu, ex, sync);
     cpu_exception_taken(cpu, ex);
@@ -512,12 +513,18 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
 {
     if (cpu->exceptions[ex].enabled)
+    {
         cpu->exceptions[ex].pending = true;
+
+        LOG_CPU_EX("Exception %d is now pending", ex);
+    }
 }
 
 void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
 {
     cpu->exceptions[ex].pending = false;
+
+    LOG_CPU_EX("Exception %d is no longer pending", ex);
 }
 
 static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_priority)
@@ -529,15 +536,15 @@ static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_prior
     {
         exception_t *ex = &cpu->exceptions[i];
 
-        if (ex->enabled && ex->pending && ex->priority <= min_priority)
+        if (ex->enabled && ex->pending && !ex->active && ex->priority <= min_priority)
         {
             min_priority = ex->priority;
             min_ex = i;
         }
     }
 
-    // if (min_priority >= current_priority)
-    //     return 0;
+    if (min_priority >= current_priority)
+        return 0;
 
     return min_ex;
 }
@@ -666,8 +673,6 @@ static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op
     for (size_t i = 0; i < reg_count; i++)
     {
         assert(reg_operands[i].type == ARM_OP_REG);
-        
-        LOGF("Push reg %d\n", reg_operands[i].reg);
 
         memreg_write(cpu->mem, address, cpu_reg_read(cpu, reg_operands[i].reg), SIZE_WORD);
 
@@ -705,7 +710,7 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_
         return NULL;
     }
 
-    LOGF("Disassembled %ld instructions\n", cpu->inst_count);
+    LOG_CPU_INST("Disassembled %ld instructions", cpu->inst_count);
 
     cpu->inst_by_pc = calloc(program_size, sizeof(cs_insn *));
 
@@ -795,7 +800,7 @@ void cpu_step(cpu_t *cpu)
 
     cs_arm detail = i->detail->arm;
 
-    LOGF("\nPC: 0x%08X %s %s\n", pc, i->mnemonic, i->op_str);
+    LOG_CPU_INST("%s %s", i->mnemonic, i->op_str);
 
     uint32_t next = pc + i->size;
 
@@ -1073,6 +1078,7 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDR:
+    case ARM_INS_LDREX:
         cpu_do_load(cpu, &detail, x(FFFF, FFFF), x(FFFF, FFFF) << 2, false);
         break;
 
@@ -1115,6 +1121,23 @@ void cpu_step(cpu_t *cpu)
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
+        break;
+
+    case ARM_INS_MLA:
+        assert(detail.op_count == 4);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_REG);
+        assert(detail.operands[3].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail.operands[2].reg);
+        value = cpu_reg_read(cpu, detail.operands[3].reg);
+        value += op0 * op1;
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
+
+        UPDATE_NZ
         break;
 
     case ARM_INS_MLS:
@@ -1248,6 +1271,19 @@ void cpu_step(cpu_t *cpu)
         cpu_reg_write(cpu, detail.operands[0].reg, value);
         break;
 
+    case ARM_INS_SMULL:
+        assert(detail.op_count == 4);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_REG);
+        assert(detail.operands[3].type == ARM_OP_REG);
+
+        uint64_t result = (int64_t)(int32_t)cpu_reg_read(cpu, detail.operands[2].reg) * (int64_t)(int32_t)cpu_reg_read(cpu, detail.operands[3].reg);
+
+        cpu_reg_write(cpu, detail.operands[0].reg, result & x(FFFF, FFFF));
+        cpu_reg_write(cpu, detail.operands[1].reg, result >> 32);
+        break;
+
     case ARM_INS_STM:
         assert(detail.op_count >= 2);
         assert(detail.operands[0].type == ARM_OP_REG);
@@ -1257,7 +1293,6 @@ void cpu_step(cpu_t *cpu)
         for (size_t n = 0; n < detail.op_count; n++)
         {
             assert(detail.operands[n].type == ARM_OP_REG);
-            LOGF("Push reg %d\n", detail.operands[n].reg);
 
             memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail.operands[n].reg), SIZE_WORD);
 
@@ -1280,6 +1315,18 @@ void cpu_step(cpu_t *cpu)
         cpu_do_store(cpu, &detail, SIZE_WORD, true);
         break;
 
+    case ARM_INS_STREX:
+        assert(detail.op_count == 3);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_MEM);
+
+        op0 = cpu_mem_operand_address(cpu, &detail.operands[2]);
+
+        cpu_reg_write(cpu, detail.operands[0].reg, 0);
+        memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail.operands[1].reg), SIZE_WORD);
+        break;
+
     case ARM_INS_STRH:
         cpu_do_store(cpu, &detail, SIZE_HALFWORD, false);
         break;
@@ -1294,8 +1341,6 @@ void cpu_step(cpu_t *cpu)
 
         carry = true;
         value = AddWithCarry(op0, ~op1, &carry, &overflow);
-
-        LOGF("sub: 0x%08X - 0x%08X = 0x%08X\n", op0, op1, value);
 
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
 
@@ -1324,6 +1369,29 @@ void cpu_step(cpu_t *cpu)
         value = (uint32_t)(int16_t)(op1 & 0xFFFF);
         break;
 
+    case ARM_INS_TBB:
+    case ARM_INS_TBH:
+        assert(detail.op_count == 1);
+        assert(detail.operands[0].type == ARM_OP_MEM);
+
+        op0 = cpu_mem_operand_address(cpu, &detail.operands[0]);
+        value = memreg_read(cpu->mem, op0) & (i->id == ARM_INS_TBB ? 0xFF : 0xFFFF);
+
+        cpu_reg_write(cpu, ARM_REG_PC, (cpu_reg_read(cpu, ARM_REG_PC) + value * 2) | 1);
+        break;
+
+    case ARM_INS_TEQ:
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+        op1 = OPERAND(1);
+
+        value = op0 ^ op1;
+
+        UPDATE_NZC
+        break;
+
     case ARM_INS_TST:
         op0 = OPERAND(0);
         op1 = OPERAND(1);
@@ -1346,6 +1414,22 @@ void cpu_step(cpu_t *cpu)
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
         break;
     }
+
+    case ARM_INS_USAT:
+        assert(detail.op_count == 3);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_IMM);
+        assert(detail.operands[2].type == ARM_OP_REG);
+
+        op0 = detail.operands[1].imm;
+        op1 = OPERAND(2);
+
+        bool saturated = UnsignedSatQ(op1, op0, &value);
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
+
+        if (saturated)
+            SET(cpu->xpsr, APSR_Q);
+        break;
 
     case ARM_INS_UXTB:
         assert(detail.op_count == 2);
@@ -1385,7 +1469,7 @@ next_pc:
     }
     else
     {
-        LOGF("Branched from 0x%08X to 0x%08X\n", pc, cpu->core_regs[ARM_REG_PC]);
+        LOG_CPU_INST("Branched from 0x%08X to 0x%08X", pc, cpu->core_regs[ARM_REG_PC]);
     }
 }
 
@@ -1530,6 +1614,11 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value)
         fprintf(stderr, "Unhandled system register %d\n", reg);
         abort();
     }
+}
+
+memreg_t *cpu_mem(cpu_t *cpu)
+{
+    return cpu->mem;
 }
 
 bool cpu_mem_read(cpu_t *cpu, uint32_t addr, uint8_t *value)

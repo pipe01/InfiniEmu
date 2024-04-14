@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#define MEMREG_FIND_NOT_FOUND 0xFFFFFFFF
+
 typedef enum {
     SIZE_BYTE = 1,
     SIZE_HALFWORD = 2,
@@ -66,7 +68,11 @@ void memreg_free(memreg_t *region);
 
 bool memreg_is_mapped(memreg_t *region, uint32_t addr);
 uint32_t memreg_read(memreg_t *region, uint32_t addr);
+uint8_t memreg_read_byte(memreg_t *region, uint32_t addr);
+uint16_t memreg_read_halfword(memreg_t *region, uint32_t addr);
 void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, byte_size_t size);
+
+uint32_t memreg_find_data(memreg_t *region, uint32_t start_addr, uint32_t search_length, uint8_t *data, size_t data_size);
 
 memreg_t *memreg_set_next(memreg_t *region, memreg_t *next);
 memreg_t *memreg_find_last(memreg_t *region);
