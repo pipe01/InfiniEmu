@@ -1,0 +1,3 @@
+[submodule "lib/RTT"]
+	path = lib/RTT
+	url = https://github.com/SEGGERMicro/RTT
