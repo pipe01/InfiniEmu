@@ -377,7 +377,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
 {
     uint32_t framesize;
     uint32_t forcealign;
-    
+
     if (HAS_FP)
     {
         abort();
@@ -389,13 +389,13 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     }
 
     cpu->core_regs[ARM_REG_R0] = memreg_read(cpu->mem, sp);
-    cpu->core_regs[ARM_REG_R1] = memreg_read(cpu->mem, sp+0x4);
-    cpu->core_regs[ARM_REG_R2] = memreg_read(cpu->mem, sp+0x8);
-    cpu->core_regs[ARM_REG_R3] = memreg_read(cpu->mem, sp+0xC);
-    cpu->core_regs[ARM_REG_R12] = memreg_read(cpu->mem, sp+0x10);
-    cpu->core_regs[ARM_REG_LR] = memreg_read(cpu->mem, sp+0x14);
-    cpu_reg_write(cpu, ARM_REG_PC, memreg_read(cpu->mem, sp+0x18));
-    uint32_t psr = memreg_read(cpu->mem, sp+0x1C);
+    cpu->core_regs[ARM_REG_R1] = memreg_read(cpu->mem, sp + 0x4);
+    cpu->core_regs[ARM_REG_R2] = memreg_read(cpu->mem, sp + 0x8);
+    cpu->core_regs[ARM_REG_R3] = memreg_read(cpu->mem, sp + 0xC);
+    cpu->core_regs[ARM_REG_R12] = memreg_read(cpu->mem, sp + 0x10);
+    cpu->core_regs[ARM_REG_LR] = memreg_read(cpu->mem, sp + 0x14);
+    cpu_reg_write(cpu, ARM_REG_PC, memreg_read(cpu->mem, sp + 0x18));
+    uint32_t psr = memreg_read(cpu->mem, sp + 0x1C);
 
     printf("Returning from exception to 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
 
@@ -407,7 +407,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     case 9:
         cpu->sp_main = (cpu->sp_main + framesize) | spmask;
         break;
-    
+
     case 13:
         cpu->sp_process = (cpu->sp_process + framesize) | spmask;
         break;
@@ -447,7 +447,7 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
 static void cpu_exception_entry(cpu_t *cpu, arm_exception ex, bool sync)
 {
     printf("Entering exception %d from 0x%08X\n", ex, cpu->core_regs[ARM_REG_PC]);
-    
+
     cpu_push_stack(cpu, ex, sync);
     cpu_exception_taken(cpu, ex);
 
@@ -466,7 +466,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
         if (cpu->exceptions[i].active)
             nested_activation++;
     }
-    
+
     assert(cpu->exceptions[returning_exception_number].active);
 
     uint32_t frameptr;
@@ -494,7 +494,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
         cpu->mode = ARM_MODE_THREAD;
         cpu->control |= 1 << CONTROL_SPSEL;
         break;
-    
+
     default:
         abort();
         break;
@@ -504,14 +504,19 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 
     if ((cpu->xpsr & IPSR_MASK) != 2)
         cpu->faultmask = 0;
-    
+
     cpu_pop_stack(cpu, frameptr, exc_return);
 }
 
-static void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
+void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
 {
     if (cpu->exceptions[ex].enabled)
         cpu->exceptions[ex].pending = true;
+}
+
+void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
+{
+    cpu->exceptions[ex].pending = false;
 }
 
 static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_priority)
@@ -522,7 +527,7 @@ static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_prior
     for (arm_exception i = 1; i < cpu->exception_count; i++)
     {
         exception_t *ex = &cpu->exceptions[i];
-        
+
         if (ex->enabled && ex->pending && ex->priority <= min_priority)
         {
             min_priority = ex->priority;
@@ -648,6 +653,25 @@ static void cpu_add_arm_memregs(cpu_t *cpu)
     NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110);
     NEW_PERIPH(cpu, SCB_FP, scb_fp, scb_fp, x(E000, EF00), 0x90, cpu);
     NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF);
+}
+
+static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op *reg_operands, uint8_t reg_count)
+{
+    uint32_t address = cpu_reg_read(cpu, base_reg) - 4 * reg_count;
+
+    if (writeback)
+        cpu_reg_write(cpu, base_reg, address);
+
+    for (size_t i = 0; i < reg_count; i++)
+    {
+        assert(reg_operands[i].type == ARM_OP_REG);
+        
+        LOGF("Push reg %d\n", reg_operands[i].reg);
+
+        memreg_write(cpu->mem, address, cpu_reg_read(cpu, reg_operands[i].reg), SIZE_WORD);
+
+        address += 4;
+    }
 }
 
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts)
@@ -1085,6 +1109,17 @@ void cpu_step(cpu_t *cpu)
         UPDATE_NZC;
         break;
 
+    case ARM_INS_LSR:
+        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+
+        value = Shift_C(op0, ARM_SFT_LSR, op1, &carry);
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+
+        UPDATE_NZC;
+        break;
+
     case ARM_INS_MLS:
     {
         assert(detail.op_count == 4);
@@ -1110,6 +1145,16 @@ void cpu_step(cpu_t *cpu)
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
 
         UPDATE_NZCV;
+        break;
+
+    case ARM_INS_MRS:
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_SYSREG);
+
+        value = cpu_sysreg_read(cpu, detail.operands[1].reg);
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
         break;
 
     case ARM_INS_MSR:
@@ -1170,17 +1215,7 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_PUSH:
-        op0 = cpu_reg_read(cpu, ARM_REG_SP) - 4 * detail.op_count;
-        cpu_reg_write(cpu, ARM_REG_SP, op0);
-
-        for (size_t n = 0; n < detail.op_count; n++)
-        {
-            LOGF("Push reg %d\n", detail.operands[n].reg);
-
-            memreg_write(cpu->mem, op0, cpu_load_operand(cpu, &detail.operands[n], 0, &address), SIZE_WORD);
-
-            op0 += 4;
-        }
+        cpu_do_stmdb(cpu, ARM_REG_SP, true, &detail.operands[0], detail.op_count);
         break;
 
     case ARM_INS_RSB:
@@ -1252,6 +1287,10 @@ void cpu_step(cpu_t *cpu)
         cpu_do_store(cpu, &detail, SIZE_HALFWORD, false);
         break;
 
+    case ARM_INS_STMDB:
+        cpu_do_stmdb(cpu, detail.operands[0].reg, detail.writeback, &detail.operands[1], detail.op_count - 1);
+        break;
+
     case ARM_INS_SUB:
         op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
@@ -1268,6 +1307,15 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_SVC:
         cpu_exception_set_pending(cpu, ARM_EXC_SVC);
+        break;
+
+    case ARM_INS_SXTB:
+        assert(detail.op_count == 2); // TODO: Handle rotation case
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+
+        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+        value = (uint32_t)(int8_t)(op1 & 0xFF);
         break;
 
     case ARM_INS_SXTH:
@@ -1384,7 +1432,7 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
             cpu_exception_return(cpu, value & x(0FFF, FFFF));
             break;
         }
-    
+
         if ((value & 1) != 1)
         {
             // TODO: Handle better

@@ -23,6 +23,33 @@ OPERATION(scb)
 
     switch (offset)
     {
+    case 0x04: // ICSR
+        OP_ASSERT_SIZE(op, WORD);
+
+        if (OP_IS_READ(op))
+        {
+            abort(); // TODO: Implement
+        }
+        else
+        {
+            if (IS_SET(*value, 31)) // NMIPENDSET
+                cpu_exception_set_pending(scb->cpu, ARM_EXC_NMI);
+
+            if (IS_SET(*value, 28)) // PENDSVSET
+                cpu_exception_set_pending(scb->cpu, ARM_EXC_PENDSV);
+
+            if (IS_SET(*value, 27)) // PENDSVCLR
+                cpu_exception_clear_pending(scb->cpu, ARM_EXC_PENDSV);
+
+            if (IS_SET(*value, 26)) // PENDSTSET
+                cpu_exception_set_pending(scb->cpu, ARM_EXC_SYSTICK);
+
+            if (IS_SET(*value, 25)) // PENDSTCLR
+                cpu_exception_clear_pending(scb->cpu, ARM_EXC_SYSTICK);
+        }
+
+        return MEMREG_RESULT_OK;
+
     case 0x0C: // AIRCR
         OP_ASSERT_SIZE(op, WORD);
 
@@ -55,9 +82,9 @@ OPERATION(scb)
     if (offset >= 0x18 && offset <= 0x23)
     {
         OP_ASSERT_SIZE(op, BYTE);
-        
+
         arm_exception ex = (offset - 0x18) + 4;
-        
+
         if (OP_IS_READ(op))
             *value = cpu_get_exception_priority(scb->cpu, ex);
         else
