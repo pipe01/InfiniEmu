@@ -254,7 +254,7 @@ with open("main.c", "w") as main:
 
                 memcounter += 1
 
-            main.write("cpu_t *cpu = cpu_new(program, sizeof(program), mem_first);\n")
+            main.write("cpu_t *cpu = cpu_new(program, sizeof(program), mem_first, 0);\n")
 
             if test.setup.registers is not None:
                 for reg in test.setup.registers.core:
