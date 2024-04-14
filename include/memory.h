@@ -27,6 +27,7 @@ typedef enum {
 
 typedef enum {
     MEMREG_RESULT_OK,
+    MEMREG_RESULT_OK_CONTINUE,
     MEMREG_RESULT_INVALID_ACCESS,
     MEMREG_RESULT_INVALID_SIZE,
     MEMREG_RESULT_UNHANDLED,
@@ -40,7 +41,7 @@ typedef enum {
 #define OP_ASSERT_READ(op)  if ((op) < 0) { return MEMREG_RESULT_INVALID_ACCESS; }
 #define OP_ASSERT_WRITE(op) if ((op) > 0) { return MEMREG_RESULT_INVALID_ACCESS; }
 
-#define OP_RETURN_REG(reg, size)                    \
+#define OP_RETURN_REG_RESULT(reg, size, result)     \
     do                                              \
     {                                               \
         if ((op) == OP_READ_##size)                 \
@@ -49,8 +50,10 @@ typedef enum {
             (reg) = *value;                         \
         else                                        \
             return MEMREG_RESULT_INVALID_SIZE;      \
-        return MEMREG_RESULT_OK;                    \
+        return (result);                    \
     } while (0)
+
+#define OP_RETURN_REG(reg, size) OP_RETURN_REG_RESULT(reg, size, MEMREG_RESULT_OK)
 
 typedef memreg_op_result_t (*memreg_operation_t)(uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata);
 

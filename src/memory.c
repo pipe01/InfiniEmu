@@ -130,6 +130,7 @@ bool memreg_is_mapped(memreg_t *region, uint32_t addr)
 void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32_t *value)
 {
     memreg_op_result_t result = MEMREG_RESULT_UNHANDLED;
+    bool handled = false;
 
     while (region)
     {
@@ -139,13 +140,17 @@ void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32
 
             if (result == MEMREG_RESULT_OK)
                 return;
-
-            if (result != MEMREG_RESULT_UNHANDLED)
+            else if (result == MEMREG_RESULT_OK_CONTINUE)
+                handled = true;
+            else if (result != MEMREG_RESULT_UNHANDLED)
                 break;
         }
 
         region = region->next;
     }
+
+    if (handled)
+        return;
 
     switch (result)
     {

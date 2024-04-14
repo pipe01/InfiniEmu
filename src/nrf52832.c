@@ -9,9 +9,11 @@
 #include "peripherals/nrf52832/clock.h"
 #include "peripherals/nrf52832/comp.h"
 #include "peripherals/nrf52832/gpio.h"
+#include "peripherals/nrf52832/gpiote.h"
 #include "peripherals/nrf52832/power.h"
 #include "peripherals/nrf52832/rtc.h"
 #include "peripherals/nrf52832/radio.h"
+#include "peripherals/nrf52832/spim.h"
 #include "peripherals/nrf52832/temp.h"
 #include "peripherals/nrf52832/timer.h"
 #include "peripherals/nrf52832/wdt.h"
@@ -30,9 +32,11 @@ struct NRF52832_inst_t
     RADIO_t *radio;
     TEMP_t *temp;
     GPIO_t *gpio;
+    GPIOTE_t *gpiote;
     RTC_t *rtc[3];
     TIMER_t *timer[5];
     WDT_t *wdt;
+    SPIM_t *spim;
 };
 
 NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
@@ -54,6 +58,8 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, CLOCK, clock, clock, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, POWER, power, power, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, RADIO, radio, radio, x(4000, 1000), 0x1000);
+    NEW_PERIPH(chip, SPIM, spim, spim, x(4000, 3000), 0x1000);
+    NEW_PERIPH(chip, GPIOTE, gpiote, gpiote, x(4000, 6000), 0x1000);
     NEW_PERIPH(chip, TIMER, timer, timer[0], x(4000, 8000), 0x1000, 4);
     NEW_PERIPH(chip, TIMER, timer, timer[1], x(4000, 9000), 0x1000, 4);
     NEW_PERIPH(chip, TIMER, timer, timer[2], x(4000, A000), 0x1000, 4);

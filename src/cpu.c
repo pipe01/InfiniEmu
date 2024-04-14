@@ -394,7 +394,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     cpu->core_regs[ARM_REG_R3] = memreg_read(cpu->mem, sp + 0xC);
     cpu->core_regs[ARM_REG_R12] = memreg_read(cpu->mem, sp + 0x10);
     cpu->core_regs[ARM_REG_LR] = memreg_read(cpu->mem, sp + 0x14);
-    cpu_reg_write(cpu, ARM_REG_PC, memreg_read(cpu->mem, sp + 0x18));
+    cpu_reg_write(cpu, ARM_REG_PC, memreg_read(cpu->mem, sp + 0x18) | 1);
     uint32_t psr = memreg_read(cpu->mem, sp + 0x1C);
 
     printf("Returning from exception to 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
@@ -426,6 +426,7 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
 
     tmp = memreg_read(cpu->mem, 4 * ex);
     cpu->core_regs[ARM_REG_PC] = tmp & ~1;
+    cpu->branched = true;
 
     if ((tmp & 1) != 1)
         abort();
@@ -535,8 +536,8 @@ static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_prior
         }
     }
 
-    if (min_priority >= current_priority)
-        return 0;
+    // if (min_priority >= current_priority)
+    //     return 0;
 
     return min_ex;
 }
@@ -779,11 +780,7 @@ void cpu_step(cpu_t *cpu)
 {
     dwt_increment_cycle(cpu->dwt);
 
-    arm_exception pending = cpu_exception_get_pending(cpu, cpu_execution_priority(cpu));
-    if (pending != 0)
-    {
-        cpu_exception_entry(cpu, pending, false);
-    }
+    arm_exception pending;
 
     uint32_t pc = cpu->core_regs[ARM_REG_PC];
 
@@ -1376,6 +1373,12 @@ void cpu_step(cpu_t *cpu)
     }
 
 next_pc:
+    pending = cpu_exception_get_pending(cpu, cpu_execution_priority(cpu));
+    if (pending != 0)
+    {
+        cpu_exception_entry(cpu, pending, false);
+    }
+
     if (!cpu->branched)
     {
         cpu_reg_write(cpu, ARM_REG_PC, next | 1);
