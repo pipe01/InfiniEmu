@@ -2,6 +2,7 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <sys/time.h>
 
 #include "config.h"
 #include "nrf52832.h"
@@ -87,6 +88,12 @@ int main(int argc, char **argv)
         }
     }
 
+#ifdef ENABLE_MEASUREMENT
+    struct timeval tv_start, tv_now;
+    gettimeofday(&tv_start, NULL);
+
+    size_t inst_counter = 0;
+#endif
 
     for (;;)
     {
@@ -97,6 +104,23 @@ int main(int argc, char **argv)
         }
 
         nrf52832_step(nrf);
+
+#ifdef ENABLE_MEASUREMENT
+        if (++inst_counter == 1000000)
+        {
+            gettimeofday(&tv_now, NULL);
+
+            long elapsed = (tv_now.tv_sec - tv_start.tv_sec) * 1000000 + (tv_now.tv_usec - tv_start.tv_usec);
+
+            tv_start = tv_now;
+
+            printf("Elapsed: %lu us\n", elapsed);
+            printf("Instructions %lu\n", inst_counter);
+            printf("\n");
+
+            inst_counter = 0;
+        }
+#endif
 
 #ifdef ENABLE_SEGGER_RTT
         if ((rtt_counter++ % 2000) == 0)

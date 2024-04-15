@@ -107,6 +107,9 @@ SCB_t *scb_new(cpu_t *cpu)
 void scb_reset(SCB_t *scb)
 {
     scb->cpacr = 0;
+    scb->prigroup = 0;
+    scb->scr = 0;
+    scb->fpccr = 0;
 }
 
 uint32_t scb_get_prigroup(SCB_t *scb)

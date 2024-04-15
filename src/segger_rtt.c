@@ -97,4 +97,8 @@ void rtt_flush_buffers(rtt_t *rtt)
     // memreg_write(rtt->mem, cb_addr + offsetof(SEGGER_RTT_CB, aUp) + offsetof(SEGGER_RTT_BUFFER_UP, RdOff), upRdOff, SIZE_WORD);
 }
 
+#else
+
+void pedantic() {}
+
 #endif

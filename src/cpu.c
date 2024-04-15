@@ -512,12 +512,9 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
 {
-    if (cpu->exceptions[ex].enabled)
-    {
-        cpu->exceptions[ex].pending = true;
+    cpu->exceptions[ex].pending = true;
 
-        LOG_CPU_EX("Exception %d is now pending", ex);
-    }
+    LOG_CPU_EX("Exception %d is now pending", ex);
 }
 
 void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
@@ -1651,5 +1648,8 @@ int16_t cpu_get_exception_priority(cpu_t *cpu, arm_exception ex)
 
 void cpu_set_exception_priority(cpu_t *cpu, arm_exception ex, int16_t priority)
 {
+    if (cpu->exceptions[ex].fixed_priority)
+        abort();
+
     cpu->exceptions[ex].priority = priority;
 }
