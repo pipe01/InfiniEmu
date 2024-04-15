@@ -1,5 +1,6 @@
-#include "gdb.h"
 #include "byte_util.h"
+#include "config.h"
+#include "gdb.h"
 
 #include <math.h>
 #include <unistd.h>
@@ -14,10 +15,12 @@
 
 #define QUOTE(...) #__VA_ARGS__
 
-#ifdef LOG_GDB
-#define LOGF(...) printf(__VA_ARGS__)
+#ifdef ENABLE_LOG_GDB
+#define LOGF(msg, ...) printf("[GDB] " msg, __VA_ARGS__)
+#define LOG(msg) printf("[GDB] " msg)
 #else
 #define LOGF(...)
+#define LOG(msg)
 #endif
 
 const char target_xml[] = QUOTE(
@@ -69,16 +72,12 @@ const char memory_map_xml[] = QUOTE(
 
 #define MAX_BREAKPOINTS 32
 
-bool has_prefix(const char *pre, const char *str)
-{
-    return strncmp(pre, str, strlen(pre)) == 0;
-}
-
 typedef struct
 {
     int fd;
     gdb_t *gdb;
     bool noack;
+    bool extended;
 } gdbstub;
 
 struct gdb_inst_t
@@ -102,7 +101,7 @@ void gdb_add_breakpoint(gdb_t *gdb, uint32_t addr)
 {
     if (gdb->breakpoint_num >= MAX_BREAKPOINTS)
     {
-        LOGF("Maximum number of breakpoints reached\n");
+        LOG("Maximum number of breakpoints reached\n");
         return;
     }
 
@@ -162,6 +161,8 @@ void send_response_str(int fd, const char *text)
     send_response_raw(fd, text, len);
 }
 
+#define SEND_RESPONSE_BYTES_LITERAL(fd, data) send_response_bytes(fd, (uint8_t *)(data), sizeof(data) - 1)
+
 void send_response_bytes(int fd, const uint8_t *data, size_t len)
 {
     char buf[len * 2 + 1];
@@ -204,6 +205,18 @@ void send_response_binary(int fd, const uint8_t *data, size_t len)
     send_response_raw(fd, buf, pos);
 }
 
+void parse_hex(const char *str, size_t str_len, uint8_t *data)
+{
+    for (size_t i = 0; i < str_len; i += 2)
+    {
+        char byte_str[3];
+        memcpy(byte_str, str + i, 2);
+        byte_str[2] = 0;
+
+        data[i / 2] = strtol(byte_str, NULL, 16);
+    }
+}
+
 char *gdb_qSupported(gdbstub *gdb, char *msg)
 {
     send_response_str(gdb->fd, "hwbreak+;qXfer:features:read+;qXfer:memory-map:read+;QStartNoAckMode+");
@@ -216,14 +229,14 @@ char *gdb_qXfer(gdbstub *gdb, char *msg)
     const char *data;
     size_t data_size;
 
-    if (has_prefix("features:read:target.xml:", msg))
+    if (HAS_PREFIX(msg, "features:read:target.xml:"))
     {
         msg += sizeof("features:read:target.xml:") - 1;
 
         data = target_xml;
         data_size = sizeof(target_xml) - 1;
     }
-    else if (has_prefix("memory-map:read::", msg))
+    else if (HAS_PREFIX(msg, "memory-map:read::"))
     {
         msg += sizeof("memory-map:read::") - 1;
 
@@ -332,10 +345,37 @@ char *gdb_qSearchMemory(gdbstub *gdb, char *msg)
     return msg;
 }
 
+char *gdb_qCommand(gdbstub *gdb, char *msg)
+{
+    char *data_end = strchr(msg, '#');
+    size_t hex_len = data_end - msg;
+
+    char command[hex_len / 2 + 1];
+    command[sizeof(command) - 1] = 0;
+
+    parse_hex(msg, hex_len, (uint8_t *)command);
+
+    if (strcmp(command, "reset") == 0)
+    {
+        nrf52832_reset(gdb->gdb->nrf);
+
+        send_response_str(gdb->fd, "OK");
+    }
+    else
+    {
+        send_response_str(gdb->fd, "");
+    }
+
+    return data_end;
+}
+
 char *gdb_queryGeneral(gdbstub *gdb, char *msg)
 {
     bool isSet = msg[0] == 'Q';
     msg++;
+
+    if (HAS_PREFIX(msg, "Rcmd,"))
+        return gdb_qCommand(gdb, msg + 5);
 
     size_t query_len = (size_t)(strchr(msg, ':') - msg);
 
@@ -348,7 +388,7 @@ char *gdb_queryGeneral(gdbstub *gdb, char *msg)
     if (strncmp(msg, "Search:memory:", query_len) == 0)
         return gdb_qSearchMemory(gdb, rest);
 
-    if (isSet && HAS_PREFIX("StartNoAckMode", msg))
+    if (isSet && HAS_PREFIX(msg, "StartNoAckMode"))
     {
         gdb->noack = true;
         send_response_str(gdb->fd, "OK");
@@ -552,6 +592,17 @@ void gdbstub_run(gdbstub *gdb)
 
             switch (msg[0])
             {
+            case '!':
+                ret = msg + 1;
+                gdb->extended = true;
+                LOG("Extended mode enabled\n");
+                send_response_str(gdb->fd, "OK");
+                break;
+
+            case '?':
+                ret = gdb_queryHalted(gdb, msg);
+                break;
+
             case 'q':
             case 'Q':
                 ret = gdb_queryGeneral(gdb, msg);
@@ -566,8 +617,12 @@ void gdbstub_run(gdbstub *gdb)
                 ret = gdb_queryReadMemory(gdb, msg);
                 break;
 
-            case '?':
-                ret = gdb_queryHalted(gdb, msg);
+            case 'R':
+                LOG("Resetting target\n");
+
+                ret = strchr(msg, '#');
+                nrf52832_reset(gdb->gdb->nrf);
+                // send_response_str(gdb->fd, "S05");
                 break;
 
             case 'z':
