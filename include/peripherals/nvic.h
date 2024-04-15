@@ -2,4 +2,6 @@
 
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(NVIC, nvic)
+#include "cpu.h"
+
+PERIPHERAL(NVIC, nvic, cpu_t *cpu)

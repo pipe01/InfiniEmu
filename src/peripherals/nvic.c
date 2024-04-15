@@ -1,4 +1,7 @@
 #include "peripherals/nvic.h"
+
+#include "arm.h"
+#include "cpu.h"
 #include "memory.h"
 
 #include <stdlib.h>
@@ -14,8 +17,7 @@ typedef struct
 
 struct NVIC_inst_t
 {
-    uint32_t interrupt_enabled[INTERRUPT_COUNT / 32];
-    uint32_t interrupt_priority[INTERRUPT_COUNT];
+    cpu_t *cpu;
 };
 
 OPERATION(nvic)
@@ -25,63 +27,63 @@ OPERATION(nvic)
     // NVIC_ISER[n]
     if (offset <= 0x40)
     {
-        if (OP_IS_SIZE(op, BYTE))
+        OP_ASSERT_SIZE(op, WORD);
+
+        uint32_t iser_num = offset / 4;
+
+        for (uint32_t i = 0; i < 32; i++)
         {
-            uint8_t *reg = &((uint8_t *)nvic->interrupt_enabled)[offset];
+            arm_exception ex_num = ARM_EXTERNAL_INTERRUPT_NUMBER(i + (32 * iser_num));
 
-            if (OP_IS_READ(op))
-                *value = *reg;
-            else if (OP_IS_WRITE(op))
-                *reg |= *value;
-
-            return MEMREG_RESULT_OK;
+            if ((*value & (1 << i)) != 0)
+                cpu_exception_set_enabled(nvic->cpu, ex_num, true);
         }
-        else if (OP_IS_SIZE(op, WORD))
-        {
-            uint32_t *reg = &((uint32_t *)nvic->interrupt_enabled)[offset / 4];
 
-            if (OP_IS_READ(op))
-                *value = *reg;
-            else if (OP_IS_WRITE(op))
-                *reg |= *value;
-
-            return MEMREG_RESULT_OK;
-        }
+        return MEMREG_RESULT_OK;
     }
     // NVIC_ICER[n]
     else if (offset >= 0x80 && offset <= 0xC0)
     {
-        uint8_t *reg = &((uint8_t *)nvic->interrupt_enabled)[offset - 0x80];
+        // uint8_t *reg = &((uint8_t *)nvic->interrupt_enabled)[offset - 0x80];
 
-        switch (op)
-        {
-        case OP_READ_BYTE:
-            *value = *reg;
-            return MEMREG_RESULT_OK;
+        // switch (op)
+        // {
+        // case OP_READ_BYTE:
+        //     *value = *reg;
+        //     return MEMREG_RESULT_OK;
 
-        case OP_WRITE_BYTE:
-            *reg &= ~*value;
-            return MEMREG_RESULT_OK;
+        // case OP_WRITE_BYTE:
+        //     *reg &= ~*value;
+        //     return MEMREG_RESULT_OK;
 
-        default:
-            return MEMREG_RESULT_INVALID_ACCESS;
-        }
+        // default:
+        //     return MEMREG_RESULT_INVALID_ACCESS;
+        // }
     }
     // NVIC_IPR[n]
     else if (offset >= 0x300 && offset <= 0x4F0)
     {
-        OP_RETURN_REG(nvic->interrupt_priority[offset - 0x300], BYTE);
+        OP_ASSERT_SIZE(op, BYTE);
+
+        uint32_t ipr_num = offset - 0x300;
+        arm_exception ex = ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num);
+
+        cpu_set_exception_priority(nvic->cpu, ex, *value);
+
+        return MEMREG_RESULT_OK;
     }
 
     return MEMREG_RESULT_UNHANDLED;
 }
 
-NVIC_t *nvic_new()
+NVIC_t *nvic_new(cpu_t *cpu)
 {
-    return (NVIC_t *)malloc(sizeof(NVIC_t));
+    NVIC_t *nvic = (NVIC_t *)malloc(sizeof(NVIC_t));
+    nvic->cpu = cpu;
+
+    return nvic;
 }
 
 void nvic_reset(NVIC_t *nvic)
 {
-    memset(nvic->interrupt_enabled, 0, sizeof(nvic->interrupt_enabled));
 }

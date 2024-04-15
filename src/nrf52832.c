@@ -26,6 +26,8 @@ struct NRF52832_inst_t
 {
     cpu_t *cpu;
 
+    uint64_t cycle_counter;
+
     CLOCK_t *clock;
     COMP_t *comp;
     POWER_t *power;
@@ -63,13 +65,13 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, TIMER, timer, timer[0], x(4000, 8000), 0x1000, 4);
     NEW_PERIPH(chip, TIMER, timer, timer[1], x(4000, 9000), 0x1000, 4);
     NEW_PERIPH(chip, TIMER, timer, timer[2], x(4000, A000), 0x1000, 4);
-    NEW_PERIPH(chip, RTC, rtc, rtc[0], x(4000, B000), 0x1000, 3);
+    NEW_PERIPH(chip, RTC, rtc, rtc[0], x(4000, B000), 0x1000, 3, &chip->cpu, 0x0B);
     NEW_PERIPH(chip, TEMP, temp, temp, x(4000, C000), 0x1000);
     NEW_PERIPH(chip, WDT, wdt, wdt, x(4001, 0000), 0x1000);
-    NEW_PERIPH(chip, RTC, rtc, rtc[1], x(4001, 1000), 0x1000, 4);
+    NEW_PERIPH(chip, RTC, rtc, rtc[1], x(4001, 1000), 0x1000, 4, &chip->cpu, 0x11);
     NEW_PERIPH(chip, TIMER, timer, timer[3], x(4001, A000), 0x1000, 6);
     NEW_PERIPH(chip, TIMER, timer, timer[4], x(4001, B000), 0x1000, 6);
-    NEW_PERIPH(chip, RTC, rtc, rtc[2], x(4002, 4000), 0x1000, 4);
+    NEW_PERIPH(chip, RTC, rtc, rtc[2], x(4002, 4000), 0x1000, 4, &chip->cpu, 0x24);
     NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000);
 
     last = memreg_set_next(last, memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len));
@@ -85,11 +87,21 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
 
 void nrf52832_reset(NRF52832_t *nrf52832)
 {
+    nrf52832->cycle_counter = 0;
+
     cpu_reset(nrf52832->cpu);
 }
 
 void nrf52832_step(NRF52832_t *nrf52832)
 {
+    // TODO: Properly measure time
+    if ((++nrf52832->cycle_counter % 10000) == 0)
+    {
+        rtc_tick(nrf52832->rtc[0]);
+        rtc_tick(nrf52832->rtc[1]);
+        rtc_tick(nrf52832->rtc[2]);
+    }
+
     cpu_step(nrf52832->cpu);
 }
 

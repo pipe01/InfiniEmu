@@ -17,6 +17,7 @@
 
 #define ARM_MAX_EXCEPTIONS 512
 #define ARM_MAX_PRIORITY 255
+#define ARM_EXTERNAL_INTERRUPT_NUMBER(n) (16 + (n))
 
 typedef enum
 {

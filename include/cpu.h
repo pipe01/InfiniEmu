@@ -28,3 +28,4 @@ int16_t cpu_get_exception_priority(cpu_t *cpu, arm_exception ex);
 void cpu_set_exception_priority(cpu_t *cpu, arm_exception ex, int16_t priority);
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex);
 void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex);
+void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled);

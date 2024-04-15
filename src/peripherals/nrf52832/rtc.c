@@ -13,7 +13,10 @@
 
 struct RTC_inst_t
 {
+    cpu_t **cpu;
+    uint32_t id;
     size_t cc_num;
+
     uint32_t cc[RTC_MAX_CC];
     uint32_t event_cc[RTC_MAX_CC];
 
@@ -93,6 +96,9 @@ OPERATION(rtc)
         // TODO: Implement
         return MEMREG_RESULT_OK;
 
+    case 0x504: // COUNTER
+        OP_RETURN_REG(rtc->counter, WORD);
+
     case 0x508: // PRESCALER
         OP_RETURN_REG(rtc->prescaler, WORD);
     }
@@ -100,27 +106,28 @@ OPERATION(rtc)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-RTC_t *rtc_new(size_t cc_num)
+RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint32_t id)
 {
     assert(cc_num <= RTC_MAX_CC);
 
     RTC_t *rtc = (RTC_t *)malloc(sizeof(RTC_t));
     rtc->cc_num = cc_num;
+    rtc->cpu = cpu;
+    rtc->id = id;
 
     return rtc;
 }
 
 void rtc_reset(RTC_t *rtc)
 {
-    size_t cc_num = rtc->cc_num;
-
-    memset(rtc, 0, sizeof(RTC_t));
-
-    rtc->cc_num = cc_num;
+    memset(rtc + offsetof(RTC_t, cc), 0, sizeof(RTC_t) - offsetof(RTC_t, cc));
 }
 
 void rtc_tick(RTC_t *rtc)
 {
+    if (!rtc->started)
+        return;
+
     rtc->prescaler_counter++;
 
     if (rtc->prescaler_counter == rtc->prescaler)
@@ -128,10 +135,10 @@ void rtc_tick(RTC_t *rtc)
         rtc->prescaler_counter = 0;
         rtc->counter++;
 
-        if ((rtc->inten & (1 << INT_TICK)) != 0 && rtc->counter == 0)
+        if ((rtc->inten & (1 << INT_TICK)) != 0)
         {
             rtc->event_tick = true;
-            // TODO: Raise interrupt
+            cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
         }
 
         if (rtc->counter == (1 << 24))

@@ -524,6 +524,14 @@ void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
     LOG_CPU_EX("Exception %d is no longer pending", ex);
 }
 
+void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
+{
+    if (cpu->exceptions[ex].fixed_enabled)
+        abort();
+
+    cpu->exceptions[ex].enabled = enabled;
+}
+
 static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_priority)
 {
     int16_t min_priority = ARM_MAX_PRIORITY;
@@ -657,7 +665,7 @@ static void cpu_add_arm_memregs(cpu_t *cpu)
     NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90, cpu);
     NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110);
     NEW_PERIPH(cpu, SCB_FP, scb_fp, scb_fp, x(E000, EF00), 0x90, cpu);
-    NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF);
+    NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF, cpu);
 }
 
 static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op *reg_operands, uint8_t reg_count)
