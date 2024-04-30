@@ -781,15 +781,15 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
 {
     assert((pc & x(FFFF, FFFE)) == pc); // Check that PC is aligned
 
-    if (cpu->inst_by_pc[pc])
-        return cpu->inst_by_pc[pc];
-
-    size_t n = cs_disasm(cpu->cs, &cpu->program[pc], cpu->program_size - pc, pc, 1, &cpu->inst_by_pc[pc]);
-    
-    if (n == 0)
+    if (!cpu->inst_by_pc[pc])
     {
-        fprintf(stderr, "Failed to disassemble code at 0x%08X\n", pc);
-        abort();
+        size_t n = cs_disasm(cpu->cs, &cpu->program[pc], cpu->program_size - pc, pc, 1, &cpu->inst_by_pc[pc]);
+
+        if (n == 0)
+        {
+            fprintf(stderr, "Failed to disassemble code at 0x%08X\n", pc);
+            abort();
+        }
     }
 
     return cpu->inst_by_pc[pc];
