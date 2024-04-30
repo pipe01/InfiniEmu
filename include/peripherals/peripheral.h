@@ -15,5 +15,4 @@
 
 #define NEW_PERIPH(chip, type, name, field, addr, size, ...) \
     (chip)->field = name##_new(__VA_ARGS__);       \
-    name##_reset((chip)->field);                   \
     last = memreg_set_next(last, memreg_new_operation(addr, size, name##_operation, (chip)->field));
