@@ -63,12 +63,32 @@ OPERATION(nvic)
     // NVIC_IPR[n]
     else if (offset >= 0x300 && offset <= 0x4F0)
     {
-        OP_ASSERT_SIZE(op, BYTE);
-
         uint32_t ipr_num = offset - 0x300;
-        arm_exception ex = ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num);
 
-        cpu_set_exception_priority(nvic->cpu, ex, *value);
+        switch (op)
+        {
+        case OP_WRITE_BYTE:
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), *value);
+            break;
+
+        case OP_WRITE_WORD:
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), *value & 0xFF);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 1), (*value >> 8) & 0xFF);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 2), (*value >> 16) & 0xFF);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 3), (*value >> 24) & 0xFF);
+            break;
+
+        case OP_READ_WORD:
+            *value = 
+                (cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num)) & 0xFF) |
+                ((cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 1)) & 0xFF) << 8) |
+                ((cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 2)) & 0xFF) << 16) |
+                ((cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 3)) & 0xFF) << 24);
+            break;
+
+        default:
+            return MEMREG_RESULT_INVALID_SIZE;
+        }
 
         return MEMREG_RESULT_OK;
     }
