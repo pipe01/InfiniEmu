@@ -98,11 +98,11 @@ struct cpu_inst_t
 
     arm_mode mode;
 
+    csh cs;
     uint8_t *program;
     size_t program_size;
 
     cs_insn *inst;
-    size_t inst_count;
     cs_insn **inst_by_pc;
 
     size_t exception_count;
@@ -697,39 +697,30 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_
 
     cpu_add_arm_memregs(cpu);
 
-    csh handle;
-
-    if (cs_open(CS_ARCH_ARM, CS_MODE_THUMB + CS_MODE_MCLASS, &handle) != CS_ERR_OK)
+    if (cs_open(CS_ARCH_ARM, CS_MODE_THUMB + CS_MODE_MCLASS, &cpu->cs) != CS_ERR_OK)
     {
         fprintf(stderr, "Failed to initialize Capstone\n");
         return NULL;
     }
 
-    cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
-    cs_option(handle, CS_OPT_SKIPDATA, CS_OPT_ON);
-
-    cpu->inst_count = cs_disasm(handle, program, program_size, 0, 0, &cpu->inst);
-    if (cpu->inst_count == 0)
-    {
-        fprintf(stderr, "Failed to disassemble program\n");
-        return NULL;
-    }
-
-    LOG_CPU_INST("Disassembled %ld instructions", cpu->inst_count);
+    cs_option(cpu->cs, CS_OPT_DETAIL, CS_OPT_ON);
+    // cs_option(handle, CS_OPT_SKIPDATA, CS_OPT_ON);
 
     cpu->inst_by_pc = calloc(program_size, sizeof(cs_insn *));
-
-    for (uint32_t i = 0; i < cpu->inst_count; i++)
-    {
-        cpu->inst_by_pc[cpu->inst[i].address] = &cpu->inst[i];
-    }
 
     return cpu;
 }
 
 void cpu_free(cpu_t *cpu)
 {
-    cs_free(cpu->inst, cpu->inst_count);
+    for (size_t i = 0; i < cpu->program_size; i++)
+    {
+        cs_insn *ins = cpu->inst_by_pc[i];
+
+        if (ins)
+            cs_free(cpu->inst_by_pc[i], 1);
+    }
+
     free(cpu->inst_by_pc);
     free(cpu);
 }
@@ -786,6 +777,24 @@ void cpu_reset(cpu_t *cpu)
     cpu_jump_exception(cpu, ARM_EXC_RESET);
 }
 
+cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
+{
+    assert((pc & x(FFFF, FFFE)) == pc); // Check that PC is aligned
+
+    if (cpu->inst_by_pc[pc])
+        return cpu->inst_by_pc[pc];
+
+    size_t n = cs_disasm(cpu->cs, &cpu->program[pc], cpu->program_size - pc, pc, 1, &cpu->inst_by_pc[pc]);
+    
+    if (n == 0)
+    {
+        fprintf(stderr, "Failed to disassemble code at 0x%08X\n", pc);
+        abort();
+    }
+
+    return cpu->inst_by_pc[pc];
+}
+
 void cpu_step(cpu_t *cpu)
 {
     dwt_increment_cycle(cpu->dwt);
@@ -796,7 +805,7 @@ void cpu_step(cpu_t *cpu)
 
     uint32_t op0, op1, value, address;
 
-    cs_insn *i = cpu->inst_by_pc[pc & ~1];
+    cs_insn *i = cpu_insn_at(cpu, pc);
     if (i == NULL)
     {
         fprintf(stderr, "Failed to find instruction at 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
