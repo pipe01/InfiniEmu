@@ -43,11 +43,12 @@ const char target_xml[] = QUOTE(
             <reg name="sp" bitsize="32" type="data_ptr" group="general" regnum="13" />
             <reg name="lr" bitsize="32" type="code_ptr" group="general" regnum="14" />
             <reg name="pc" bitsize="32" type="code_ptr" group="general" regnum="15" />
-            <reg name="msp" bitsize="32" type="data_ptr" group="system" regnum="16" />
-            <reg name="psp" bitsize="32" type="data_ptr" group="system" regnum="17" />
-            <reg name="primask" bitsize="32" type="int" group="system" regnum="18" />
-            <reg name="xpsr" bitsize="32" type="int" group="general" regnum="19" />
-            <reg name="control" bitsize="32" type="int" group="system" regnum="20" />
+            <reg name="xpsr" bitsize="32" type="int" group="general" regnum="16" />
+            <reg name="fpscr" bitsize="32" type="int" group="general" regnum="17" />
+            <reg name="msp" bitsize="32" type="data_ptr" group="system" regnum="18" />
+            <reg name="psp" bitsize="32" type="data_ptr" group="system" regnum="19" />
+            <reg name="primask" bitsize="32" type="int" group="system" regnum="20" />
+            <reg name="control" bitsize="32" type="int" group="system" regnum="21" />
             <reg name="basepri" bitsize="32" type="int" group="system" regnum="38" />
             <reg name="faultmask" bitsize="32" type="int" group="system" regnum="39" />
         </feature>
