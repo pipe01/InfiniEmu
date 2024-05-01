@@ -554,11 +554,12 @@ static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_prior
     return min_ex;
 }
 
-static void cpu_do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alignment, bool sign_extend)
+static void cpu_do_load(cpu_t *cpu, cs_arm *detail, int size, uint32_t alignment, bool sign_extend)
 {
     assert(detail->op_count == 2 || detail->op_count == 3);
     assert(detail->operands[0].type == ARM_OP_REG);
     assert(detail->operands[1].type == ARM_OP_MEM);
+    assert(size == 1 || size == 2 || size == 4);
 
     uint32_t address = cpu_reg_read(cpu, detail->operands[1].mem.base);
     uint32_t offset;
@@ -577,13 +578,29 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, uint32_t mask, uint32_t alig
             offset += (cpu_reg_read(cpu, detail->operands[1].mem.index) * detail->operands[1].mem.scale) << detail->operands[1].shift.value;
     }
 
+    uint32_t mask = size == 1   ? 0xFF
+                    : size == 2 ? 0xFFFF
+                                : x(FFFF, FFFF);
+
     // TODO: Why do we need to align the address?
     uint32_t value = memreg_read(cpu->mem, (address & alignment) + (detail->post_index ? 0 : offset)) & mask;
 
     if (sign_extend)
     {
-        uint32_t sign_bit = value & ((mask + 1) >> 1);
-        assert(sign_bit == 0); // TODO: Implement sign extension
+        bool sign_bit = (value & ((mask + 1) >> 1)) != 0;
+
+        if (sign_bit)
+        {
+            switch (size)
+            {
+            case 1:
+                value = (uint32_t)(int8_t)value;
+                break;
+
+            case 2:
+                value = (uint32_t)(int16_t)value;
+            }
+        }
     }
 
     cpu_reg_write(cpu, detail->operands[0].reg, value & mask);
@@ -1093,11 +1110,15 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_LDR:
     case ARM_INS_LDREX:
-        cpu_do_load(cpu, &detail, x(FFFF, FFFF), x(FFFF, FFFF) << 2, false);
+        cpu_do_load(cpu, &detail, 4, x(FFFF, FFFF) << 2, false);
         break;
 
     case ARM_INS_LDRB:
-        cpu_do_load(cpu, &detail, 0xFF, x(FFFF, FFFF), false);
+        cpu_do_load(cpu, &detail, 1, x(FFFF, FFFF), false);
+        break;
+
+    case ARM_INS_LDRSB:
+        cpu_do_load(cpu, &detail, 1, x(FFFF, FFFF), true);
         break;
 
     case ARM_INS_LDRD:
@@ -1108,11 +1129,11 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDRH:
-        cpu_do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1, false);
+        cpu_do_load(cpu, &detail, 2, x(FFFF, FFFF) << 1, false);
         break;
 
     case ARM_INS_LDRSH:
-        cpu_do_load(cpu, &detail, 0xFFFF, x(FFFF, FFFF) << 1, true);
+        cpu_do_load(cpu, &detail, 2, x(FFFF, FFFF) << 1, true);
         break;
 
     case ARM_INS_LSL:
@@ -1463,6 +1484,11 @@ void cpu_step(cpu_t *cpu)
         op1 = cpu_reg_read(cpu, detail.operands[1].reg);
 
         cpu_reg_write(cpu, detail.operands[0].reg, op1 & 0xFFFF);
+        break;
+
+    case ARM_INS_VLDMIA:
+    case ARM_INS_VSTMDB:
+        // TODO: Implement
         break;
 
     default:
