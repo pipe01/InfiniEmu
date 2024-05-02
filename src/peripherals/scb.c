@@ -21,6 +21,15 @@ OPERATION(scb)
 {
     SCB_t *scb = (SCB_t *)userdata;
 
+    if (op == OP_RESET)
+    {
+        scb->cpacr = 0;
+        scb->prigroup = 0;
+        scb->scr = 0;
+        scb->fpccr = 0;
+        return MEMREG_RESULT_OK;
+    }
+
     switch (offset)
     {
     case 0x04: // ICSR
@@ -102,14 +111,6 @@ SCB_t *scb_new(cpu_t *cpu)
     scb->cpu = cpu;
 
     return scb;
-}
-
-void scb_reset(SCB_t *scb)
-{
-    scb->cpacr = 0;
-    scb->prigroup = 0;
-    scb->scr = 0;
-    scb->fpccr = 0;
 }
 
 uint32_t scb_get_prigroup(SCB_t *scb)

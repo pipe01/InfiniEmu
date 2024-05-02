@@ -11,9 +11,15 @@ struct DCB_inst_t
 
 OPERATION(dcb)
 {
-    OP_ASSERT_SIZE(op, WORD);
-
     DCB_t *dcb = (DCB_t *)userdata;
+
+    if (op == OP_RESET)
+    {
+        dcb->demcr = 0;
+        return MEMREG_RESULT_OK;
+    }
+
+    OP_ASSERT_SIZE(op, WORD);
 
     switch (offset)
     {
@@ -27,9 +33,4 @@ OPERATION(dcb)
 DCB_t *dcb_new()
 {
     return (DCB_t *)malloc(sizeof(DCB_t));
-}
-
-void dcb_reset(DCB_t *dcb)
-{
-    dcb->demcr = 0;
 }

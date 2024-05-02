@@ -99,6 +99,21 @@ void memreg_free(memreg_t *region)
     }
 }
 
+void memreg_reset(memreg_t *region)
+{
+    region->operation(0, NULL, OP_RESET, region->userdata);
+}
+
+void memreg_reset_all(memreg_t *region)
+{
+    while (region)
+    {
+        memreg_reset(region);
+
+        region = region->next;
+    }
+}
+
 memreg_t *memreg_set_next(memreg_t *region, memreg_t *next)
 {
     if (!region)

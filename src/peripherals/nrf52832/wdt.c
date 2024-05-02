@@ -16,9 +16,15 @@ struct WDT_inst_t
 
 OPERATION(wdt)
 {
-    OP_ASSERT_SIZE(op, WORD);
-
     WDT_t *wdt = (WDT_t *)userdata;
+
+    if (op == OP_RESET)
+    {
+        memset(wdt, 0, sizeof(WDT_t));
+        return MEMREG_RESULT_OK;
+    }
+
+    OP_ASSERT_SIZE(op, WORD);
 
     switch (offset)
     {
@@ -44,9 +50,4 @@ OPERATION(wdt)
 WDT_t *wdt_new()
 {
     return (WDT_t *)malloc(sizeof(WDT_t));
-}
-
-void wdt_reset(WDT_t *wdt)
-{
-    memset(wdt, 0, sizeof(WDT_t));
 }

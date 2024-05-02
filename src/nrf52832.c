@@ -28,6 +28,8 @@ struct NRF52832_inst_t
 
     uint64_t cycle_counter;
 
+    memreg_t *mem;
+
     CLOCK_t *clock;
     COMP_t *comp;
     POWER_t *power;
@@ -51,12 +53,11 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
 
     uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
 
-    memreg_t *mem_first = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
-    memreg_t *last = mem_first;
+    chip->mem = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
+    memreg_t *last = chip->mem;
 
     last = memreg_set_next(last, memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE));
 
-    NEW_PERIPH(chip, COMP, comp, comp, x(4001, 3000), 0x1000);
     NEW_PERIPH(chip, CLOCK, clock, clock, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, POWER, power, power, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, RADIO, radio, radio, x(4000, 1000), 0x1000);
@@ -69,6 +70,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, TEMP, temp, temp, x(4000, C000), 0x1000);
     NEW_PERIPH(chip, WDT, wdt, wdt, x(4001, 0000), 0x1000);
     NEW_PERIPH(chip, RTC, rtc, rtc[1], x(4001, 1000), 0x1000, 4, &chip->cpu, 0x11);
+    NEW_PERIPH(chip, COMP, comp, comp, x(4001, 3000), 0x1000);
     NEW_PERIPH(chip, TIMER, timer, timer[3], x(4001, A000), 0x1000, 6);
     NEW_PERIPH(chip, TIMER, timer, timer[4], x(4001, B000), 0x1000, 6);
     NEW_PERIPH(chip, RTC, rtc, rtc[2], x(4002, 4000), 0x1000, 4, &chip->cpu, 0x24);
@@ -78,7 +80,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len));
     last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len));
 
-    chip->cpu = cpu_new(flash, NRF52832_FLASH_SIZE, mem_first, NRF52832_MAX_EXTERNAL_INTERRUPTS);
+    chip->cpu = cpu_new(flash, NRF52832_FLASH_SIZE, chip->mem, NRF52832_MAX_EXTERNAL_INTERRUPTS);
 
     nrf52832_reset(chip);
 
@@ -89,6 +91,7 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 {
     nrf52832->cycle_counter = 0;
 
+    memreg_reset_all(nrf52832->mem);
     cpu_reset(nrf52832->cpu);
 }
 

@@ -32,6 +32,12 @@ OPERATION(rtc)
 {
     RTC_t *rtc = (RTC_t *)userdata;
 
+    if (op == OP_RESET)
+    {
+        memset(rtc + offsetof(RTC_t, cc), 0, sizeof(RTC_t) - offsetof(RTC_t, cc));
+        return MEMREG_RESULT_OK;
+    }
+
     switch (offset)
     {
     case 0x000: // TASKS_START
@@ -116,11 +122,6 @@ RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint32_t id)
     rtc->id = id;
 
     return rtc;
-}
-
-void rtc_reset(RTC_t *rtc)
-{
-    memset(rtc + offsetof(RTC_t, cc), 0, sizeof(RTC_t) - offsetof(RTC_t, cc));
 }
 
 void rtc_tick(RTC_t *rtc)

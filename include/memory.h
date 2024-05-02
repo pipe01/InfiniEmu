@@ -19,6 +19,7 @@ static inline uint32_t size_mask(byte_size_t size)
 }
 
 typedef enum {
+    OP_RESET            = -100,
     OP_READ_BYTE        = SIZE_BYTE,
     OP_READ_HALFWORD    = SIZE_HALFWORD,
     OP_READ_WORD        = SIZE_WORD,
@@ -65,6 +66,12 @@ memreg_t *memreg_new_simple(uint32_t start, uint8_t *data, size_t data_size);
 memreg_t *memreg_new_simple_copy(uint32_t start, const uint8_t *data, size_t data_size);
 memreg_t *memreg_new_operation(uint32_t start, size_t size, memreg_operation_t operation, void *data);
 void memreg_free(memreg_t *region);
+
+// Resets this memory region
+void memreg_reset(memreg_t *region);
+
+// Resets this memory region and all of its children recursively
+void memreg_reset_all(memreg_t *region);
 
 bool memreg_is_mapped(memreg_t *region, uint32_t addr);
 uint32_t memreg_read(memreg_t *region, uint32_t addr);

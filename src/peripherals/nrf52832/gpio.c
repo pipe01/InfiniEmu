@@ -16,9 +16,15 @@ struct GPIO_inst_t
 
 OPERATION(gpio)
 {
+    GPIO_t *gpio = (GPIO_t *)userdata;
+    
     OP_ASSERT_SIZE(op, WORD);
 
-    GPIO_t *gpio = (GPIO_t *)userdata;
+    if (op == OP_RESET)
+    {
+        memset(gpio, 0, sizeof(GPIO_t));
+        return MEMREG_RESULT_OK;
+    }
 
     // PIN_CNF[n]
     if (offset >= 0x700 && offset <= 0x77C)
@@ -61,9 +67,4 @@ OPERATION(gpio)
 GPIO_t *gpio_new()
 {
     return (GPIO_t *)malloc(sizeof(GPIO_t));
-}
-
-void gpio_reset(GPIO_t *gpio)
-{
-    memset(gpio, 0, sizeof(GPIO_t));
 }

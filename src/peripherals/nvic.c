@@ -1,6 +1,7 @@
 #include "peripherals/nvic.h"
 
 #include "arm.h"
+#include "byte_util.h"
 #include "cpu.h"
 #include "memory.h"
 
@@ -23,6 +24,12 @@ struct NVIC_inst_t
 OPERATION(nvic)
 {
     NVIC_t *nvic = (NVIC_t *)userdata;
+
+    if (op == OP_RESET)
+    {
+        // TODO: Implement
+        return MEMREG_RESULT_OK;
+    }
 
     // NVIC_ISER[n]
     if (offset <= 0x40)
@@ -64,6 +71,7 @@ OPERATION(nvic)
     else if (offset >= 0x300 && offset <= 0x4F0)
     {
         uint32_t ipr_num = offset - 0x300;
+        Register4 *reg4 = (Register4 *)value;
 
         switch (op)
         {
@@ -72,18 +80,17 @@ OPERATION(nvic)
             break;
 
         case OP_WRITE_WORD:
-            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), *value & 0xFF);
-            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 1), (*value >> 8) & 0xFF);
-            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 2), (*value >> 16) & 0xFF);
-            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 3), (*value >> 24) & 0xFF);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), reg4->a);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 1), reg4->b);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 2), reg4->c);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 3), reg4->d);
             break;
 
         case OP_READ_WORD:
-            *value = 
-                (cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num)) & 0xFF) |
-                ((cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 1)) & 0xFF) << 8) |
-                ((cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 2)) & 0xFF) << 16) |
-                ((cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 3)) & 0xFF) << 24);
+            reg4->a = cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num)) & 0xFF;
+            reg4->b = cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 1)) & 0xFF;
+            reg4->c = cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 2)) & 0xFF;
+            reg4->d = cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 3)) & 0xFF;
             break;
 
         default:
@@ -102,8 +109,4 @@ NVIC_t *nvic_new(cpu_t *cpu)
     nvic->cpu = cpu;
 
     return nvic;
-}
-
-void nvic_reset(NVIC_t *nvic)
-{
 }

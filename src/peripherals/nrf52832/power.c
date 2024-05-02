@@ -10,9 +10,15 @@ struct POWER_inst_t
 
 OPERATION(power)
 {
-    OP_ASSERT_SIZE(op, WORD);
-
     POWER_t *power = (POWER_t *)userdata;
+
+    if (op == OP_RESET)
+    {
+        power->resetreason = RESETREASON_SREQ;
+        return MEMREG_RESULT_OK;
+    }
+
+    OP_ASSERT_SIZE(op, WORD);
 
     switch (offset)
     {
@@ -35,9 +41,4 @@ OPERATION(power)
 POWER_t *power_new()
 {
     return (POWER_t *)malloc(sizeof(POWER_t));
-}
-
-void power_reset(POWER_t *power)
-{
-    power->resetreason = RESETREASON_RESETPIN;
 }

@@ -13,9 +13,15 @@ struct TIMER_inst_t
 
 OPERATION(timer)
 {
-    OP_ASSERT_SIZE(op, WORD);
-
     TIMER_t *timer = (TIMER_t *)userdata;
+
+    if (op == OP_RESET)
+    {
+        memset(timer->cc, 0, sizeof(timer->cc));
+        return MEMREG_RESULT_OK;
+    }
+
+    OP_ASSERT_SIZE(op, WORD);
 
     if (offset >= 0x540 && offset <= 0x554)
     {
@@ -36,9 +42,4 @@ TIMER_t *timer_new(size_t cc_num)
     timer->cc_num = cc_num;
 
     return timer;
-}
-
-void timer_reset(TIMER_t *timer)
-{
-    memset(timer->cc, 0, sizeof(timer->cc));
 }

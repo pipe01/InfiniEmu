@@ -10,6 +10,14 @@ struct GPIOTE_inst_t
 
 OPERATION(gpiote)
 {
+    GPIOTE_t *gpiote = (GPIOTE_t *)userdata;
+
+    if (op == OP_RESET)
+    {
+        memset(gpiote, 0, sizeof(GPIOTE_t));
+        return MEMREG_RESULT_OK;
+    }
+
     // TODO: Implement
 
     return MEMREG_RESULT_OK;
@@ -18,9 +26,4 @@ OPERATION(gpiote)
 GPIOTE_t *gpiote_new()
 {
     return (GPIOTE_t *)malloc(sizeof(GPIOTE_t));
-}
-
-void gpiote_reset(GPIOTE_t *gpiote)
-{
-    memset(gpiote, 0, sizeof(GPIOTE_t));
 }

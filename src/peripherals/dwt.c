@@ -12,9 +12,16 @@ struct DWT_inst_t
 
 OPERATION(dwt)
 {
-    OP_ASSERT_SIZE(op, WORD);
-
     DWT_t *dwt = (DWT_t *)userdata;
+
+    if (op == OP_RESET)
+    {
+        dwt->ctrl = 0;
+        dwt->cyccnt = 0;
+        return MEMREG_RESULT_OK;
+    }
+
+    OP_ASSERT_SIZE(op, WORD);
 
     switch (offset)
     {
@@ -31,12 +38,6 @@ OPERATION(dwt)
 DWT_t *dwt_new()
 {
     return (DWT_t *)malloc(sizeof(DWT_t));
-}
-
-void dwt_reset(DWT_t *dwt)
-{
-    dwt->ctrl = 0;
-    dwt->cyccnt = 0;
 }
 
 void dwt_increment_cycle(DWT_t *dwt)

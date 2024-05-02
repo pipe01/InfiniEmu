@@ -10,8 +10,7 @@
 #define PERIPHERAL(type, name, ...) \
     typedef struct type##_inst_t type##_t; \
     OPERATION(name); \
-    type##_t *name##_new(__VA_ARGS__); \
-    void name##_reset(type##_t *name);
+    type##_t *name##_new(__VA_ARGS__);
 
 #define NEW_PERIPH(chip, type, name, field, addr, size, ...) \
     (chip)->field = name##_new(__VA_ARGS__);       \

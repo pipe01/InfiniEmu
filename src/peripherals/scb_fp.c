@@ -14,6 +14,12 @@ OPERATION(scb_fp)
 {
     SCB_FP_t *scb_fp = (SCB_FP_t *)userdata;
 
+    if (op == OP_RESET)
+    {
+        memset(scb_fp, 0, sizeof(SCB_FP_t));
+        return MEMREG_RESULT_OK;
+    }
+
     switch (offset)
     {
     case 0x34: // FPCCR
@@ -26,9 +32,4 @@ OPERATION(scb_fp)
 SCB_FP_t *scb_fp_new()
 {
     return (SCB_FP_t *)malloc(sizeof(SCB_FP_t));
-}
-
-void scb_fp_reset(SCB_FP_t *scb_fp)
-{
-    memset(scb_fp, 0, sizeof(SCB_FP_t));
 }

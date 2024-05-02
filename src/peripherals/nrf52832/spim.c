@@ -13,9 +13,15 @@ struct SPIM_inst_t
 
 OPERATION(spim)
 {
-    OP_ASSERT_SIZE(op, WORD);
-
     SPIM_t *spim = (SPIM_t *)userdata;
+
+    if (op == OP_RESET)
+    {
+        memset(spim, 0, sizeof(SPIM_t));
+        return MEMREG_RESULT_OK;
+    }
+
+    OP_ASSERT_SIZE(op, WORD);
 
     switch (offset)
     {
@@ -55,9 +61,4 @@ OPERATION(spim)
 SPIM_t *spim_new()
 {
     return (SPIM_t *)malloc(sizeof(SPIM_t));
-}
-
-void spim_reset(SPIM_t *spim)
-{
-    memset(spim, 0, sizeof(SPIM_t));
 }
