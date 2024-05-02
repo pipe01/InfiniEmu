@@ -97,6 +97,9 @@ struct cpu_inst_t
     uint32_t control, faultmask, basepri, primask;
     xPSR_t xpsr;
 
+    arm_cc it_cond[4];
+    uint32_t it_block_size, it_block_index;
+
     arm_mode mode;
 
     csh cs;
@@ -197,12 +200,18 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 {
     arm_cc cc;
 
-    if (i->detail->arm.cc != ARM_CC_INVALID)
-        cc = i->detail->arm.cc;
+    if (cpu->it_block_size > 0)
+    {
+        cc = cpu->it_cond[cpu->it_block_index++];
+
+        if (cpu->it_block_index == cpu->it_block_size)
+            cpu->it_block_size = 0;
+    }
     else
     {
-        // TODO: IT blocks
-        return true;
+        assert(i->detail->arm.cc != ARM_CC_INVALID);
+
+        cc = i->detail->arm.cc;
     }
 
     switch (cc)
@@ -759,6 +768,7 @@ void cpu_reset(cpu_t *cpu)
     cpu->sp_process = 0;
 
     cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
+    cpu->xpsr.value = 0;
     cpu->xpsr.epsr_t = 1;
 
     memset(cpu->exceptions, 0, sizeof(cpu->exceptions));
@@ -841,7 +851,7 @@ void cpu_step(cpu_t *cpu)
     cpu->branched = false;
 
     // TODO: Ignore condition on certain instructions
-    if (!cpu_condition_passed(cpu, i))
+    if (i->id != ARM_INS_IT && !cpu_condition_passed(cpu, i))
         goto next_pc;
 
     bool carry = false;
@@ -1056,7 +1066,6 @@ void cpu_step(cpu_t *cpu)
     case ARM_INS_ISB:
     case ARM_INS_NOP:
     case ARM_INS_HINT:
-    case ARM_INS_IT:
         // Do nothing
         break;
 
@@ -1071,6 +1080,64 @@ void cpu_step(cpu_t *cpu)
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
         UPDATE_NZC
         break;
+
+    case ARM_INS_IT:
+    {
+        assert(i->size == 2);
+        assert(i->bytes[1] == 0xBF);
+
+        union
+        {
+            struct
+            {
+                unsigned int mask0 : 1;
+                unsigned int mask1 : 1;
+                unsigned int mask2 : 1;
+                unsigned int mask3 : 1;
+                unsigned int firstcond0 : 1;
+                unsigned int firstcond : 3;
+            } __attribute__((packed));
+            uint8_t value;
+        } it;
+        static_assert(sizeof(it) == 1, "IT block must be a single byte");
+
+        it.value = i->bytes[0];
+
+        arm_cc cond = detail.cc;
+        arm_cc invcond = invert_cc(cond);
+
+        cpu->it_block_index = 0;
+        cpu->it_cond[0] = cond;
+
+        if (it.mask0 == 1)
+        {
+            cpu->it_block_size = 4;
+            cpu->it_cond[1] = it.mask3 == it.firstcond0 ? cond : invcond;
+            cpu->it_cond[2] = it.mask2 == it.firstcond0 ? cond : invcond;
+            cpu->it_cond[3] = it.mask1 == it.firstcond0 ? cond : invcond;
+        }
+        else if (it.mask1 == 1)
+        {
+            cpu->it_block_size = 3;
+            cpu->it_cond[1] = it.mask3 == it.firstcond0 ? cond : invcond;
+            cpu->it_cond[2] = it.mask2 == it.firstcond0 ? cond : invcond;
+        }
+        else if (it.mask2 == 1)
+        {
+            cpu->it_block_size = 2;
+            cpu->it_cond[1] = it.mask3 == it.firstcond0 ? cond : invcond;
+        }
+        else if (it.mask3 == 1)
+        {
+            cpu->it_block_size = 1;
+        }
+        else
+        {
+            abort();
+        }
+
+        break;
+    }
 
     case ARM_INS_LDM:
         assert(detail.op_count >= 2);
