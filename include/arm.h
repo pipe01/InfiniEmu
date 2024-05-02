@@ -19,6 +19,28 @@
 #define ARM_MAX_PRIORITY 255
 #define ARM_EXTERNAL_INTERRUPT_NUMBER(n) (16 + (n))
 
+typedef union
+{
+    struct
+    {
+        unsigned int ipsr : 9;
+        unsigned int : 1;
+        unsigned int epsr_iciit_l : 6;
+        unsigned int apsr_ge : 4;
+        unsigned int : 4;
+        unsigned int epsr_t : 1;
+        unsigned int epsr_iciit_h : 2;
+        unsigned int apsr_q : 1;
+        unsigned int apsr_v : 1;
+        unsigned int apsr_c : 1;
+        unsigned int apsr_z : 1;
+        unsigned int apsr_n : 1;
+    };
+    uint32_t value;
+} xPSR_t;
+
+#define xPSR_IT(xpsr) ((xpsr).epsr_iciit_l | ((xpsr).epsr_iciit_h) << 6)
+
 typedef enum
 {
     ARM_MODE_THREAD = 0,
@@ -39,7 +61,7 @@ typedef enum
     ARM_EXC_SYSTICK = 15,
 
     ARM_EXC_EXTERNAL_START = 16,
-    ARM_EXC_EXTERNAL_END = 512,
+    ARM_EXC_EXTERNAL_END = 512
 } arm_exception;
 
 #define ARM_EXC_EXTERNAL(n) (ARM_EXC_EXTERNAL_START + (n))

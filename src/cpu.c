@@ -38,10 +38,10 @@
 #define OPERAND(n) OPERAND_OFF(n, 0)
 #define OPERAND_REG(n) cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg)
 
-#define UPDATE_N(cpu, value) ((((value) >> 31) == 1) ? SET((cpu)->xpsr, APSR_N) : CLEAR((cpu)->xpsr, APSR_N))
-#define UPDATE_Z(cpu, value) (((value) == 0) ? SET((cpu)->xpsr, APSR_Z) : CLEAR((cpu)->xpsr, APSR_Z))
-#define UPDATE_C(cpu, carry) ((carry) ? SET((cpu)->xpsr, APSR_C) : CLEAR((cpu)->xpsr, APSR_C))
-#define UPDATE_V(cpu, overflow) ((overflow) ? SET((cpu)->xpsr, APSR_V) : CLEAR((cpu)->xpsr, APSR_V))
+#define UPDATE_N(cpu, value) (cpu)->xpsr.apsr_n = ((value) >> 31) == 1
+#define UPDATE_Z(cpu, value) (cpu)->xpsr.apsr_z = (value) == 0
+#define UPDATE_C(cpu, carry) (cpu)->xpsr.apsr_c = (carry) ? 1 : 0
+#define UPDATE_V(cpu, overflow) (cpu)->xpsr.apsr_v = (overflow) ? 1 : 0
 
 #define UPDATE_NZ                 \
     if (detail.update_flags)      \
@@ -94,7 +94,8 @@ struct cpu_inst_t
     uint32_t core_regs[ARM_REG_ENDING - 1];
     uint32_t sp_main, sp_process;
 
-    uint32_t xpsr, control, faultmask, basepri, primask;
+    uint32_t control, faultmask, basepri, primask;
+    xPSR_t xpsr;
 
     arm_mode mode;
 
@@ -211,34 +212,34 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
         return true;
 
     case ARM_CC_EQ:
-        return IS_SET(cpu->xpsr, APSR_Z) != 0;
+        return cpu->xpsr.apsr_z;
     case ARM_CC_NE:
-        return IS_SET(cpu->xpsr, APSR_Z) == 0;
+        return !cpu->xpsr.apsr_z;
 
     case ARM_CC_HS:
-        return IS_SET(cpu->xpsr, APSR_C) != 0;
+        return cpu->xpsr.apsr_c;
     case ARM_CC_LO:
-        return IS_SET(cpu->xpsr, APSR_C) == 0;
+        return !cpu->xpsr.apsr_c;
 
     case ARM_CC_MI:
-        return IS_SET(cpu->xpsr, APSR_N) != 0;
+        return cpu->xpsr.apsr_n;
     case ARM_CC_PL:
-        return IS_SET(cpu->xpsr, APSR_N) == 0;
+        return !cpu->xpsr.apsr_n;
 
     case ARM_CC_GT:
-        return ((IS_SET(cpu->xpsr, APSR_N) != 0) == (IS_SET(cpu->xpsr, APSR_V))) && (IS_SET(cpu->xpsr, APSR_Z) == 0);
+        return (cpu->xpsr.apsr_n == cpu->xpsr.apsr_v) && !cpu->xpsr.apsr_z;
     case ARM_CC_LE:
-        return ((IS_SET(cpu->xpsr, APSR_N) != 0) != (IS_SET(cpu->xpsr, APSR_V))) || (IS_SET(cpu->xpsr, APSR_Z) != 0);
+        return (cpu->xpsr.apsr_n != cpu->xpsr.apsr_v) || cpu->xpsr.apsr_z;
 
     case ARM_CC_HI:
-        return (IS_SET(cpu->xpsr, APSR_C) != 0) && (IS_SET(cpu->xpsr, APSR_Z) == 0);
+        return cpu->xpsr.apsr_c && !cpu->xpsr.apsr_z;
     case ARM_CC_LS:
-        return (IS_SET(cpu->xpsr, APSR_C) == 0) || (IS_SET(cpu->xpsr, APSR_Z) != 0);
+        return !cpu->xpsr.apsr_c || cpu->xpsr.apsr_z;
 
     case ARM_CC_GE:
-        return (IS_SET(cpu->xpsr, APSR_N) == 0) == (IS_SET(cpu->xpsr, APSR_V) == 0);
+        return cpu->xpsr.apsr_n == cpu->xpsr.apsr_v;
     case ARM_CC_LT:
-        return (IS_SET(cpu->xpsr, APSR_N) == 0) != (IS_SET(cpu->xpsr, APSR_V) == 0);
+        return cpu->xpsr.apsr_n != cpu->xpsr.apsr_v;
 
     default:
         fprintf(stderr, "Unhandled condition code %d\n", cc);
@@ -361,7 +362,7 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
     memreg_write(cpu->mem, frameptr + 0x10, cpu->core_regs[ARM_REG_R12], SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x14, cpu->core_regs[ARM_REG_LR], SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x18, cpu_exception_return_address(cpu, ex, sync), SIZE_WORD);
-    memreg_write(cpu->mem, frameptr + 0x1C, (cpu->xpsr & ~(1 << 9)) | (frameptralign << 9), SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0x1C, (cpu->xpsr.value & ~(1 << 9)) | (frameptralign << 9), SIZE_WORD);
 
     if (HAS_FP)
     {
@@ -418,7 +419,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     new_psr |= (psr >> 27) << 27;
     new_psr |= psr & IPSR_MASK;
     new_psr |= psr & 0x700FC00;
-    cpu->xpsr = new_psr;
+    cpu->xpsr.value = new_psr;
 }
 
 static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
@@ -434,8 +435,8 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
 
     cpu->mode = ARM_MODE_HANDLER;
 
-    cpu->xpsr &= ~IPSR_MASK;
-    cpu->xpsr |= ex & IPSR_MASK;
+    cpu->xpsr.value &= ~IPSR_MASK;
+    cpu->xpsr.value |= ex & IPSR_MASK;
     // TODO: Clear EPSR IT
 
     cpu->control &= ~(1 << CONTROL_FPCA);
@@ -460,7 +461,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 {
     assert(cpu->mode == ARM_MODE_HANDLER);
 
-    arm_exception returning_exception_number = cpu->xpsr & IPSR_MASK;
+    arm_exception returning_exception_number = cpu->xpsr.ipsr;
     uint32_t nested_activation = 0;
 
     for (size_t i = 0; i < cpu->exception_count; i++)
@@ -504,7 +505,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 
     cpu->exceptions[returning_exception_number].active = false;
 
-    if ((cpu->xpsr & IPSR_MASK) != 2)
+    if (cpu->xpsr.ipsr != 2)
         cpu->faultmask = 0;
 
     cpu_pop_stack(cpu, frameptr, exc_return);
@@ -704,6 +705,8 @@ static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op
 
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts)
 {
+    static_assert(sizeof(xPSR_t) == 4, "xPSR register size has invalid size");
+
     cpu_t *cpu = malloc(sizeof(cpu_t));
     memset(cpu, 0, sizeof(cpu_t));
 
@@ -756,7 +759,7 @@ void cpu_reset(cpu_t *cpu)
     cpu->sp_process = 0;
 
     cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
-    cpu->xpsr = 1 << EPSR_T;
+    cpu->xpsr.epsr_t = 1;
 
     memset(cpu->exceptions, 0, sizeof(cpu->exceptions));
 
@@ -850,7 +853,7 @@ void cpu_step(cpu_t *cpu)
         op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
 
-        carry = IS_SET(cpu->xpsr, APSR_C);
+        carry = cpu->xpsr.apsr_c;
         value = AddWithCarry(op0, op1, &carry, &overflow);
 
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
@@ -1466,7 +1469,7 @@ void cpu_step(cpu_t *cpu)
         cpu_reg_write(cpu, detail.operands[0].reg, value);
 
         if (saturated)
-            SET(cpu->xpsr, APSR_Q);
+            cpu->xpsr.apsr_q = 1;
         break;
 
     case ARM_INS_UXTB:
@@ -1592,7 +1595,7 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
     case ARM_SYSREG_APSR:
     case ARM_SYSREG_EPSR:
     case ARM_SYSREG_IPSR:
-        return cpu->xpsr;
+        return cpu->xpsr.value;
 
     case ARM_SYSREG_MSP:
         return cpu->sp_main;
@@ -1626,7 +1629,7 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value)
     case ARM_SYSREG_APSR:
     case ARM_SYSREG_EPSR:
     case ARM_SYSREG_IPSR:
-        cpu->xpsr = value;
+        cpu->xpsr.value = value;
         break;
 
     case ARM_SYSREG_MSP:
