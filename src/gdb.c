@@ -81,7 +81,7 @@ typedef struct
     bool extended;
 } gdbstub;
 
-struct gdb_inst_t
+struct gdb_t
 {
     NRF52832_t *nrf;
     gdbstub *current_stub;
@@ -93,6 +93,7 @@ struct gdb_inst_t
     pthread_cond_t pause_cond;
     pthread_mutex_t pause_lock;
     bool is_paused;
+    bool break_next;
 
     uint32_t breakpoints[MAX_BREAKPOINTS];
     size_t breakpoint_num;
@@ -356,7 +357,7 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
 
     parse_hex(msg, hex_len, (uint8_t *)command);
 
-    if (strcmp(command, "reset") == 0)
+    if (strcmp(command, "reset halt") == 0)
     {
         nrf52832_reset(gdb->gdb->nrf);
 
@@ -411,7 +412,7 @@ char *gdb_queryReadRegisters(gdbstub *gdb, char *msg)
     NRF52832_t *nrf = gdb->gdb->nrf;
     cpu_t *cpu = nrf52832_get_cpu(nrf);
 
-    uint8_t registers[23 * 4];
+    uint8_t registers[24 * 4];
     WRITE_UINT32(registers, 0, cpu_reg_read(cpu, ARM_REG_R0));
     WRITE_UINT32(registers, 4, cpu_reg_read(cpu, ARM_REG_R1));
     WRITE_UINT32(registers, 8, cpu_reg_read(cpu, ARM_REG_R2));
@@ -428,13 +429,14 @@ char *gdb_queryReadRegisters(gdbstub *gdb, char *msg)
     WRITE_UINT32(registers, 52, cpu_reg_read(cpu, ARM_REG_SP));
     WRITE_UINT32(registers, 56, cpu_reg_read(cpu, ARM_REG_LR));
     WRITE_UINT32(registers, 60, cpu_reg_read(cpu, ARM_REG_PC) - 4);
-    WRITE_UINT32(registers, 64, cpu_sysreg_read(cpu, ARM_SYSREG_MSP));
-    WRITE_UINT32(registers, 68, cpu_sysreg_read(cpu, ARM_SYSREG_PSP));
-    WRITE_UINT32(registers, 72, cpu_sysreg_read(cpu, ARM_SYSREG_PRIMASK));
-    WRITE_UINT32(registers, 76, cpu_sysreg_read(cpu, ARM_SYSREG_XPSR));
-    WRITE_UINT32(registers, 80, cpu_sysreg_read(cpu, ARM_SYSREG_CONTROL));
-    WRITE_UINT32(registers, 84, cpu_sysreg_read(cpu, ARM_SYSREG_BASEPRI));
-    WRITE_UINT32(registers, 88, cpu_sysreg_read(cpu, ARM_SYSREG_FAULTMASK));
+    WRITE_UINT32(registers, 64, cpu_sysreg_read(cpu, ARM_SYSREG_XPSR));
+    WRITE_UINT32(registers, 68, cpu_reg_read(cpu, ARM_REG_FPSCR));
+    WRITE_UINT32(registers, 72, cpu_sysreg_read(cpu, ARM_SYSREG_MSP));
+    WRITE_UINT32(registers, 76, cpu_sysreg_read(cpu, ARM_SYSREG_PSP));
+    WRITE_UINT32(registers, 80, cpu_sysreg_read(cpu, ARM_SYSREG_PRIMASK));
+    WRITE_UINT32(registers, 84, cpu_sysreg_read(cpu, ARM_SYSREG_CONTROL));
+    WRITE_UINT32(registers, 88, cpu_sysreg_read(cpu, ARM_SYSREG_BASEPRI));
+    WRITE_UINT32(registers, 92, cpu_sysreg_read(cpu, ARM_SYSREG_FAULTMASK));
 
     send_response_bytes(gdb->fd, registers, sizeof(registers));
 
@@ -525,7 +527,7 @@ char *gdb_breakpoint(gdbstub *gdb, char *msg)
     return strchr(msg, '#');
 }
 
-void gdb_set_paused(gdb_t *gdb, bool paused)
+void gdb_set_paused(gdb_t *gdb, bool paused, bool send)
 {
     LOGF("Setting execution paused to %d\n", paused);
 
@@ -536,7 +538,7 @@ void gdb_set_paused(gdb_t *gdb, bool paused)
     pthread_cond_signal(&gdb->pause_cond);
     pthread_mutex_unlock(&gdb->pause_lock);
 
-    if (!was_paused && paused && gdb->current_stub != NULL)
+    if (send && !was_paused && paused && gdb->current_stub != NULL)
     {
         send_response_str(gdb->current_stub->fd, "S05");
     }
@@ -549,7 +551,7 @@ void gdbstub_run(gdbstub *gdb)
 
     char *msg;
 
-    gdb_set_paused(gdb->gdb, true);
+    gdb_set_paused(gdb->gdb, true, false);
 
     for (;;)
     {
@@ -572,7 +574,7 @@ void gdbstub_run(gdbstub *gdb)
             }
             if (msg[0] == 3) // Control+C
             {
-                gdb_set_paused(gdb->gdb, true);
+                gdb_set_paused(gdb->gdb, true, true);
                 msg++;
                 continue;
             }
@@ -626,6 +628,12 @@ void gdbstub_run(gdbstub *gdb)
                 // send_response_str(gdb->fd, "S05");
                 break;
 
+            case 's':
+                ret = msg + 1;
+                gdb->gdb->break_next = true;
+                gdb_set_paused(gdb->gdb, false, false);
+                break;
+
             case 'z':
             case 'Z':
                 ret = gdb_breakpoint(gdb, msg);
@@ -633,7 +641,7 @@ void gdbstub_run(gdbstub *gdb)
 
             case 'c':
                 ret = msg + 1;
-                gdb_set_paused(gdb->gdb, false);
+                gdb_set_paused(gdb->gdb, false, true);
                 break;
             }
 
@@ -799,8 +807,10 @@ bool gdb_has_breakpoint_at(gdb_t *gdb, uint32_t addr)
 
 void gdb_check_breakpoint(gdb_t *gdb, uint32_t addr)
 {
-    if (gdb_has_breakpoint_at(gdb, addr))
+    if (gdb->break_next || gdb_has_breakpoint_at(gdb, addr))
     {
-        gdb_set_paused(gdb, true);
+        gdb->break_next = false;
+
+        gdb_set_paused(gdb, true, true);
     }
 }
