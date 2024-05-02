@@ -1501,12 +1501,15 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_TST:
+        assert(detail.op_count == 2);
+        assert(detail.operands[1].shift.value == 0);
+
         op0 = OPERAND(0);
         op1 = OPERAND(1);
 
         value = op0 & op1;
 
-        UPDATE_NZC
+        UPDATE_NZ
         break;
 
     case ARM_INS_UBFX:
