@@ -40,7 +40,6 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		// println(string(r))
 
 		err = gdb1.UpdateRegisters()
 		if err != nil {
@@ -54,17 +53,19 @@ func main() {
 		regs1 := gdb1.Registers()
 		regs2 := gdb2.Registers()
 
-		if regs1 != regs2 {
-			log.Printf("registers aren't equal at PC=0x%08X", regs1[15])
+		log.Print("---")
 
-			for i := 0; i < RegisterCount; i++ {
-				marker := ""
-				if regs1[i] != regs2[i] {
-					marker = "!!"
-				}
-
-				log.Printf("  R%d: 0x%08X 0x%08X %s", i, regs1[i], regs2[i], marker)
+		for i := 0; i < RegisterCount; i++ {
+			marker := ""
+			if regs1[i] != regs2[i] {
+				marker = "!!"
 			}
+
+			log.Printf("  %s: 0x%08X 0x%08X %s", RegisterNames[i], regs1[i], regs2[i], marker)
+		}
+
+		if regs1 != regs2 {
+			log.Printf("registers mismatch")
 
 			return
 		}
