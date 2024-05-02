@@ -1195,11 +1195,14 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_MOV:
     case ARM_INS_MOVS:
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+
         value = OPERAND(1);
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
 
-        UPDATE_NZCV;
+        UPDATE_NZ; // FIXME: Carry should also be set sometimes but it seems like Capstone doesn't expose it
         break;
 
     case ARM_INS_MRS:
