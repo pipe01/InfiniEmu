@@ -7,9 +7,10 @@
     "customizations": {
         "vscode": {
             "extensions": [
-                "ms-vscode.makefile-tools",
                 "ms-vscode.cpptools-extension-pack",
-                "ms-vscode.hexeditor"
+                "ms-vscode.hexeditor",
+                "ms-vscode.makefile-tools",
+                "ms-python.python"
             ]
         }
     }

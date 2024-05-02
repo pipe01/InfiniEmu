@@ -1,4 +1,4 @@
-from os import listdir
+from os import listdir, environ
 from os.path import isfile, join
 from pathlib import Path
 import subprocess
@@ -9,7 +9,7 @@ from typing import List, Dict
 import yaml
 import re
 
-GCC_BIN = "/opt/gcc-arm-none-eabi-10.3-2021.10/bin"
+GCC_BIN = environ["ARM_TOOLCHAIN_PATH"] + "/bin"
 AS = f"{GCC_BIN}/arm-none-eabi-as"
 OBJCOPY = f"{GCC_BIN}/arm-none-eabi-objcopy"
 

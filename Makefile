@@ -37,7 +37,7 @@ test: gen-test build-test
 .PHONY: test
 
 gen-test:
-	cd $(TDIR) && python generate_tests.py
+	cd $(TDIR) && python3 generate_tests.py
 .PHONY: gen-test
 
 build-test: obj/src/cpu.o obj/src/memory.o $(patsubst %.c,obj/%.o,$(wildcard src/peripherals/*.c)) test/main.o
