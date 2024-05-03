@@ -342,9 +342,9 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
         abort();
     }
     else
-    {
+    {   
         framesize = 0x20;
-        forcealign = 0; // TODO: CCR.STKALIGN
+        forcealign = scb_get_ccr(cpu->scb).STKALIGN;
     }
 
     uint32_t spmask = ~(forcealign << 2);
@@ -396,7 +396,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     else
     {
         framesize = 0x20;
-        forcealign = 0; // TODO: CCR.STKALIGN
+        forcealign = scb_get_ccr(cpu->scb).STKALIGN;
     }
 
     cpu->core_regs[ARM_REG_R0] = memreg_read(cpu->mem, sp);
@@ -714,8 +714,6 @@ static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op
 
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts)
 {
-    static_assert(sizeof(xPSR_t) == 4, "xPSR register size has invalid size");
-
     cpu_t *cpu = malloc(sizeof(cpu_t));
     memset(cpu, 0, sizeof(cpu_t));
 

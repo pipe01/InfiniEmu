@@ -11,6 +11,7 @@ struct SCB_inst_t
     uint32_t cpacr;
     uint32_t prigroup;
     uint32_t scr;
+    SCB_CCR_t ccr;
 
     uint32_t fpccr;
 
@@ -27,6 +28,8 @@ OPERATION(scb)
         scb->prigroup = 0;
         scb->scr = 0;
         scb->fpccr = 0;
+        scb->ccr.value = 0;
+        scb->ccr.STKALIGN = 1;
         return MEMREG_RESULT_OK;
     }
 
@@ -116,4 +119,9 @@ SCB_t *scb_new(cpu_t *cpu)
 uint32_t scb_get_prigroup(SCB_t *scb)
 {
     return scb->prigroup;
+}
+
+SCB_CCR_t scb_get_ccr(SCB_t *scb)
+{
+    return scb->ccr;
 }

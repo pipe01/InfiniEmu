@@ -1,5 +1,8 @@
 #pragma once
 
+#include <assert.h>
+#include <capstone/capstone.h>
+
 #define APSR_N 31
 #define APSR_Z 30
 #define APSR_C 29
@@ -39,6 +42,8 @@ typedef union
     uint32_t value;
 } xPSR_t;
 
+static_assert(sizeof(xPSR_t) == 4, "xPSR register size has invalid size");
+
 #define xPSR_IT(xpsr) ((xpsr).epsr_iciit_l | ((xpsr).epsr_iciit_h) << 6)
 
 typedef enum
@@ -65,3 +70,40 @@ typedef enum
 } arm_exception;
 
 #define ARM_EXC_EXTERNAL(n) (ARM_EXC_EXTERNAL_START + (n))
+
+static inline arm_cc invert_cc(arm_cc cc)
+{
+    switch (cc)
+    {
+    case ARM_CC_EQ:
+        return ARM_CC_NE;
+    case ARM_CC_NE:
+        return ARM_CC_EQ;
+    case ARM_CC_HS:
+        return ARM_CC_LO;
+    case ARM_CC_LO:
+        return ARM_CC_HS;
+    case ARM_CC_MI:
+        return ARM_CC_PL;
+    case ARM_CC_PL:
+        return ARM_CC_MI;
+    case ARM_CC_VS:
+        return ARM_CC_VC;
+    case ARM_CC_VC:
+        return ARM_CC_VS;
+    case ARM_CC_HI:
+        return ARM_CC_LS;
+    case ARM_CC_LS:
+        return ARM_CC_HI;
+    case ARM_CC_GE:
+        return ARM_CC_LT;
+    case ARM_CC_LT:
+        return ARM_CC_GE;
+    case ARM_CC_GT:
+        return ARM_CC_LE;
+    case ARM_CC_LE:
+        return ARM_CC_GT;
+    default:
+        return ARM_CC_INVALID;
+    }
+}
