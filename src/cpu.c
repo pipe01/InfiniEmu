@@ -34,7 +34,7 @@
 // TODO: Implement
 #define BRANCH_WRITE_PC(cpu, pc) cpu_reg_write(cpu, ARM_REG_PC, pc)
 
-#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address)
+#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address, &carry)
 #define OPERAND(n) OPERAND_OFF(n, 0)
 #define OPERAND_REG(n) cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg)
 
@@ -146,7 +146,7 @@ static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
     return base + op->mem.disp;
 }
 
-static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address)
+static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address, bool *carry)
 {
     uint32_t value;
 
@@ -165,8 +165,7 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uin
 
     if (op->shift.type != ARM_SFT_INVALID)
     {
-        bool carry = false;
-        value = Shift_C(value, op->shift.type, op->shift.value, &carry);
+        value = Shift_C(value, op->shift.type, op->shift.value, carry);
     }
 
     return value;
@@ -809,7 +808,7 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
 {
     assert((pc & x(FFFF, FFFE)) == pc); // Check that PC is aligned
 
-    if (cpu->inst_by_pc[pc])
+    if (!cpu->inst_by_pc[pc])
     {
         size_t n = cs_disasm(cpu->cs, &cpu->program[pc], cpu->program_size - pc, pc, 1, &cpu->inst_by_pc[pc]);
 
@@ -891,6 +890,8 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_AND:
+        carry = cpu->xpsr.apsr_c;
+
         op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
 
