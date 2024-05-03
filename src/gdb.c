@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -90,7 +91,9 @@ struct gdb_t
     pthread_mutex_t conn_lock;
     bool has_connected;
 
-    bool want_break;
+    bool is_running;
+    pthread_t run_thread;
+    volatile bool want_break;
 
     uint32_t breakpoints[MAX_BREAKPOINTS];
     size_t breakpoint_num;
@@ -535,22 +538,35 @@ bool gdb_has_breakpoint_at(gdb_t *gdb, uint32_t addr)
     return false;
 }
 
-void gdb_continue(gdbstub *gdb)
+void *gdb_run_cpu(void *userdata)
 {
-    cpu_t *cpu = nrf52832_get_cpu(gdb->gdb->nrf);
+    gdbstub *stub = (gdbstub *)userdata;
+    cpu_t *cpu = nrf52832_get_cpu(stub->gdb->nrf);
 
-    while (!gdb->gdb->want_break)
+    while (!stub->gdb->want_break)
     {
         uint32_t pc = cpu_reg_read(cpu, ARM_REG_PC) - 4;
 
-        if (gdb_has_breakpoint_at(gdb->gdb, pc))
+        if (gdb_has_breakpoint_at(stub->gdb, pc))
             break;
 
-        nrf52832_step(gdb->gdb->nrf);
+        nrf52832_step(stub->gdb->nrf);
     }
 
-    gdb->gdb->want_break = false;
-    send_response_str(gdb->fd, "S05");
+    stub->gdb->want_break = false;
+    stub->gdb->is_running = false;
+    send_response_str(stub->fd, "S05");
+
+    return NULL;
+}
+
+void gdb_continue(gdbstub *gdb)
+{
+    bool want = false;
+    if (!atomic_compare_exchange_strong(&gdb->gdb->is_running, &want, true))
+        return;
+
+    pthread_create(&gdb->gdb->run_thread, NULL, gdb_run_cpu, gdb);
 }
 
 void gdbstub_run(gdbstub *gdb)
@@ -581,7 +597,12 @@ void gdbstub_run(gdbstub *gdb)
             }
             if (msg[0] == 3) // Control+C
             {
-                gdb->gdb->want_break = true;
+                if (gdb->gdb->is_running)
+                {
+                    gdb->gdb->want_break = true;
+                    pthread_join(gdb->gdb->run_thread, NULL);
+                }
+
                 msg++;
                 continue;
             }
