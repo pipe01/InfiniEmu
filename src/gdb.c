@@ -66,6 +66,7 @@ const char memory_map_xml[] = QUOTE(
             <property name="blocksize">0x400</property>
         </memory>
         <memory type="ram" start="0x20000000" length="0x10000" />
+        <memory type="ram" start="0xe0000000" length="0x40000" />
     </memory-map>
 );
 

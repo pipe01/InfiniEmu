@@ -19,6 +19,7 @@ typedef struct
 struct NVIC_inst_t
 {
     cpu_t *cpu;
+    uint32_t priority_mask;
 };
 
 OPERATION(nvic)
@@ -76,14 +77,14 @@ OPERATION(nvic)
         switch (op)
         {
         case OP_WRITE_BYTE:
-            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), *value);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), *value & nvic->priority_mask);
             break;
 
         case OP_WRITE_WORD:
-            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), reg4->a);
-            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 1), reg4->b);
-            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 2), reg4->c);
-            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 3), reg4->d);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), reg4->a & nvic->priority_mask);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 1), reg4->b & nvic->priority_mask);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 2), reg4->c & nvic->priority_mask);
+            cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 3), reg4->d & nvic->priority_mask);
             break;
 
         case OP_READ_WORD:
@@ -103,10 +104,13 @@ OPERATION(nvic)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-NVIC_t *nvic_new(cpu_t *cpu)
+NVIC_t *nvic_new(cpu_t *cpu, size_t priority_bits)
 {
+    assert(priority_bits >= 3 && priority_bits <= 8);
+
     NVIC_t *nvic = (NVIC_t *)malloc(sizeof(NVIC_t));
     nvic->cpu = cpu;
+    nvic->priority_mask = (0xFF << (8 - priority_bits)) & 0xFF;
 
     return nvic;
 }

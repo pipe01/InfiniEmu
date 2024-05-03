@@ -80,7 +80,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len));
     last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len));
 
-    chip->cpu = cpu_new(flash, NRF52832_FLASH_SIZE, chip->mem, NRF52832_MAX_EXTERNAL_INTERRUPTS);
+    chip->cpu = cpu_new(flash, NRF52832_FLASH_SIZE, chip->mem, NRF52832_MAX_EXTERNAL_INTERRUPTS, NRF52832_PRIORITY_BITS);
 
     nrf52832_reset(chip);
 

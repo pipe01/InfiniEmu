@@ -682,7 +682,7 @@ static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual
         cpu_reg_write(cpu, mem_op->mem.base, offset_addr);
 }
 
-static void cpu_add_arm_memregs(cpu_t *cpu)
+static void cpu_add_arm_memregs(cpu_t *cpu, size_t priority_bits)
 {
     memreg_t *first = memreg_find_last(cpu->mem);
     memreg_t *last = first;
@@ -691,7 +691,7 @@ static void cpu_add_arm_memregs(cpu_t *cpu)
     NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90, cpu);
     NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110);
     NEW_PERIPH(cpu, SCB_FP, scb_fp, scb_fp, x(E000, EF00), 0x90, cpu);
-    NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF, cpu);
+    NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF, cpu, priority_bits);
 }
 
 static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op *reg_operands, uint8_t reg_count)
@@ -711,7 +711,7 @@ static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op
     }
 }
 
-cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts)
+cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts, size_t priority_bits)
 {
     cpu_t *cpu = malloc(sizeof(cpu_t));
     memset(cpu, 0, sizeof(cpu_t));
@@ -721,7 +721,7 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_
     cpu->mem = mem;
     cpu->exception_count = 16 + max_external_interrupts;
 
-    cpu_add_arm_memregs(cpu);
+    cpu_add_arm_memregs(cpu, priority_bits);
 
     if (cs_open(CS_ARCH_ARM, CS_MODE_THUMB + CS_MODE_MCLASS, &cpu->cs) != CS_ERR_OK)
     {

@@ -4,4 +4,4 @@
 
 #include "cpu.h"
 
-PERIPHERAL(NVIC, nvic, cpu_t *cpu)
+PERIPHERAL(NVIC, nvic, cpu_t *cpu, size_t priority_bits)
