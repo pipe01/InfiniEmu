@@ -93,8 +93,6 @@ struct gdb_t
     pthread_cond_t pause_cond;
     pthread_mutex_t pause_lock;
     bool is_paused;
-    bool break_next;
-
     uint32_t breakpoints[MAX_BREAKPOINTS];
     size_t breakpoint_num;
 };
@@ -630,8 +628,8 @@ void gdbstub_run(gdbstub *gdb)
 
             case 's':
                 ret = msg + 1;
-                gdb->gdb->break_next = true;
-                gdb_set_paused(gdb->gdb, false, false);
+                nrf52832_step(gdb->gdb->nrf);
+                send_response_str(gdb->fd, "S05");
                 break;
 
             case 'z':
@@ -807,10 +805,8 @@ bool gdb_has_breakpoint_at(gdb_t *gdb, uint32_t addr)
 
 void gdb_check_breakpoint(gdb_t *gdb, uint32_t addr)
 {
-    if (gdb->break_next || gdb_has_breakpoint_at(gdb, addr))
+    if (gdb_has_breakpoint_at(gdb, addr))
     {
-        gdb->break_next = false;
-
         gdb_set_paused(gdb, true, true);
     }
 }
