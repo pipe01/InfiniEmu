@@ -55,21 +55,30 @@ func main() {
 
 		log.Print("---")
 
+		mismatch := false
+
 		for i := 0; i < RegisterCount; i++ {
+			a := regs1[i]
+			b := regs2[i]
+
+			if i == 16 { // xPSR, ignore IT/ICI bits
+				a &^= 0x600FC00
+				b &^= 0x600FC00
+			}
+
 			marker := ""
-			if regs1[i] != regs2[i] {
+			if a != b {
+				mismatch = true
 				marker = "!!"
 			}
 
 			log.Printf("  %s: 0x%08X 0x%08X %s", RegisterNames[i], regs1[i], regs2[i], marker)
 		}
 
-		if regs1 != regs2 {
+		if mismatch {
 			log.Printf("registers mismatch")
 
 			return
 		}
-
-		// fmt.Printf("PC: 0x%x\n", gdb1.Registers()[15])
 	}
 }
