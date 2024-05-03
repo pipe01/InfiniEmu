@@ -34,7 +34,15 @@ OPERATION(rtc)
 
     if (op == OP_RESET)
     {
-        memset(rtc + offsetof(RTC_t, cc), 0, sizeof(RTC_t) - offsetof(RTC_t, cc));
+        rtc->started = false;
+        memset(rtc->cc, 0, sizeof(rtc->cc));
+        memset(rtc->event_cc, 0, sizeof(rtc->event_cc));
+        rtc->inten = 0;
+        rtc->prescaler = 0;
+        rtc->counter = 0;
+        rtc->prescaler_counter = 0;
+        rtc->event_tick = 0;
+        rtc->event_overflow = 0;
         return MEMREG_RESULT_OK;
     }
 

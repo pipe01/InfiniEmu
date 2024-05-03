@@ -809,7 +809,7 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
 {
     assert((pc & x(FFFF, FFFE)) == pc); // Check that PC is aligned
 
-    if (!cpu->inst_by_pc[pc])
+    if (cpu->inst_by_pc[pc])
     {
         size_t n = cs_disasm(cpu->cs, &cpu->program[pc], cpu->program_size - pc, pc, 1, &cpu->inst_by_pc[pc]);
 
