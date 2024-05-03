@@ -17,7 +17,7 @@
 
 #ifdef ENABLE_LOG_GDB
 #define LOGF(msg, ...) printf("[GDB] " msg, __VA_ARGS__)
-#define LOG(msg) printf("[GDB] " msg)
+#define LOG(msg) printf("[GDB] " msg "\n")
 #else
 #define LOGF(...)
 #define LOG(msg)
@@ -90,9 +90,8 @@ struct gdb_t
     pthread_mutex_t conn_lock;
     bool has_connected;
 
-    pthread_cond_t pause_cond;
-    pthread_mutex_t pause_lock;
-    bool is_paused;
+    bool want_break;
+
     uint32_t breakpoints[MAX_BREAKPOINTS];
     size_t breakpoint_num;
 };
@@ -101,7 +100,7 @@ void gdb_add_breakpoint(gdb_t *gdb, uint32_t addr)
 {
     if (gdb->breakpoint_num >= MAX_BREAKPOINTS)
     {
-        LOG("Maximum number of breakpoints reached\n");
+        LOG("Maximum number of breakpoints reached");
         return;
     }
 
@@ -525,21 +524,33 @@ char *gdb_breakpoint(gdbstub *gdb, char *msg)
     return strchr(msg, '#');
 }
 
-void gdb_set_paused(gdb_t *gdb, bool paused, bool send)
+bool gdb_has_breakpoint_at(gdb_t *gdb, uint32_t addr)
 {
-    LOGF("Setting execution paused to %d\n", paused);
-
-    bool was_paused = gdb->is_paused;
-
-    pthread_mutex_lock(&gdb->pause_lock);
-    gdb->is_paused = paused;
-    pthread_cond_signal(&gdb->pause_cond);
-    pthread_mutex_unlock(&gdb->pause_lock);
-
-    if (send && !was_paused && paused && gdb->current_stub != NULL)
+    for (size_t i = 0; i < gdb->breakpoint_num; i++)
     {
-        send_response_str(gdb->current_stub->fd, "S05");
+        if (gdb->breakpoints[i] == addr)
+            return true;
     }
+
+    return false;
+}
+
+void gdb_continue(gdbstub *gdb)
+{
+    cpu_t *cpu = nrf52832_get_cpu(gdb->gdb->nrf);
+
+    while (!gdb->gdb->want_break)
+    {
+        uint32_t pc = cpu_reg_read(cpu, ARM_REG_PC) - 4;
+
+        if (gdb_has_breakpoint_at(gdb->gdb, pc))
+            break;
+
+        nrf52832_step(gdb->gdb->nrf);
+    }
+
+    gdb->gdb->want_break = false;
+    send_response_str(gdb->fd, "S05");
 }
 
 void gdbstub_run(gdbstub *gdb)
@@ -548,8 +559,6 @@ void gdbstub_run(gdbstub *gdb)
     ssize_t nread;
 
     char *msg;
-
-    gdb_set_paused(gdb->gdb, true, false);
 
     for (;;)
     {
@@ -572,7 +581,7 @@ void gdbstub_run(gdbstub *gdb)
             }
             if (msg[0] == 3) // Control+C
             {
-                gdb_set_paused(gdb->gdb, true, true);
+                gdb->gdb->want_break = true;
                 msg++;
                 continue;
             }
@@ -596,7 +605,7 @@ void gdbstub_run(gdbstub *gdb)
             case '!':
                 ret = msg + 1;
                 gdb->extended = true;
-                LOG("Extended mode enabled\n");
+                LOG("Extended mode enabled");
                 send_response_str(gdb->fd, "OK");
                 break;
 
@@ -619,7 +628,7 @@ void gdbstub_run(gdbstub *gdb)
                 break;
 
             case 'R':
-                LOG("Resetting target\n");
+                LOG("Resetting target");
 
                 ret = strchr(msg, '#');
                 nrf52832_reset(gdb->gdb->nrf);
@@ -639,7 +648,7 @@ void gdbstub_run(gdbstub *gdb)
 
             case 'c':
                 ret = msg + 1;
-                gdb_set_paused(gdb->gdb, false, true);
+                gdb_continue(gdb);
                 break;
             }
 
@@ -670,10 +679,8 @@ void gdbstub_run(gdbstub *gdb)
     }
 }
 
-void *gdb_thread(void *arg)
+void gdb_start(gdb_t *gdb)
 {
-    gdb_t *gdb = (gdb_t *)arg;
-
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
 
@@ -730,8 +737,6 @@ void *gdb_thread(void *arg)
         gdb->current_stub = NULL;
         close(client_fd);
     }
-
-    return NULL;
 }
 
 gdb_t *gdb_new(NRF52832_t *nrf52832, bool start_paused)
@@ -740,22 +745,11 @@ gdb_t *gdb_new(NRF52832_t *nrf52832, bool start_paused)
     memset(gdb, 0, sizeof(gdb_t));
 
     gdb->nrf = nrf52832;
-    gdb->is_paused = start_paused;
 
     pthread_mutex_init(&gdb->conn_lock, NULL);
     pthread_cond_init(&gdb->conn_cond, NULL);
 
-    pthread_mutex_init(&gdb->pause_lock, NULL);
-    pthread_cond_init(&gdb->pause_cond, NULL);
-
     return gdb;
-}
-
-void gdb_start(gdb_t *gdb)
-{
-    pthread_t thread;
-
-    pthread_create(&thread, NULL, gdb_thread, gdb);
 }
 
 void gdb_wait_for_connection(gdb_t *gdb)
@@ -768,45 +762,4 @@ void gdb_wait_for_connection(gdb_t *gdb)
     }
 
     pthread_mutex_unlock(&gdb->conn_lock);
-}
-
-void gdb_wait_for_is_paused(gdb_t *gdb, bool is_paused)
-{
-    pthread_mutex_lock(&gdb->pause_lock);
-
-    while (gdb->is_paused != is_paused)
-    {
-        pthread_cond_wait(&gdb->pause_cond, &gdb->pause_lock);
-    }
-
-    pthread_mutex_unlock(&gdb->pause_lock);
-}
-
-void gdb_wait_for_unpause(gdb_t *gdb)
-{
-    gdb_wait_for_is_paused(gdb, false);
-}
-
-void gdb_wait_for_pause(gdb_t *gdb)
-{
-    gdb_wait_for_is_paused(gdb, true);
-}
-
-bool gdb_has_breakpoint_at(gdb_t *gdb, uint32_t addr)
-{
-    for (size_t i = 0; i < gdb->breakpoint_num; i++)
-    {
-        if (gdb->breakpoints[i] == addr)
-            return true;
-    }
-
-    return false;
-}
-
-void gdb_check_breakpoint(gdb_t *gdb, uint32_t addr)
-{
-    if (gdb_has_breakpoint_at(gdb, addr))
-    {
-        gdb_set_paused(gdb, true, true);
-    }
 }
