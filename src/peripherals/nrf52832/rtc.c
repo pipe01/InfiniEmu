@@ -117,6 +117,13 @@ OPERATION(rtc)
         OP_RETURN_REG(rtc->prescaler, WORD);
     }
 
+    if (offset >= 0x540 && offset <= 0x54C + 4)
+    {
+        uint32_t idx = (offset - 0x540) / 4;
+        
+        OP_RETURN_REG(rtc->cc[idx], WORD);
+    }
+
     return MEMREG_RESULT_UNHANDLED;
 }
 
