@@ -22,6 +22,19 @@ struct NVIC_inst_t
     uint32_t priority_mask;
 };
 
+uint32_t get_pending_value(NVIC_t *nvic, uint32_t reg_index)
+{
+    uint32_t value = 0;
+
+    for (size_t i = 0; i < 32; i++)
+    {
+        if (cpu_exception_is_pending(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(i + (32 * reg_index))))
+            value |= 1 << i;
+    }
+
+    return value;
+}
+
 OPERATION(nvic)
 {
     NVIC_t *nvic = (NVIC_t *)userdata;
@@ -49,24 +62,49 @@ OPERATION(nvic)
 
         return MEMREG_RESULT_OK;
     }
-    // NVIC_ICER[n]
-    else if (offset >= 0x80 && offset <= 0xC0)
+    // NVIC_ISPR[n]
+    else if (offset >= 0x100 && offset <= 0x13C + 4)
     {
-        // uint8_t *reg = &((uint8_t *)nvic->interrupt_enabled)[offset - 0x80];
+        OP_ASSERT_SIZE(op, WORD);
 
-        // switch (op)
-        // {
-        // case OP_READ_BYTE:
-        //     *value = *reg;
-        //     return MEMREG_RESULT_OK;
+        uint32_t reg_index = (offset - 0x100) / 4;
 
-        // case OP_WRITE_BYTE:
-        //     *reg &= ~*value;
-        //     return MEMREG_RESULT_OK;
+        if (OP_IS_READ(op))
+        {
+            *value = get_pending_value(nvic, reg_index);
+        }
+        else
+        {
+            for (size_t i = 0; i < 32; i++)
+            {
+                if ((*value & (1 << i)) != 0)
+                    cpu_exception_set_pending(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(32 * reg_index + i));
+            }
+        }
 
-        // default:
-        //     return MEMREG_RESULT_INVALID_ACCESS;
-        // }
+        return MEMREG_RESULT_OK;
+    }
+    // NVIC_ICPR[n]
+    else if (offset >= 0x180 && offset <= 0x1BC + 4)
+    {
+        OP_ASSERT_SIZE(op, WORD);
+
+        uint32_t reg_index = (offset - 0x180) / 4;
+
+        if (OP_IS_READ(op))
+        {
+            *value = get_pending_value(nvic, reg_index);
+        }
+        else
+        {
+            for (size_t i = 0; i < 32; i++)
+            {
+                if ((*value & (1 << i)) != 0)
+                    cpu_exception_clear_pending(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(32 * reg_index + i));
+            }
+        }
+
+        return MEMREG_RESULT_OK;
     }
     // NVIC_IPR[n]
     else if (offset >= 0x300 && offset <= 0x4F0)

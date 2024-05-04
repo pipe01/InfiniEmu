@@ -533,6 +533,11 @@ void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
     LOG_CPU_EX("Exception %d is no longer pending", ex);
 }
 
+bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex)
+{
+    return cpu->exceptions[ex].pending;
+}
+
 void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
 {
     if (cpu->exceptions[ex].fixed_enabled)
@@ -1563,7 +1568,10 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_VLDMIA:
+    case ARM_INS_VMRS:
+    case ARM_INS_VMSR:
     case ARM_INS_VSTMDB:
+        printf("Implement instruction %d\n", i->id);
         // TODO: Implement
         break;
 
