@@ -15,7 +15,7 @@ OPERATION(dcb)
 
     if (op == OP_RESET)
     {
-        dcb->demcr = 0;
+        dcb->demcr = 0x01000000;
         return MEMREG_RESULT_OK;
     }
 
