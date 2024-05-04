@@ -30,11 +30,6 @@ RUN cd /tmp && \
 
 RUN nproc
 
-RUN groupadd --gid $USER_GID $USERNAME \
-    && useradd --uid $USER_UID --gid $USER_GID -s /bin/bash -m $USERNAME
-
 ENV NRFX_PATH /opt/nrfx
 ENV NRF5_SDK_PATH /opt/nRF5_SDK_15.3.0_59ac345
 ENV ARM_TOOLCHAIN_PATH /opt/arm-gnu-toolchain
-
-USER $USERNAME
