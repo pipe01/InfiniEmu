@@ -309,7 +309,7 @@ static int cpu_execution_priority(cpu_t *cpu)
 static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool sync)
 {
     uint32_t this_addr = cpu->core_regs[ARM_REG_PC];
-    uint32_t next_addr = this_addr + cpu->inst_by_pc[cpu->core_regs[ARM_REG_PC]]->size;
+    uint32_t next_addr = this_addr + cpu_insn_at(cpu, this_addr)->size;
 
     switch (ex)
     {
