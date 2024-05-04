@@ -16,7 +16,7 @@ OPERATION(dwt)
 
     if (op == OP_RESET)
     {
-        dwt->ctrl = 0;
+        dwt->ctrl = 0x40000001;
         dwt->cyccnt = 0;
         return MEMREG_RESULT_OK;
     }

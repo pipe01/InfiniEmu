@@ -11,6 +11,20 @@
 #define INT_COMPARE2 18
 #define INT_COMPARE3 19
 
+typedef union
+{
+    struct
+    {
+        unsigned int TICK : 1;
+        unsigned int OVRFLW : 1;
+        unsigned int : 14;
+        unsigned int COMPARE : 4;
+    };
+    uint32_t value;
+} inten_t;
+
+static_assert(sizeof(inten_t) == 4);
+
 struct RTC_inst_t
 {
     cpu_t **cpu;
@@ -22,7 +36,7 @@ struct RTC_inst_t
 
     bool started;
 
-    uint32_t inten;
+    inten_t inten;
     uint32_t prescaler, counter, prescaler_counter;
 
     uint32_t event_tick, event_overflow;
@@ -37,7 +51,7 @@ OPERATION(rtc)
         rtc->started = false;
         memset(rtc->cc, 0, sizeof(rtc->cc));
         memset(rtc->event_cc, 0, sizeof(rtc->event_cc));
-        rtc->inten = 0;
+        rtc->inten.value = 0;
         rtc->prescaler = 0;
         rtc->counter = 0;
         rtc->prescaler_counter = 0;
@@ -92,16 +106,16 @@ OPERATION(rtc)
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
-            *value = rtc->inten;
+            *value = rtc->inten.value;
         else
-            rtc->inten |= *value;
+            rtc->inten.value |= *value;
         return MEMREG_RESULT_OK;
 
     case 0x308: // INTENCLR
         if (OP_IS_READ(op))
-            *value = rtc->inten;
+            *value = rtc->inten.value;
         else
-            rtc->inten &= ~*value;
+            rtc->inten.value &= ~*value;
         return MEMREG_RESULT_OK;
 
     case 0x340: // EVTEN
@@ -120,7 +134,10 @@ OPERATION(rtc)
     if (offset >= 0x540 && offset <= 0x54C + 4)
     {
         uint32_t idx = (offset - 0x540) / 4;
-        
+
+        if (OP_IS_WRITE(op))
+            rtc->counter = 0; // Clear counter in case CC is higher than counter, in which case it would take ages to trigger       
+
         OP_RETURN_REG(rtc->cc[idx], WORD);
     }
 
@@ -151,7 +168,7 @@ void rtc_tick(RTC_t *rtc)
         rtc->prescaler_counter = 0;
         rtc->counter++;
 
-        if ((rtc->inten & (1 << INT_TICK)) != 0)
+        if (rtc->inten.TICK)
         {
             rtc->event_tick = true;
             cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
@@ -161,19 +178,19 @@ void rtc_tick(RTC_t *rtc)
         {
             rtc->counter = 0;
 
-            if ((rtc->inten & (1 << INT_OVRFLW)) != 0)
+            if (rtc->inten.OVRFLW)
             {
                 rtc->event_overflow = true;
-                // TODO: Raise interrupt
+                cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
             }
         }
 
         for (size_t i = 0; i < rtc->cc_num; i++)
         {
-            if (rtc->counter == rtc->cc[i] && (rtc->inten & (1 << (INT_COMPARE0 + i))) != 0)
+            if (rtc->counter == rtc->cc[i]) //(rtc->inten.COMPARE & (1 << i)) != 0
             {
                 rtc->event_cc[i] = true;
-                // TODO: Raise interrupt
+                cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
             }
         }
     }

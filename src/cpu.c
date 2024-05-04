@@ -126,6 +126,8 @@ struct cpu_inst_t
     NVIC_t *nvic;
 };
 
+cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc);
+
 static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
 {
     uint32_t base = cpu_reg_read(cpu, op->mem.base);

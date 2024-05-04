@@ -475,12 +475,20 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
 
     uint8_t buf[length];
 
-    for (size_t i = 0; i < length; i++)
+    if (length == 4)
     {
-        if (!cpu_mem_read(cpu, start + i, buf + i))
+        uint32_t value = memreg_read(cpu_mem(cpu), start);
+        memcpy(buf, &value, 4);
+    }
+    else
+    {
+        for (size_t i = 0; i < length; i++)
         {
-            send_response_str(gdb->fd, "E01");
-            return msg;
+            if (!cpu_mem_read(cpu, start + i, buf + i))
+            {
+                send_response_str(gdb->fd, "E01");
+                return msg;
+            }
         }
     }
 

@@ -49,6 +49,7 @@ OPERATION(nvic)
     if (offset <= 0x40)
     {
         OP_ASSERT_SIZE(op, WORD);
+        OP_ASSERT_WRITE(op);
 
         uint32_t iser_num = offset / 4;
 
