@@ -608,11 +608,12 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, int size, uint32_t alignment
 
             case 2:
                 value = (uint32_t)(int16_t)value;
+                break;
             }
         }
     }
 
-    cpu_reg_write(cpu, detail->operands[0].reg, value & mask);
+    cpu_reg_write(cpu, detail->operands[0].reg, value);
 
     address += offset;
 
