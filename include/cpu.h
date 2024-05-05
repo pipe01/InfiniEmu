@@ -1,5 +1,6 @@
 #pragma once
 
+#include <setjmp.h>
 #include <stdint.h>
 #include <capstone/capstone.h>
 
@@ -12,6 +13,9 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_
 void cpu_free(cpu_t *cpu);
 void cpu_reset(cpu_t *cpu);
 void cpu_step(cpu_t *cpu);
+
+void cpu_set_fault_jmp(cpu_t *cpu, jmp_buf *buf);
+void cpu_clear_fault_jmp(cpu_t *cpu);
 
 memreg_t *cpu_mem(cpu_t *cpu);
 bool cpu_mem_read(cpu_t *cpu, uint32_t addr, uint8_t *value);

@@ -12,6 +12,7 @@
 #include "peripherals/scb_fp.h"
 
 #include <assert.h>
+#include <setjmp.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -91,6 +92,9 @@ typedef struct
 
 struct cpu_inst_t
 {
+    jmp_buf *fault_jmp_buf;
+    bool has_fault_jmp;
+
     uint32_t core_regs[ARM_REG_ENDING - 1];
     uint32_t sp_main, sp_process;
 
@@ -519,6 +523,25 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
         cpu->faultmask = 0;
 
     cpu_pop_stack(cpu, frameptr, exc_return);
+}
+
+void cpu_set_fault_jmp(cpu_t *cpu, jmp_buf *buf)
+{
+    cpu->fault_jmp_buf = buf;
+    cpu->has_fault_jmp = true;
+}
+
+void cpu_clear_fault_jmp(cpu_t *cpu)
+{
+    cpu->has_fault_jmp = false;
+}
+
+static void cpu_do_fault_jmp(cpu_t *cpu)
+{
+    if (cpu->has_fault_jmp)
+        longjmp(*cpu->fault_jmp_buf, 1);
+    else
+        abort();
 }
 
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
@@ -1573,12 +1596,13 @@ void cpu_step(cpu_t *cpu)
     case ARM_INS_VMRS:
     case ARM_INS_VMSR:
     case ARM_INS_VSTMDB:
-        printf("Implement instruction %d\n", i->id);
+        LOG_CPU_INST("Implement instruction %d\n", i->id);
         // TODO: Implement
         break;
 
     default:
         fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, pc);
+        cpu_do_fault_jmp(cpu);
         abort();
     }
 
@@ -1650,6 +1674,7 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
         {
             // TODO: Handle better
             fprintf(stderr, "PC is not aligned\n");
+            cpu_do_fault_jmp(cpu);
             abort();
         }
 

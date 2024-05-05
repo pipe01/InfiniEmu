@@ -8,6 +8,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <stdatomic.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -220,6 +221,16 @@ void parse_hex(const char *str, size_t str_len, uint8_t *data)
     }
 }
 
+void gdb_send_signal(gdbstub *gdb, int signal)
+{
+    assert(signal >= 0 && signal <= 99);
+
+    char buf[4];
+    snprintf(buf, sizeof(buf), "S%02d", signal);
+
+    send_response_str(gdb->fd, buf);
+}
+
 char *gdb_qSupported(gdbstub *gdb, char *msg)
 {
     send_response_str(gdb->fd, "hwbreak+;qXfer:features:read+;qXfer:memory-map:read+;QStartNoAckMode+");
@@ -403,7 +414,7 @@ char *gdb_queryGeneral(gdbstub *gdb, char *msg)
 
 char *gdb_queryHalted(gdbstub *gdb, char *msg)
 {
-    send_response_str(gdb->fd, "S05");
+    gdb_send_signal(gdb, SIGTRAP);
 
     return msg + 1;
 }
@@ -552,19 +563,33 @@ void *gdb_run_cpu(void *userdata)
     gdbstub *stub = (gdbstub *)userdata;
     cpu_t *cpu = nrf52832_get_cpu(stub->gdb->nrf);
 
-    while (!stub->gdb->want_break)
+    jmp_buf fault_jmp;
+    bool has_faulted = false;
+
+    if (setjmp(fault_jmp))
     {
-        uint32_t pc = cpu_reg_read(cpu, ARM_REG_PC) - 4;
-
-        if (gdb_has_breakpoint_at(stub->gdb, pc))
-            break;
-
-        nrf52832_step(stub->gdb->nrf);
+        has_faulted = true;
     }
+    else
+    {
+        cpu_set_fault_jmp(cpu, &fault_jmp);
+
+        while (!stub->gdb->want_break)
+        {
+            uint32_t pc = cpu_reg_read(cpu, ARM_REG_PC) - 4;
+
+            if (gdb_has_breakpoint_at(stub->gdb, pc))
+                break;
+
+            nrf52832_step(stub->gdb->nrf);
+        }
+    }
+
+    cpu_clear_fault_jmp(cpu);
 
     stub->gdb->want_break = false;
     stub->gdb->is_running = false;
-    send_response_str(stub->fd, "S05");
+    gdb_send_signal(stub, has_faulted ? SIGABRT : SIGTRAP);
 
     return NULL;
 }
@@ -662,13 +687,12 @@ void gdbstub_run(gdbstub *gdb)
 
                 ret = strchr(msg, '#');
                 nrf52832_reset(gdb->gdb->nrf);
-                // send_response_str(gdb->fd, "S05");
                 break;
 
             case 's':
                 ret = msg + 1;
                 nrf52832_step(gdb->gdb->nrf);
-                send_response_str(gdb->fd, "S05");
+                gdb_send_signal(gdb, SIGTRAP);
                 break;
 
             case 'z':
