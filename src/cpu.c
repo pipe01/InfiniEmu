@@ -1,7 +1,7 @@
-#include "config.h"
-#include "cpu.h"
 #include "arm.h"
 #include "byte_util.h"
+#include "config.h"
+#include "cpu.h"
 #include "psudocode.h"
 
 #include "peripherals/peripheral.h"
@@ -76,7 +76,6 @@
     }
 
 #define MAX_EXECUTING_EXCEPTIONS 64
-
 #define HAS_FP false
 
 typedef struct
@@ -94,6 +93,8 @@ struct cpu_inst_t
 {
     jmp_buf *fault_jmp_buf;
     bool has_fault_jmp;
+
+    runlog_t *runlog;
 
     uint32_t core_regs[ARM_REG_ENDING - 1];
     uint32_t sp_main, sp_process;
@@ -131,6 +132,33 @@ struct cpu_inst_t
 };
 
 cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc);
+
+static inline runlog_registers_t cpu_get_runlog_regs(cpu_t *cpu)
+{
+    return (runlog_registers_t){
+        .core = {
+            cpu->core_regs[ARM_REG_R0],
+            cpu->core_regs[ARM_REG_R1],
+            cpu->core_regs[ARM_REG_R2],
+            cpu->core_regs[ARM_REG_R3],
+            cpu->core_regs[ARM_REG_R4],
+            cpu->core_regs[ARM_REG_R5],
+            cpu->core_regs[ARM_REG_R6],
+            cpu->core_regs[ARM_REG_R7],
+            cpu->core_regs[ARM_REG_R8],
+            cpu->core_regs[ARM_REG_R9],
+            cpu->core_regs[ARM_REG_R10],
+            cpu->core_regs[ARM_REG_R11],
+            cpu->core_regs[ARM_REG_R12],
+            cpu->core_regs[ARM_REG_SP],
+            cpu->core_regs[ARM_REG_LR],
+            cpu->core_regs[ARM_REG_PC],
+        },
+        .xpsr = cpu->xpsr.value,
+        .msp = cpu->sp_main,
+        .psp = cpu->sp_process,
+    };
+}
 
 static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
 {
@@ -347,7 +375,7 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
         abort();
     }
     else
-    {   
+    {
         framesize = 0x20;
         forcealign = scb_get_ccr(cpu->scb).STKALIGN;
     }
@@ -542,6 +570,11 @@ static void cpu_do_fault_jmp(cpu_t *cpu)
         longjmp(*cpu->fault_jmp_buf, 1);
     else
         abort();
+}
+
+void cpu_set_runlog(cpu_t *cpu, runlog_t *runlog)
+{
+    cpu->runlog = runlog;
 }
 
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
@@ -832,6 +865,11 @@ void cpu_reset(cpu_t *cpu)
     cpu->exceptions[ARM_EXC_SYSTICK].enabled = true;
     cpu->exceptions[ARM_EXC_SYSTICK].fixed_enabled = true;
 
+    if (cpu->runlog)
+    {
+        runlog_record_reset(cpu->runlog, cpu_get_runlog_regs(cpu));
+    }
+
     cpu_jump_exception(cpu, ARM_EXC_RESET);
 }
 
@@ -868,6 +906,11 @@ void cpu_step(cpu_t *cpu)
     {
         fprintf(stderr, "Failed to find instruction at 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
         abort();
+    }
+
+    if (cpu->runlog)
+    {
+        runlog_record_inst(cpu->runlog, RUNLOG_EV_FETCH_INST, cpu_get_runlog_regs(cpu));
     }
 
     cs_arm detail = i->detail->arm;

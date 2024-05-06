@@ -16,10 +16,11 @@ int main(int argc, char **argv)
 {
     char *program_path = NULL;
     bool run_gdb = false;
+    char *runlog_path = NULL;
 
     int c;
 
-    while ((c = getopt(argc, argv, "df:")) != -1)
+    while ((c = getopt(argc, argv, "df:l:")) != -1)
     {
         switch (c)
         {
@@ -31,6 +32,10 @@ int main(int argc, char **argv)
             run_gdb = true;
             break;
 
+        case 'l':
+            runlog_path = optarg;
+            break;
+
         default:
             return -1;
         }
@@ -38,7 +43,7 @@ int main(int argc, char **argv)
 
     if (program_path == NULL)
     {
-        fprintf(stderr, "Usage: %s -f <program_path>\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-d] [-l <logfile_path>] -f <program_path>\n", argv[0]);
         return -1;
     }
 
@@ -67,6 +72,21 @@ int main(int argc, char **argv)
 #endif
 
     free(program);
+
+    if (runlog_path)
+    {
+        FILE *f = fopen(runlog_path, "wb");
+        if (f == NULL)
+        {
+            fprintf(stderr, "Failed to create runlog file\n");
+            return -1;
+        }
+
+        runlog_t *runlog = runlog_new(fileno(f));
+
+        cpu_t *cpu = nrf52832_get_cpu(nrf);
+        cpu_set_runlog(cpu, runlog);
+    }
 
     if (run_gdb)
     {
