@@ -230,3 +230,18 @@ func (g *GDBClient) Step() error {
 	_, err := g.makeRequest([]byte("s"))
 	return err
 }
+
+func (g *GDBClient) Continue() error {
+	_, err := g.makeRequest([]byte("c"))
+	return err
+}
+
+func (g *GDBClient) AddBreakpoint(addr uint32) error {
+	_, err := g.makeRequest([]byte(fmt.Sprintf("Z1,%x,2", addr)))
+	return err
+}
+
+func (g *GDBClient) RemoveBreakpoint(addr uint32) error {
+	_, err := g.makeRequest([]byte(fmt.Sprintf("z1,%x,2", addr)))
+	return err
+}

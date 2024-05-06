@@ -5,18 +5,36 @@ import (
 	"time"
 )
 
+// const startAt = 0x4d70 // <main>
+const startAt = 0x572e // <vPortSetupTimerInterrupt>
+
+func must(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
 	gdb1, err := DialGDB("localhost:3333")
 	if err != nil {
-		log.Fatalf("failed to dial gdb: %v", err)
+		log.Fatalf("failed to dial gdb1: %v", err)
 	}
 	gdb2, err := DialGDB("localhost:3334")
 	if err != nil {
-		log.Fatalf("failed to dial gdb: %v", err)
+		log.Fatalf("failed to dial gdb2: %v", err)
 	}
 
-	gdb1.Reset()
-	gdb2.Reset()
+	must(gdb1.Reset())
+	must(gdb2.Reset())
+
+	must(gdb1.AddBreakpoint(startAt))
+	must(gdb2.AddBreakpoint(startAt))
+
+	must(gdb1.Continue())
+	must(gdb2.Continue())
+
+	must(gdb1.RemoveBreakpoint(startAt))
+	must(gdb2.RemoveBreakpoint(startAt))
 
 	instCounter := 0
 
@@ -53,9 +71,8 @@ func main() {
 		regs1 := gdb1.Registers()
 		regs2 := gdb2.Registers()
 
-		log.Print("---")
-
 		mismatch := false
+		mismatched := map[int]struct{}{}
 
 		for i := 0; i < RegisterCount; i++ {
 			a := regs1[i]
@@ -66,19 +83,25 @@ func main() {
 				b &^= 0x600FC00
 			}
 
-			marker := ""
 			if a != b {
 				mismatch = true
-				marker = "!!"
+				mismatched[i] = struct{}{}
 			}
-
-			log.Printf("  %s: 0x%08X 0x%08X %s", RegisterNames[i], regs1[i], regs2[i], marker)
 		}
 
 		if mismatch {
 			log.Printf("registers mismatch")
 
-			return
+			for i := 0; i < RegisterCount; i++ {
+				marker := ""
+				if _, ok := mismatched[i]; ok {
+					marker = " !!"
+				}
+
+				log.Printf("  %s: 0x%08X 0x%08X%s", RegisterNames[i], regs1[i], regs2[i], marker)
+			}
+
+			break
 		}
 	}
 }
