@@ -71,8 +71,6 @@ int main(int argc, char **argv)
     size_t rtt_counter = 0;
 #endif
 
-    free(program);
-
     if (runlog_path)
     {
         FILE *f = fopen(runlog_path, "wb");
@@ -84,9 +82,13 @@ int main(int argc, char **argv)
 
         runlog_t *runlog = runlog_new(fileno(f));
 
+        runlog_record_load_program(runlog, program, fsize);
+
         cpu_t *cpu = nrf52832_get_cpu(nrf);
         cpu_set_runlog(cpu, runlog);
     }
+
+    free(program);
 
     if (run_gdb)
     {
