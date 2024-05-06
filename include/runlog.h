@@ -1,75 +1,46 @@
 #pragma once
 
 #include <assert.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct runlog_t runlog_t;
 
 typedef enum
 {
-    RUNLOG_EV_RESET = 0,
-    RUNLOG_EV_FETCH_INST = 1,
-    RUNLOG_EV_EXECUTE_INST = 2,
-    RUNLOG_EV_MEMORY_WRITE = 3, 
-} __attribute__ ((__packed__)) runlog_ev_type;
-static_assert(sizeof(runlog_ev_type) == 1);
+    RUNLOG_REG_R0,
+    RUNLOG_REG_R1,
+    RUNLOG_REG_R2,
+    RUNLOG_REG_R3,
+    RUNLOG_REG_R4,
+    RUNLOG_REG_R5,
+    RUNLOG_REG_R6,
+    RUNLOG_REG_R7,
+    RUNLOG_REG_R8,
+    RUNLOG_REG_R9,
+    RUNLOG_REG_R10,
+    RUNLOG_REG_R11,
+    RUNLOG_REG_R12,
+    RUNLOG_REG_SP,
+    RUNLOG_REG_LR,
+    RUNLOG_REG_PC,
+    RUNLOG_REG_XPSR,
+    RUNLOG_REG_MSP,
+    RUNLOG_REG_PSP,
+
+    RUNLOG_REG_MIN = RUNLOG_REG_R0,
+    RUNLOG_REG_MAX = RUNLOG_REG_PSP,
+} runlog_register_t;
 
 typedef struct
 {
-    uint32_t core[16]; // R0-R12, SP, LR, PC
-    uint32_t xpsr;
-    uint32_t msp, psp;
+    uint32_t core[RUNLOG_REG_MAX + 1];
 } runlog_registers_t;
 
-typedef struct
-{
-    runlog_registers_t regs;
-} runlog_event_reset;
-
-typedef struct
-{
-    runlog_registers_t core_regs;
-} runlog_event_inst_t;
-
-typedef struct
-{
-    uint32_t address;
-    uint32_t value;
-    uint8_t size; // 1, 2 or 4 bytes
-} runlog_event_memory_write_t;
-
-typedef struct
-{
-    runlog_ev_type type;
-
-    union
-    {
-        runlog_event_reset reset;
-        runlog_event_inst_t inst;
-        runlog_event_memory_write_t memory_write;
-    };
-} runlog_event_t;
-static_assert(sizeof(runlog_event_t) == 80);
-
 runlog_t *runlog_new(int fd);
-void runlog_record(runlog_t *runlog, runlog_event_t event);
+void runlog_free(runlog_t *runlog);
 
-static inline void runlog_record_reset(runlog_t *runlog, runlog_registers_t regs)
-{
-    runlog_record(runlog, (runlog_event_t){
-        .type = RUNLOG_EV_RESET,
-        .reset = {
-            .regs = regs,
-        },
-    });
-}
-
-static inline void runlog_record_inst(runlog_t *runlog, runlog_ev_type type, runlog_registers_t regs)
-{
-    runlog_record(runlog, (runlog_event_t){
-        .type = type,
-        .inst = {
-            .core_regs = regs,
-        },
-    });
-}
+void runlog_record_reset(runlog_t *runlog, runlog_registers_t regs);
+void runlog_record_load_program(runlog_t *runlog, uint8_t *program, uint32_t size);
+void runlog_record_fetch(runlog_t *runlog, uint32_t pc);
+void runlog_record_execute(runlog_t *runlog, runlog_registers_t regs);
