@@ -11,7 +11,8 @@ typedef enum
     RUNLOG_EV_LOAD_PROGRAM,
     RUNLOG_EV_FETCH_INST,
     RUNLOG_EV_EXECUTE_INST,
-    RUNLOG_EV_MEMORY_WRITE,
+    RUNLOG_EV_MEMORY_LOAD,
+    RUNLOG_EV_MEMORY_STORE,
 } __attribute__((__packed__)) runlog_ev_type;
 static_assert(sizeof(runlog_ev_type) == 1);
 
@@ -93,4 +94,28 @@ void runlog_record_execute(runlog_t *runlog, runlog_registers_t regs)
 {
     runlog_write_type(runlog, RUNLOG_EV_EXECUTE_INST);
     runlog_write_regs(runlog, regs);
+}
+
+void runlog_record_memory_load(runlog_t *runlog, uint32_t addr, uint32_t value, runlog_register_t dst, byte_size_t size)
+{
+    static_assert(sizeof(size) == 1);
+    static_assert(sizeof(dst) == 1);
+
+    runlog_write_type(runlog, RUNLOG_EV_MEMORY_LOAD);
+    runlog_write(runlog, &addr, sizeof(addr));
+    runlog_write(runlog, &value, sizeof(value));
+    runlog_write(runlog, &dst, sizeof(dst));
+    runlog_write(runlog, &size, sizeof(size));
+}
+
+void runlog_record_memory_store(runlog_t *runlog, runlog_register_t src, uint32_t value, uint32_t addr, byte_size_t size)
+{
+    static_assert(sizeof(size) == 1);
+    static_assert(sizeof(src) == 1);
+
+    runlog_write_type(runlog, RUNLOG_EV_MEMORY_STORE);
+    runlog_write(runlog, &src, sizeof(src));
+    runlog_write(runlog, &value, sizeof(value));
+    runlog_write(runlog, &addr, sizeof(addr));
+    runlog_write(runlog, &size, sizeof(size));
 }

@@ -7,7 +7,7 @@
 
 #define MEMREG_FIND_NOT_FOUND 0xFFFFFFFF
 
-typedef enum {
+typedef enum __attribute__((packed)) {
     SIZE_BYTE = 1,
     SIZE_HALFWORD = 2,
     SIZE_WORD = 4,

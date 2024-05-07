@@ -86,6 +86,7 @@ int main(int argc, char **argv)
 
         cpu_t *cpu = nrf52832_get_cpu(nrf);
         cpu_set_runlog(cpu, runlog);
+        cpu_reset(cpu);
     }
 
     free(program);

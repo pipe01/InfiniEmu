@@ -160,6 +160,47 @@ static inline runlog_registers_t cpu_get_runlog_regs(cpu_t *cpu)
     };
 }
 
+static inline runlog_register_t runlog_reg(arm_reg arm_reg)
+{
+    switch (arm_reg)
+    {
+    case ARM_REG_R0:
+        return RUNLOG_REG_R0;
+    case ARM_REG_R1:
+        return RUNLOG_REG_R1;
+    case ARM_REG_R2:
+        return RUNLOG_REG_R2;
+    case ARM_REG_R3:
+        return RUNLOG_REG_R3;
+    case ARM_REG_R4:
+        return RUNLOG_REG_R4;
+    case ARM_REG_R5:
+        return RUNLOG_REG_R5;
+    case ARM_REG_R6:
+        return RUNLOG_REG_R6;
+    case ARM_REG_R7:
+        return RUNLOG_REG_R7;
+    case ARM_REG_R8:
+        return RUNLOG_REG_R8;
+    case ARM_REG_R9:
+        return RUNLOG_REG_R9;
+    case ARM_REG_R10:
+        return RUNLOG_REG_R10;
+    case ARM_REG_R11:
+        return RUNLOG_REG_R11;
+    case ARM_REG_R12:
+        return RUNLOG_REG_R12;
+    case ARM_REG_SP:
+        return RUNLOG_REG_SP;
+    case ARM_REG_LR:
+        return RUNLOG_REG_LR;
+    case ARM_REG_PC:
+        return RUNLOG_REG_PC;
+    default:
+        abort();
+    }
+}
+
 static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
 {
     uint32_t base = cpu_reg_read(cpu, op->mem.base);
@@ -626,7 +667,7 @@ static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_prior
     return min_ex;
 }
 
-static void cpu_do_load(cpu_t *cpu, cs_arm *detail, int size, uint32_t alignment, bool sign_extend)
+static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, uint32_t alignment, bool sign_extend)
 {
     assert(detail->op_count == 2 || detail->op_count == 3);
     assert(detail->operands[0].type == ARM_OP_REG);
@@ -655,7 +696,8 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, int size, uint32_t alignment
                                 : x(FFFF, FFFF);
 
     // TODO: Why do we need to align the address?
-    uint32_t value = memreg_read(cpu->mem, (address & alignment) + (detail->post_index ? 0 : offset)) & mask;
+    uint32_t offsetAddr = (address & alignment) + (detail->post_index ? 0 : offset);
+    uint32_t value = memreg_read(cpu->mem, offsetAddr) & mask;
 
     if (sign_extend)
     {
@@ -665,23 +707,34 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, int size, uint32_t alignment
         {
             switch (size)
             {
-            case 1:
+            case SIZE_BYTE:
                 value = (uint32_t)(int8_t)value;
                 break;
 
-            case 2:
+            case SIZE_HALFWORD:
                 value = (uint32_t)(int16_t)value;
+                break;
+
+            case SIZE_WORD:
+                // Do nothing
                 break;
             }
         }
     }
 
+    if (cpu->runlog)
+    {
+        runlog_record_memory_load(cpu->runlog, offsetAddr, value, runlog_reg(detail->operands[0].reg), size);
+    }
+
     cpu_reg_write(cpu, detail->operands[0].reg, value);
 
-    address += offset;
-
     if (detail->writeback)
+    {
+        address += offset;
+
         cpu_reg_write(cpu, detail->operands[1].mem.base, address);
+    }
 }
 
 static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
@@ -735,6 +788,11 @@ static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual
     uint32_t address = detail->post_index ? base : offset_addr;
 
     memreg_write(cpu->mem, address, value, size);
+
+    if (cpu->runlog)
+    {
+        runlog_record_memory_store(cpu->runlog, runlog_reg(detail->operands[0].reg), value, address, size);
+    }
 
     if (dual)
     {
@@ -1253,15 +1311,15 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_LDR:
     case ARM_INS_LDREX:
-        cpu_do_load(cpu, &detail, 4, x(FFFF, FFFF) << 2, false);
+        cpu_do_load(cpu, &detail, SIZE_WORD, x(FFFF, FFFF) << 2, false);
         break;
 
     case ARM_INS_LDRB:
-        cpu_do_load(cpu, &detail, 1, x(FFFF, FFFF), false);
+        cpu_do_load(cpu, &detail, SIZE_BYTE, x(FFFF, FFFF), false);
         break;
 
     case ARM_INS_LDRSB:
-        cpu_do_load(cpu, &detail, 1, x(FFFF, FFFF), true);
+        cpu_do_load(cpu, &detail, SIZE_BYTE, x(FFFF, FFFF), true);
         break;
 
     case ARM_INS_LDRD:
@@ -1272,11 +1330,11 @@ void cpu_step(cpu_t *cpu)
         break;
 
     case ARM_INS_LDRH:
-        cpu_do_load(cpu, &detail, 2, x(FFFF, FFFF) << 1, false);
+        cpu_do_load(cpu, &detail, SIZE_HALFWORD, x(FFFF, FFFF) << 1, false);
         break;
 
     case ARM_INS_LDRSH:
-        cpu_do_load(cpu, &detail, 2, x(FFFF, FFFF) << 1, true);
+        cpu_do_load(cpu, &detail, SIZE_HALFWORD, x(FFFF, FFFF) << 1, true);
         break;
 
     case ARM_INS_LSL:
