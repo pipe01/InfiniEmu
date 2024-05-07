@@ -126,7 +126,7 @@ func (f Frames) ReadMemoryAt(addr uint32) (uint32, error) {
 	var value uint32
 
 	if addr < 0x8_0000-4 {
-		value = binary.LittleEndian.Uint32(f[len(f)-1].Program[addr:])
+		value = binary.LittleEndian.Uint32(f.Last().Program[addr:])
 	} else if addr >= 0x2000_0000 && addr < 0x2001_0000-4 {
 		for _, frame := range f {
 			for _, access := range frame.MemoryAccesses {

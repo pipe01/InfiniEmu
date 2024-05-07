@@ -10,6 +10,7 @@ import (
 var (
 	ErrExit            = errors.New("exit")
 	ErrInvalidArgument = errors.New("invalid argument")
+	ErrMissingArgument = errors.New("missing argument")
 )
 
 const digits = "0123456789"
@@ -22,6 +23,7 @@ var Commands = map[string]Command{
 	"frame":    CommandFrame,
 	"view":     CommandView,
 	"eval":     CommandEval,
+	"find":     CommandFind,
 	"exit":     func(string, string) error { return ErrExit },
 }
 
@@ -186,6 +188,60 @@ func CommandEval(modifier, arg string) error {
 		}
 
 		printInt(val, modifier)
+	}
+
+	return nil
+}
+
+func CommandFind(modifier, arg string) error {
+	if arg == "" {
+		return ErrMissingArgument
+	}
+
+	subcmd, arg, hasArg := strings.Cut(arg, " ")
+
+	switch subcmd {
+	case "memw", "memr":
+		if !hasArg {
+			return ErrMissingArgument
+		}
+
+		isWrite := subcmd == "memw"
+
+		args := strings.Split(arg, " ")
+
+		addr, err := parseInt(args[0])
+		if err != nil {
+			return errors.New("invalid address")
+		}
+
+		var value int
+		hasValue := false
+
+		if len(args) > 1 {
+			value, err = parseInt(args[1])
+			if err != nil {
+				return errors.New("invalid value")
+			}
+
+			hasValue = true
+		}
+
+		for i, frame := range frames[frameIndex+1:] {
+			for _, acc := range frame.MemoryAccesses {
+				if acc.Address == uint32(addr) && acc.IsWrite == isWrite && (!hasValue || acc.Value == uint32(value)) {
+					printInt(acc.Value, modifier)
+
+					frameIndex = frameIndex + i + 1
+					return nil
+				}
+			}
+		}
+
+		fmt.Printf("No memory access found on address 0x%08x after frame #%d\n", addr, frameIndex)
+
+	default:
+		return errors.New("unknown subcommand")
 	}
 
 	return nil
