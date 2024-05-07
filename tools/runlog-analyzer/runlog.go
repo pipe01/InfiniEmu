@@ -118,6 +118,10 @@ type Frame struct {
 
 type Frames []*Frame
 
+func (f Frames) Last() *Frame {
+	return f[len(f)-1]
+}
+
 func (f Frames) ReadMemoryAt(addr uint32) (uint32, error) {
 	var value uint32
 

@@ -12,38 +12,6 @@ import (
 	"github.com/chzyer/readline"
 )
 
-func parseRegister(str string) (RunlogRegister, error) {
-	if len(str) < 2 {
-		return 0, fmt.Errorf("invalid register: %s", str)
-	}
-
-	str = strings.ToLower(str)
-
-	if str[0] == 'r' {
-		n, err := strconv.Atoi(str[1:])
-		if err != nil {
-			return 0, fmt.Errorf("invalid register number: %s", str)
-		}
-
-		if n < 0 || n > int(RUNLOG_REG_PC) {
-			return 0, fmt.Errorf("register number out of range: %d", n)
-		}
-
-		return RunlogRegister(n) + RUNLOG_REG_R0, nil
-	}
-
-	switch str {
-	case "sp":
-		return RUNLOG_REG_SP, nil
-	case "lr":
-		return RUNLOG_REG_LR, nil
-	case "pc":
-		return RUNLOG_REG_PC, nil
-	}
-
-	return 0, fmt.Errorf("invalid register: %s", str)
-}
-
 func parseInt(str string) (int, error) {
 	n, err := strconv.ParseInt(str, 0, 32)
 	return int(n), err
@@ -133,18 +101,19 @@ func main() {
 			modifier = mod
 		}
 
-		cmd, ok := FindCommand(cmdName)
-		if ok {
-			err := cmd(modifier, arg)
-			if err != nil {
-				if err == ErrExit {
-					break
-				}
+		cmd, err := FindCommand(cmdName)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
 
-				fmt.Println(err)
+		err = cmd(modifier, arg)
+		if err != nil {
+			if err == ErrExit {
+				break
 			}
-		} else {
-			fmt.Printf("unknown command: %s\n", cmdName)
+
+			fmt.Println(err)
 		}
 	}
 }

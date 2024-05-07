@@ -51,7 +51,7 @@ static void runlog_write(runlog_t *runlog, const void *buf, size_t n)
     pthread_mutex_unlock(&runlog->mutex);
 }
 
-static void runlog_write_type(runlog_t *runlog, runlog_ev_type type)
+static inline void runlog_write_type(runlog_t *runlog, runlog_ev_type type)
 {
     runlog_write(runlog, &type, sizeof(type));
 }

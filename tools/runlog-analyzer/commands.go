@@ -19,24 +19,32 @@ var Commands = map[string]Command{
 	"previous": CommandNextPreviousFrame(-1),
 	"frame":    CommandFrame,
 	"view":     CommandView,
+	"eval":     CommandEval,
 	"exit":     func(string, string) error { return ErrExit },
 }
 
-func FindCommand(name string) (Command, bool) {
+func FindCommand(name string) (Command, error) {
 	cmd, ok := Commands[name]
-	if !ok {
-		for k, v := range Commands {
-			if strings.HasPrefix(k, name) {
-				if cmd != nil {
-					return nil, false // Ambiguous command
-				}
+	if ok {
+		return cmd, nil
+	}
 
-				cmd = v
-			}
+	matches := []string{}
+
+	for k := range Commands {
+		if strings.HasPrefix(k, name) {
+			matches = append(matches, k)
 		}
 	}
 
-	return cmd, cmd != nil
+	if len(matches) == 0 {
+		return nil, errors.New("unknown command")
+	}
+	if len(matches) == 1 {
+		return Commands[matches[0]], nil
+	}
+
+	return nil, fmt.Errorf("ambiguous command: %s", strings.Join(matches, ", "))
 }
 
 func CommandNextPreviousFrame(dir int) Command {
@@ -89,7 +97,7 @@ func CommandView(modifier, arg string) error {
 			fmt.Printf("%s\t0x%08x\n", i.String(), currentFrame.Registers[i])
 		}
 	} else if strings.HasPrefix(arg, "$") {
-		reg, err := parseRegister(arg[1:])
+		reg, err := ParseRegister(arg[1:])
 		if err != nil {
 			return err
 		}
@@ -119,6 +127,25 @@ func CommandView(modifier, arg string) error {
 
 			fmt.Printf("0x%08x: 0x%08x\n", addr, val)
 		}
+	}
+
+	return nil
+}
+
+func CommandEval(modifier, arg string) error {
+	val, err := ExecuteExpression(arg, frames)
+	if err != nil {
+		return err
+	}
+
+	if strings.ContainsRune(modifier, 'd') {
+		fmt.Printf("%d\n", val)
+	} else if strings.ContainsRune(modifier, 's') {
+		fmt.Printf("%d\n", int32(val))
+	} else if strings.ContainsRune(modifier, 'b') {
+		fmt.Printf("0b%032b\n", int32(val))
+	} else {
+		fmt.Printf("0x%08x\n", val)
 	}
 
 	return nil
