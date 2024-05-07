@@ -19,6 +19,7 @@ func parseInt(str string) (int, error) {
 
 var frames Frames
 var frameIndex = 0
+var frameIndexStack = []int{}
 
 func main() {
 	flag.Parse()

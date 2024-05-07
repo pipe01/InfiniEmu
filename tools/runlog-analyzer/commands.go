@@ -24,6 +24,8 @@ var Commands = map[string]Command{
 	"view":     CommandView,
 	"eval":     CommandEval,
 	"find":     CommandFind,
+	"push":     CommandPush,
+	"pop":      CommandPop,
 	"exit":     func(string, string) error { return ErrExit },
 }
 
@@ -243,6 +245,23 @@ func CommandFind(modifier, arg string) error {
 	default:
 		return errors.New("unknown subcommand")
 	}
+
+	return nil
+}
+
+func CommandPush(_, arg string) error {
+	frameIndexStack = append(frameIndexStack, frameIndex)
+
+	return nil
+}
+
+func CommandPop(_, arg string) error {
+	if len(frameIndexStack) == 0 {
+		return errors.New("stack is empty")
+	}
+
+	frameIndex = frameIndexStack[len(frameIndexStack)-1]
+	frameIndexStack = frameIndexStack[:len(frameIndexStack)-1]
 
 	return nil
 }
