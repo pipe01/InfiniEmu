@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -11,14 +12,14 @@ var (
 	ErrInvalidArgument = errors.New("invalid argument")
 )
 
-type Command func(arg string) error
+type Command func(mod, arg string) error
 
 var Commands = map[string]Command{
 	"next":     CommandNextPreviousFrame(1),
 	"previous": CommandNextPreviousFrame(-1),
 	"frame":    CommandFrame,
 	"view":     CommandView,
-	"exit":     func(arg string) error { return ErrExit },
+	"exit":     func(string, string) error { return ErrExit },
 }
 
 func FindCommand(name string) (Command, bool) {
@@ -39,7 +40,7 @@ func FindCommand(name string) (Command, bool) {
 }
 
 func CommandNextPreviousFrame(dir int) Command {
-	return func(arg string) error {
+	return func(_, arg string) error {
 		offset := dir
 
 		if arg != "" {
@@ -63,7 +64,7 @@ func CommandNextPreviousFrame(dir int) Command {
 	}
 }
 
-func CommandFrame(arg string) error {
+func CommandFrame(_, arg string) error {
 	if arg == "" {
 		fmt.Printf("On frame %d out of %d\n", frameIndex, len(frames))
 	} else if arg == "end" {
@@ -80,7 +81,7 @@ func CommandFrame(arg string) error {
 	return nil
 }
 
-func CommandView(arg string) error {
+func CommandView(modifier, arg string) error {
 	currentFrame := frames[frameIndex]
 
 	if arg == "" {
@@ -95,17 +96,29 @@ func CommandView(arg string) error {
 
 		fmt.Printf("%s: 0x%08x\n", arg, currentFrame.Registers[reg])
 	} else {
-		addr, err := parseInt(arg)
+		baseAddr, err := parseInt(arg)
 		if err != nil {
 			return errors.New("invalid register or address")
 		}
 
-		val, err := frames[:frameIndex+1].ReadMemoryAt(uint32(addr))
-		if err != nil {
-			return err
+		count := 1
+		if modifier != "" {
+			count, err = strconv.Atoi(modifier)
+			if err != nil {
+				return errors.New("invalid count")
+			}
 		}
 
-		fmt.Printf("0x%08x: 0x%08x\n", addr, val)
+		for i := uint32(0); i < uint32(count); i++ {
+			addr := uint32(baseAddr) + i*4
+
+			val, err := frames[:frameIndex+1].ReadMemoryAt(addr)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("0x%08x: 0x%08x\n", addr, val)
+		}
 	}
 
 	return nil

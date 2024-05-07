@@ -120,16 +120,22 @@ func main() {
 			continue
 		}
 
-		command, arg, hasArg := strings.Cut(line, " ")
+		cmdName, arg, hasArg := strings.Cut(line, " ")
 
 		if hasArg {
 			arg = strings.TrimSpace(arg)
 			hasArg = arg != ""
 		}
 
-		cmd, ok := FindCommand(command)
+		modifier := ""
+		if cmd, mod, ok := strings.Cut(cmdName, "/"); ok {
+			cmdName = cmd
+			modifier = mod
+		}
+
+		cmd, ok := FindCommand(cmdName)
 		if ok {
-			err := cmd(arg)
+			err := cmd(modifier, arg)
 			if err != nil {
 				if err == ErrExit {
 					break
@@ -138,7 +144,7 @@ func main() {
 				fmt.Println(err)
 			}
 		} else {
-			fmt.Printf("unknown command: %s\n", command)
+			fmt.Printf("unknown command: %s\n", cmdName)
 		}
 	}
 }
