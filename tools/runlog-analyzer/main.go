@@ -76,38 +76,13 @@ func main() {
 			break
 		}
 
-		line = strings.TrimSpace(line)
-
 		if line == "" {
 			line = lastCommand
 		} else {
 			lastCommand = line
 		}
 
-		if line == "" {
-			continue
-		}
-
-		cmdName, arg, hasArg := strings.Cut(line, " ")
-
-		if hasArg {
-			arg = strings.TrimSpace(arg)
-			hasArg = arg != ""
-		}
-
-		modifier := ""
-		if cmd, mod, ok := strings.Cut(cmdName, "/"); ok {
-			cmdName = cmd
-			modifier = mod
-		}
-
-		cmd, err := FindCommand(cmdName)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		err = cmd(modifier, arg)
+		err = executeLine(line)
 		if err != nil {
 			if err == ErrExit {
 				break
@@ -116,4 +91,37 @@ func main() {
 			fmt.Println(err)
 		}
 	}
+}
+
+func executeLine(line string) error {
+	line = strings.TrimSpace(line)
+
+	if line == "" {
+		return nil
+	}
+
+	cmdName, arg, hasArg := strings.Cut(line, " ")
+
+	if hasArg {
+		arg = strings.TrimSpace(arg)
+		hasArg = arg != ""
+	}
+
+	modifier := ""
+	if cmd, mod, ok := strings.Cut(cmdName, "/"); ok {
+		cmdName = cmd
+		modifier = mod
+	}
+
+	cmd, err := FindCommand(cmdName)
+	if err != nil {
+		return err
+	}
+
+	err = cmd(modifier, arg)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

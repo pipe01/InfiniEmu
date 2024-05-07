@@ -23,6 +23,18 @@ var Commands = map[string]Command{
 	"exit":     func(string, string) error { return ErrExit },
 }
 
+func printInt(v uint32, modifier string) {
+	if strings.ContainsRune(modifier, 'd') {
+		fmt.Printf("%d\n", v)
+	} else if strings.ContainsRune(modifier, 's') {
+		fmt.Printf("%d\n", int32(v))
+	} else if strings.ContainsRune(modifier, 'b') {
+		fmt.Printf("0b%032b\n", int32(v))
+	} else {
+		fmt.Printf("0x%08x\n", v)
+	}
+}
+
 func FindCommand(name string) (Command, error) {
 	cmd, ok := Commands[name]
 	if ok {
@@ -96,17 +108,10 @@ func CommandView(modifier, arg string) error {
 		for i := RUNLOG_REG_R0; i <= RUNLOG_REG_MAX; i++ {
 			fmt.Printf("%s\t0x%08x\n", i.String(), currentFrame.Registers[i])
 		}
-	} else if strings.HasPrefix(arg, "$") {
-		reg, err := ParseRegister(arg[1:])
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("%s: 0x%08x\n", arg, currentFrame.Registers[reg])
 	} else {
 		baseAddr, err := parseInt(arg)
 		if err != nil {
-			return errors.New("invalid register or address")
+			return errors.New("invalid address")
 		}
 
 		count := 1
@@ -125,7 +130,8 @@ func CommandView(modifier, arg string) error {
 				return err
 			}
 
-			fmt.Printf("0x%08x: 0x%08x\n", addr, val)
+			fmt.Printf("0x%08x: ", addr)
+			printInt(val, modifier)
 		}
 	}
 
@@ -138,15 +144,7 @@ func CommandEval(modifier, arg string) error {
 		return err
 	}
 
-	if strings.ContainsRune(modifier, 'd') {
-		fmt.Printf("%d\n", val)
-	} else if strings.ContainsRune(modifier, 's') {
-		fmt.Printf("%d\n", int32(val))
-	} else if strings.ContainsRune(modifier, 'b') {
-		fmt.Printf("0b%032b\n", int32(val))
-	} else {
-		fmt.Printf("0x%08x\n", val)
-	}
+	printInt(val, modifier)
 
 	return nil
 }
