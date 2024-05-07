@@ -43,20 +43,16 @@ func ParseRegister(str string) (RunlogRegister, error) {
 	return 0, fmt.Errorf("invalid register: %s", str)
 }
 
-type exprContext struct {
-	frames Frames
+type ExpressionContext struct {
+	Frames Frames
+	Offset uint32
 }
 
-func ExecuteExpression(str string, frames Frames) (ret uint32, err error) {
-	var expr ast.Expr
+type Expression struct {
+	e ast.Expr
+}
 
-	expr, err = parser.ParseExpr(str)
-	if err != nil {
-		return 0, err
-	}
-
-	ctx := exprContext{frames: frames}
-
+func (e *Expression) Evaluate(ctx ExpressionContext) (val uint32, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if e, ok := r.(ExpressionError); ok {
@@ -67,10 +63,21 @@ func ExecuteExpression(str string, frames Frames) (ret uint32, err error) {
 		}
 	}()
 
-	return visitExpression(&ctx, expr), nil
+	return visitExpression(&ctx, e.e), nil
 }
 
-func visitExpression(ctx *exprContext, expr ast.Expr) uint32 {
+func ParseExpression(str string) (*Expression, error) {
+	var expr ast.Expr
+
+	expr, err := parser.ParseExpr(str)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Expression{e: expr}, nil
+}
+
+func visitExpression(ctx *ExpressionContext, expr ast.Expr) uint32 {
 	switch expr := expr.(type) {
 	case *ast.ParenExpr:
 		return visitExpression(ctx, expr.X)
@@ -90,12 +97,16 @@ func visitExpression(ctx *exprContext, expr ast.Expr) uint32 {
 		}
 
 	case *ast.Ident:
+		if expr.Name == "i" {
+			return ctx.Offset
+		}
+
 		reg, err := ParseRegister(expr.Name)
 		if err != nil {
 			panic(ExpressionError(fmt.Errorf("invalid register: %v", err)))
 		}
 
-		return ctx.frames.Last().Registers[reg]
+		return ctx.Frames.Last().Registers[reg]
 
 	case *ast.BinaryExpr:
 		left := visitExpression(ctx, expr.X)
@@ -140,7 +151,7 @@ func visitExpression(ctx *exprContext, expr ast.Expr) uint32 {
 	case *ast.StarExpr:
 		addr := visitExpression(ctx, expr.X)
 
-		value, err := ctx.frames.ReadMemoryAt(addr)
+		value, err := ctx.Frames.ReadMemoryAt(addr)
 		if err != nil {
 			panic(ExpressionError(err))
 		}

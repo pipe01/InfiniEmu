@@ -12,6 +12,8 @@ var (
 	ErrInvalidArgument = errors.New("invalid argument")
 )
 
+const digits = "0123456789"
+
 type Command func(mod, arg string) error
 
 var Commands = map[string]Command{
@@ -116,9 +118,16 @@ func CommandView(modifier, arg string) error {
 
 		count := 1
 		if modifier != "" {
-			count, err = strconv.Atoi(modifier)
-			if err != nil {
-				return errors.New("invalid count")
+			firstNum := strings.LastIndexAny(modifier, digits)
+			lastNum := strings.LastIndexAny(modifier, digits)
+
+			if firstNum == 0 {
+				count, err = strconv.Atoi(modifier[firstNum : lastNum+1])
+				if err != nil {
+					return errors.New("invalid count")
+				}
+			} else if firstNum != -1 {
+				return errors.New("invalid modifier")
 			}
 		}
 
@@ -139,12 +148,45 @@ func CommandView(modifier, arg string) error {
 }
 
 func CommandEval(modifier, arg string) error {
-	val, err := ExecuteExpression(arg, frames)
+	expr, err := ParseExpression(arg)
 	if err != nil {
 		return err
 	}
 
-	printInt(val, modifier)
+	size := 4
+	count := 1
+
+	if modifier != "" {
+		firstNum := strings.LastIndexAny(modifier, digits)
+		lastNum := strings.LastIndexAny(modifier, digits)
+
+		if firstNum == 0 {
+			count, err = strconv.Atoi(modifier[firstNum : lastNum+1])
+			if err != nil {
+				return errors.New("invalid count")
+			}
+		} else if firstNum != -1 {
+			return errors.New("invalid modifier")
+		}
+
+		if strings.ContainsRune(modifier, 'b') {
+			size = 1
+		} else if strings.ContainsRune(modifier, 'h') {
+			size = 2
+		}
+	}
+
+	for i := 0; i < count; i++ {
+		val, err := expr.Evaluate(ExpressionContext{
+			Frames: frames[:frameIndex+1],
+			Offset: uint32(i * size),
+		})
+		if err != nil {
+			return fmt.Errorf("at %d: %w", i, err)
+		}
+
+		printInt(val, modifier)
+	}
 
 	return nil
 }
