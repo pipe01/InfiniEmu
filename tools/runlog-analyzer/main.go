@@ -49,7 +49,7 @@ func parseInt(str string) (int, error) {
 	return int(n), err
 }
 
-var frames []*Frame
+var frames Frames
 var frameIndex = 0
 
 func main() {
@@ -81,7 +81,7 @@ func main() {
 
 	rl, err := readline.NewEx(&readline.Config{
 		EOFPrompt:       "exit",
-		InterruptPrompt: "exit",
+		InterruptPrompt: "",
 		AutoComplete:    readline.NewPrefixCompleter(pcItems...),
 	})
 	if err != nil {

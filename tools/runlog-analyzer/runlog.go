@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -109,9 +110,39 @@ type Instruction struct {
 type Registers [RUNLOG_REG_MAX + 1]uint32
 
 type Frame struct {
+	Program         []byte
 	Registers       Registers
 	NextInstruction Instruction
 	MemoryAccesses  []MemoryAccess
+}
+
+type Frames []*Frame
+
+func (f Frames) ReadMemoryAt(addr uint32) (uint32, error) {
+	var value uint32
+
+	if addr < 0x8_0000-4 {
+		value = binary.LittleEndian.Uint32(f[len(f)-1].Program[addr:])
+	} else if addr >= 0x2000_0000 && addr < 0x2001_0000-4 {
+		for _, frame := range f {
+			for _, access := range frame.MemoryAccesses {
+				if access.Address == addr && access.IsWrite {
+					switch access.SizeBytes {
+					case 1:
+						value |= access.Value & 0xFF
+					case 2:
+						value |= access.Value & 0xFFFF
+					case 4:
+						value = access.Value
+					}
+				}
+			}
+		}
+	} else {
+		return 0, errors.New("memory address outside readable ranges")
+	}
+
+	return value, nil
 }
 
 func readRegs(br *bufio.Reader, regs *Registers) error {
@@ -136,7 +167,7 @@ func readRegs(br *bufio.Reader, regs *Registers) error {
 	return nil
 }
 
-func ReadFrames(r io.Reader) ([]*Frame, error) {
+func ReadFrames(r io.Reader) (Frames, error) {
 	var regs Registers
 	var program []byte
 	var currentInst Instruction
@@ -199,6 +230,7 @@ func ReadFrames(r io.Reader) ([]*Frame, error) {
 			C.cs_free(insn, 1)
 
 			currentFrame = &Frame{
+				Program:         program,
 				Registers:       regs,
 				NextInstruction: currentInst,
 			}

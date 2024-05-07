@@ -95,7 +95,17 @@ func CommandView(arg string) error {
 
 		fmt.Printf("%s: 0x%08x\n", arg, currentFrame.Registers[reg])
 	} else {
-		fmt.Println("invalid argument, expected register or memory address")
+		addr, err := parseInt(arg)
+		if err != nil {
+			return errors.New("invalid register or address")
+		}
+
+		val, err := frames[:frameIndex+1].ReadMemoryAt(uint32(addr))
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("0x%08x: 0x%08x\n", addr, val)
 	}
 
 	return nil
