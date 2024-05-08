@@ -21,6 +21,8 @@ var frames Frames
 var frameIndex = 0
 var frameIndexStack = []int{}
 
+var bookmarks []int
+
 func main() {
 	flag.Parse()
 

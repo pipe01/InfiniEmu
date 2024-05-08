@@ -19,6 +19,7 @@ type Command func(mod, arg string) error
 
 var Commands = map[string]Command{
 	"accesses": CommandAccesses,
+	"bookmark": CommandBookmark,
 	"eval":     CommandEval,
 	"exit":     func(string, string) error { return ErrExit },
 	"find":     CommandFind(false),
@@ -340,6 +341,63 @@ func CommandAccesses(_, arg string) error {
 		} else {
 			fmt.Printf("%s = 0x%08x (0x%08x)\n", acc.Register.String(), acc.Address, acc.Value)
 		}
+	}
+
+	return nil
+}
+
+func CommandBookmark(_, arg string) error {
+	if arg == "" {
+		if len(bookmarks) == 0 {
+			fmt.Println("No bookmarks")
+		} else {
+			for i, frameIndex := range bookmarks {
+				frame := frames[frameIndex]
+
+				fmt.Printf("%d at frame #%d: 0x%08x %s\n", i, frameIndex, frame.NextInstruction.Address, frame.NextInstruction.Mnemonic)
+			}
+		}
+
+		return nil
+	}
+
+	subcmd, arg, hasArg := strings.Cut(arg, " ")
+
+	switch subcmd {
+	case "add":
+		if hasArg {
+			idx, err := parseInt(arg)
+			if err != nil || idx < 0 || idx >= len(frames) {
+				return errors.New("invalid frame index")
+			}
+
+			bookmarks = append(bookmarks, idx)
+		} else {
+			bookmarks = append(bookmarks, frameIndex)
+		}
+
+	case "remove":
+		if !hasArg {
+			return ErrMissingArgument
+		}
+
+		idx, err := parseInt(arg)
+		if err != nil || idx < 0 || idx >= len(bookmarks) {
+			return errors.New("invalid bookmark index")
+		}
+
+		bookmarks = append(bookmarks[:idx], bookmarks[idx+1:]...)
+
+	default:
+		idx, err := parseInt(subcmd)
+		if err != nil {
+			return errors.New("unknown subcommand")
+		}
+		if idx < 0 || idx >= len(bookmarks) {
+			return errors.New("invalid bookmark index")
+		}
+
+		frameIndex = bookmarks[idx]
 	}
 
 	return nil
