@@ -249,18 +249,17 @@ func CommandFind(reverse bool) Command {
 
 			isWrite := subcmd == "memw"
 
-			args := strings.Split(arg, " ")
+			addrStr, valueStr, hasValue := strings.Cut(arg, " ")
 
-			addr, err := parseInt(args[0])
+			addr, err := parseInt(addrStr)
 			if err != nil {
 				return errors.New("invalid address")
 			}
 
 			var value int
-			hasValue := false
 
-			if len(args) > 1 {
-				value, err = parseInt(args[1])
+			if hasValue {
+				value, err = parseInt(valueStr)
 				if err != nil {
 					return errors.New("invalid value")
 				}
@@ -286,6 +285,53 @@ func CommandFind(reverse bool) Command {
 				}
 
 				fmt.Printf("No memory access found on address 0x%08x %s frame #%d\n", addr, dirStr, frameIndex)
+			}
+
+		case "regw":
+			if !hasArg {
+				return ErrMissingArgument
+			}
+
+			regStr, valueStr, hasValue := strings.Cut(arg, " ")
+			_ = valueStr
+			_ = hasValue
+
+			reg, err := ParseRegister(regStr)
+			if err != nil {
+				return errors.New("invalid register")
+			}
+
+			var value uint32
+
+			if hasValue {
+				v, err := parseInt(valueStr)
+				if err != nil {
+					return errors.New("invalid value")
+				}
+
+				value = uint32(v)
+				hasValue = true
+			}
+
+			originalValue := frames[frameIndex].Registers[reg]
+
+			found := doFindFrame(reverse, func(f *Frame) bool {
+				if (hasValue && f.Registers[reg] == uint32(value)) || (!hasValue && f.Registers[reg] != originalValue) {
+					fmt.Printf("%s = 0x%08x\n", reg.String(), f.Registers[reg])
+
+					return true
+				}
+
+				return false
+			})
+
+			if !found {
+				dirStr := "after"
+				if reverse {
+					dirStr = "before"
+				}
+
+				fmt.Printf("No registry %s access found %s frame #%d\n", reg.String(), dirStr, frameIndex)
 			}
 
 		case "inst":
