@@ -923,12 +923,12 @@ void cpu_reset(cpu_t *cpu)
     cpu->exceptions[ARM_EXC_SYSTICK].enabled = true;
     cpu->exceptions[ARM_EXC_SYSTICK].fixed_enabled = true;
 
+    cpu_jump_exception(cpu, ARM_EXC_RESET);
+
     if (cpu->runlog)
     {
         runlog_record_reset(cpu->runlog, cpu_get_runlog_regs(cpu));
     }
-
-    cpu_jump_exception(cpu, ARM_EXC_RESET);
 }
 
 cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
