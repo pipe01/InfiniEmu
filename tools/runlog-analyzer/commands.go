@@ -18,16 +18,17 @@ const digits = "0123456789"
 type Command func(mod, arg string) error
 
 var Commands = map[string]Command{
-	"next":     CommandNextPreviousFrame(1),
-	"previous": CommandNextPreviousFrame(-1),
-	"frame":    CommandFrame,
-	"view":     CommandView,
+	"accesses": CommandAccesses,
 	"eval":     CommandEval,
-	"find":     CommandFind(false),
-	"rfind":    CommandFind(true),
-	"push":     CommandPush,
-	"pop":      CommandPop,
 	"exit":     func(string, string) error { return ErrExit },
+	"find":     CommandFind(false),
+	"frame":    CommandFrame,
+	"next":     CommandNextPreviousFrame(1),
+	"pop":      CommandPop,
+	"previous": CommandNextPreviousFrame(-1),
+	"push":     CommandPush,
+	"rfind":    CommandFind(true),
+	"view":     CommandView,
 }
 
 func printInt(v uint32, modifier string) {
@@ -274,6 +275,20 @@ func CommandPop(_, arg string) error {
 
 	frameIndex = frameIndexStack[len(frameIndexStack)-1]
 	frameIndexStack = frameIndexStack[:len(frameIndexStack)-1]
+
+	return nil
+}
+
+func CommandAccesses(_, arg string) error {
+	currentFrame := frames[frameIndex]
+
+	for _, acc := range currentFrame.MemoryAccesses {
+		if acc.IsWrite {
+			fmt.Printf("0x%08x = %s (0x%08x)\n", acc.Address, acc.Register.String(), acc.Value)
+		} else {
+			fmt.Printf("%s = 0x%08x (0x%08x)\n", acc.Register.String(), acc.Address, acc.Value)
+		}
+	}
 
 	return nil
 }
