@@ -63,6 +63,11 @@ func main() {
 	lastCommand := ""
 
 	for {
+		if frameIndex < 0 || frameIndex >= len(frames) {
+			frameIndex = 0
+			fmt.Printf("frame index out of bounds (%d), resetting to 0. This is most likely a programming error\n", frameIndex)
+		}
+
 		currentFrame := frames[frameIndex]
 
 		rl.SetPrompt(fmt.Sprintf("#%d (0x%x %s)> ", frameIndex, currentFrame.NextInstruction.Address, currentFrame.NextInstruction.Mnemonic))
@@ -95,6 +100,12 @@ func main() {
 }
 
 func executeLine(line string) error {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("panicked while executing command:", r)
+		}
+	}()
+
 	line = strings.TrimSpace(line)
 
 	if line == "" {
