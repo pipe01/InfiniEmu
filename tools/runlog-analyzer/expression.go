@@ -77,6 +77,15 @@ func ParseExpression(str string) (*Expression, error) {
 	return &Expression{e: expr}, nil
 }
 
+func EvaluateExpression(str string, ctx ExpressionContext) (uint32, error) {
+	expr, err := ParseExpression(str)
+	if err != nil {
+		return 0, err
+	}
+
+	return expr.Evaluate(ctx)
+}
+
 func visitExpression(ctx *ExpressionContext, expr ast.Expr) uint32 {
 	switch expr := expr.(type) {
 	case *ast.ParenExpr:

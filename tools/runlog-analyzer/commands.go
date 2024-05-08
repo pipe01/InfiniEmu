@@ -197,6 +197,41 @@ func CommandEval(modifier, arg string) error {
 	return nil
 }
 
+func doFindFrame(reverse bool, pred func(*Frame) bool) bool {
+	dir := 1
+	if reverse {
+		dir = -1
+	}
+
+	wrapped := false
+
+	for i := frameIndex + dir; ; i += dir {
+		if (reverse && i <= 0) || (!reverse && i >= len(frames)-1) {
+			if wrapped {
+				break
+			}
+
+			wrapped = true
+			fmt.Println("Wrapped around")
+
+			if reverse {
+				i = len(frames) - 1
+			} else {
+				i = 0
+			}
+		}
+
+		frame := frames[i]
+
+		if pred(frame) {
+			frameIndex = i
+			return true
+		}
+	}
+
+	return false
+}
+
 func CommandFind(reverse bool) Command {
 	return func(modifier, arg string) error {
 		if arg == "" {
@@ -232,27 +267,44 @@ func CommandFind(reverse bool) Command {
 				hasValue = true
 			}
 
-			dir := 1
-			dirStr := "after"
-			if reverse {
-				dir = -1
-				dirStr = "before"
-			}
-
-			for i := frameIndex + dir; i >= 0 && i < len(frames); i += dir {
-				frame := frames[i]
-
-				for _, acc := range frame.MemoryAccesses {
+			found := doFindFrame(reverse, func(f *Frame) bool {
+				for _, acc := range f.MemoryAccesses {
 					if acc.Address == uint32(addr) && acc.IsWrite == isWrite && (!hasValue || acc.Value == uint32(value)) {
-						frameIndex = i
-
 						printInt(acc.Value, modifier)
-						return nil
+						return true
 					}
 				}
+
+				return false
+			})
+
+			if !found {
+				dirStr := "after"
+				if reverse {
+					dirStr = "before"
+				}
+
+				fmt.Printf("No memory access found on address 0x%08x %s frame #%d\n", addr, dirStr, frameIndex)
 			}
 
-			fmt.Printf("No memory access found on address 0x%08x %s frame #%d\n", addr, dirStr, frameIndex)
+		case "inst":
+			pc, err := EvaluateExpression(arg, ExpressionContext{Frames: frames})
+			if err != nil {
+				return err
+			}
+
+			found := doFindFrame(reverse, func(f *Frame) bool {
+				return f.NextInstruction.Address == pc
+			})
+
+			if !found {
+				dirStr := "after"
+				if reverse {
+					dirStr = "before"
+				}
+
+				fmt.Printf("No instruction found at address 0x%08x %s frame #%d\n", pc, dirStr, frameIndex)
+			}
 
 		default:
 			return errors.New("unknown subcommand")
