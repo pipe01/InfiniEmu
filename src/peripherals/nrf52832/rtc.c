@@ -135,9 +135,6 @@ OPERATION(rtc)
     {
         uint32_t idx = (offset - 0x540) / 4;
 
-        if (OP_IS_WRITE(op))
-            rtc->counter = 0; // Clear counter in case CC is higher than counter, in which case it would take ages to trigger       
-
         OP_RETURN_REG(rtc->cc[idx], WORD);
     }
 
@@ -187,7 +184,7 @@ void rtc_tick(RTC_t *rtc)
 
         for (size_t i = 0; i < rtc->cc_num; i++)
         {
-            if (rtc->counter == rtc->cc[i]) //(rtc->inten.COMPARE & (1 << i)) != 0
+            if (rtc->counter == rtc->cc[i] && (rtc->inten.COMPARE & (1 << i)) != 0)
             {
                 rtc->event_cc[i] = true;
                 cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
