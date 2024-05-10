@@ -57,18 +57,22 @@ OPERATION(spim)
 
     OP_ASSERT_SIZE(op, WORD);
 
-    if (spim->enabled)
-    {
-        switch (offset)
-        {
+    // if (spim->enabled)
+    // {
+    //     switch (offset)
+    //     {
 
-        default:
-            return MEMREG_RESULT_UNHANDLED;
-        }
-    }
+    //     default:
+    //         return MEMREG_RESULT_UNHANDLED;
+    //     }
+    // }
 
     switch (offset)
     {
+    case 0x010: // TASKS_START
+        OP_ASSERT_WRITE(op);
+        return MEMREG_RESULT_OK;
+
     case 0x104: // EVENTS_STOPPED
         OP_RETURN_REG_RESULT(spim->event_stopped, WORD, MEMREG_RESULT_OK_CONTINUE);
 
@@ -127,6 +131,30 @@ OPERATION(spim)
     case 0x524: // FREQUENCY
         OP_RETURN_REG_RESULT(spim->frequency, WORD, MEMREG_RESULT_OK_CONTINUE);
 
+    case 0x534: // RXD.PTR
+        OP_ASSERT_WRITE(op);
+        return MEMREG_RESULT_OK; // TODO: Implement
+
+    case 0x538: // RXD.MAXCNT
+        OP_ASSERT_WRITE(op);
+        return MEMREG_RESULT_OK; // TODO: Implement
+
+    case 0x540: // RXD.LIST
+        OP_ASSERT_WRITE(op);
+        return MEMREG_RESULT_OK; // TODO: Implement
+
+    case 0x544: // TXD.PTR
+        OP_ASSERT_WRITE(op);
+        return MEMREG_RESULT_OK; // TODO: Implement
+
+    case 0x548: // TXD.MAXCNT
+        OP_ASSERT_WRITE(op);
+        return MEMREG_RESULT_OK; // TODO: Implement
+
+    case 0x550: // TXD.LIST
+        OP_ASSERT_WRITE(op);
+        return MEMREG_RESULT_OK; // TODO: Implement
+    
     case 0x554: // CONFIG
         OP_RETURN_REG_RESULT(spim->config.value, WORD, MEMREG_RESULT_OK_CONTINUE);
     }
