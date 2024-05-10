@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "config.h"
+
 #define MEMREG_FIND_NOT_FOUND 0xFFFFFFFF
 
 typedef enum __attribute__((packed)) {
@@ -40,9 +42,17 @@ typedef enum {
 #define OP_IS_WRITE(op)     ((op) < 0)
 #define OP_IS_SIZE(op, size)    ((op) == OP_READ_##size || (op) == OP_WRITE_##size)
 
-#define OP_ASSERT_SIZE(op, size)  if ((op) != OP_READ_##size && (op) != OP_WRITE_##size) { return MEMREG_RESULT_INVALID_SIZE; }
-#define OP_ASSERT_READ(op)  if ((op) < 0) { return MEMREG_RESULT_INVALID_ACCESS; }
-#define OP_ASSERT_WRITE(op) if ((op) > 0) { return MEMREG_RESULT_INVALID_ACCESS; }
+#ifdef ABORT_ON_INVALID_MEM_ACCESS
+#define OP_INVALID_ACCESS abort()
+#define OP_INVALID_SIZE abort()
+#else
+#define OP_INVALID_ACCESS return MEMREG_RESULT_INVALID_ACCESS
+#define OP_INVALID_SIZE return MEMREG_RESULT_INVALID_SIZE
+#endif
+
+#define OP_ASSERT_SIZE(op, size)  if ((op) != OP_READ_##size && (op) != OP_WRITE_##size) { OP_INVALID_SIZE; }
+#define OP_ASSERT_READ(op)  if ((op) < 0) { OP_INVALID_ACCESS; }
+#define OP_ASSERT_WRITE(op) if ((op) > 0) { OP_INVALID_ACCESS; }
 
 #define OP_RETURN_REG_RESULT(reg, size, result)     \
     do                                              \

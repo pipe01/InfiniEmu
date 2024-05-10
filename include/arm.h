@@ -29,7 +29,10 @@ typedef union
         unsigned int ipsr : 9;
         unsigned int : 1;
         unsigned int epsr_iciit_l : 6;
-        unsigned int apsr_ge : 4;
+        unsigned int apsr_ge0 : 1;
+        unsigned int apsr_ge1 : 1;
+        unsigned int apsr_ge2 : 1;
+        unsigned int apsr_ge3 : 1;
         unsigned int : 4;
         unsigned int epsr_t : 1;
         unsigned int epsr_iciit_h : 2;

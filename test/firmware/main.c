@@ -7,7 +7,6 @@ void vTaskCode(void *)
 {
   for (;;)
   {
-    __asm volatile("nop");
     SEGGER_RTT_WriteString(0, "Tick\n");
     vTaskDelay(pdMS_TO_TICKS(1000));
   }

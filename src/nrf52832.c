@@ -98,7 +98,7 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 void nrf52832_step(NRF52832_t *nrf52832)
 {
     // TODO: Properly measure time
-    if ((++nrf52832->cycle_counter % 10) == 0)
+    if ((++nrf52832->cycle_counter % 50) == 0)
     {
         rtc_tick(nrf52832->rtc[0]);
         rtc_tick(nrf52832->rtc[1]);
