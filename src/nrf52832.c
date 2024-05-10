@@ -11,6 +11,7 @@
 #include "peripherals/nrf52832/gpio.h"
 #include "peripherals/nrf52832/gpiote.h"
 #include "peripherals/nrf52832/power.h"
+#include "peripherals/nrf52832/ppi.h"
 #include "peripherals/nrf52832/rtc.h"
 #include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/spim.h"
@@ -41,6 +42,7 @@ struct NRF52832_inst_t
     TIMER_t *timer[5];
     WDT_t *wdt;
     SPIM_t *spim;
+    PPI_t *ppi;
 };
 
 NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
@@ -73,6 +75,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, COMP, comp, comp, x(4001, 3000), 0x1000);
     NEW_PERIPH(chip, TIMER, timer, timer[3], x(4001, A000), 0x1000, 6);
     NEW_PERIPH(chip, TIMER, timer, timer[4], x(4001, B000), 0x1000, 6);
+    NEW_PERIPH(chip, PPI, ppi, ppi, x(4001, F000), 0x1000);
     NEW_PERIPH(chip, RTC, rtc, rtc[2], x(4002, 4000), 0x1000, 4, &chip->cpu, 0x24);
     NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000);
 
@@ -91,7 +94,7 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 {
     nrf52832->cycle_counter = 0;
 
-    memreg_reset_all(nrf52832->mem);
+        memreg_reset_all(nrf52832->mem);
     cpu_reset(nrf52832->cpu);
 }
 
