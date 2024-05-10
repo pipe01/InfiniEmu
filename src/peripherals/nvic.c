@@ -49,16 +49,25 @@ OPERATION(nvic)
     if (offset <= 0x40)
     {
         OP_ASSERT_SIZE(op, WORD);
-        OP_ASSERT_WRITE(op);
 
         uint32_t iser_num = offset / 4;
+
+        if (OP_IS_READ(op))
+            *value = 0;
 
         for (uint32_t i = 0; i < 32; i++)
         {
             arm_exception ex_num = ARM_EXTERNAL_INTERRUPT_NUMBER(i + (32 * iser_num));
 
-            if ((*value & (1 << i)) != 0)
-                cpu_exception_set_enabled(nvic->cpu, ex_num, true);
+            if (OP_IS_WRITE(op))
+            {
+                if ((*value & (1 << i)) != 0)
+                    cpu_exception_set_enabled(nvic->cpu, ex_num, true);
+            }
+            else if (cpu_exception_get_enabled(nvic->cpu, ex_num))
+            {
+                *value |= 1 << i;
+            }
         }
 
         return MEMREG_RESULT_OK;

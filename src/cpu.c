@@ -453,6 +453,11 @@ void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
     cpu->exceptions[ex].enabled = enabled;
 }
 
+bool cpu_exception_get_enabled(cpu_t *cpu, arm_exception ex)
+{
+    return cpu->exceptions[ex].enabled;
+}
+
 static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
 {
     // Copied as closely as possible from the ARMv7-M Architecture Reference Manual's pseudocode at B1.5.6
