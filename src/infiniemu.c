@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     NRF52832_t *nrf = nrf52832_new(program, fsize);
 
 #ifdef ENABLE_SEGGER_RTT
-    rtt_t *rtt = rtt_new(cpu_mem(cpu));
+    rtt_t *rtt = rtt_new(cpu_mem(nrf52832_get_cpu(nrf)));
     size_t rtt_counter = 0;
 #endif
 
