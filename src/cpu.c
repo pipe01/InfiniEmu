@@ -1209,6 +1209,8 @@ void cpu_step(cpu_t *cpu)
     case ARM_INS_ISB:
     case ARM_INS_NOP:
     case ARM_INS_HINT:
+    case ARM_INS_PLD:
+    case ARM_INS_PLI:
         // Do nothing
         break;
 
