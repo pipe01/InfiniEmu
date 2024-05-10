@@ -11,14 +11,17 @@ typedef struct
 
 OPERATION(comp)
 {
+    if (op == OP_RESET)
+        return MEMREG_RESULT_OK;
+
     OP_ASSERT_SIZE(op, WORD);
 
     // COMP_t *comp = (COMP_t *)userdata;
 
     switch (offset)
     {
-        case 0x540: // Unknown, do nothing
-            return MEMREG_RESULT_OK;
+    case 0x540: // Unknown, do nothing
+        return MEMREG_RESULT_OK;
     }
 
     return MEMREG_RESULT_UNHANDLED;

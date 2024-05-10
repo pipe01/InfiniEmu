@@ -13,9 +13,15 @@ typedef struct
 
 OPERATION(temp)
 {
-    OP_ASSERT_SIZE(op, WORD);
-
     TEMP_t *temp = (TEMP_t *)userdata;
+
+    if (op == OP_RESET)
+    {
+        memset(temp, 0, sizeof(TEMP_t));
+        return MEMREG_RESULT_OK;
+    }
+
+    OP_ASSERT_SIZE(op, WORD);
 
     if (offset >= 0x520 && offset <= 0x534)
     {

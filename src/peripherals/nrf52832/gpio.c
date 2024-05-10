@@ -18,13 +18,13 @@ OPERATION(gpio)
 {
     GPIO_t *gpio = (GPIO_t *)userdata;
     
-    OP_ASSERT_SIZE(op, WORD);
-
     if (op == OP_RESET)
     {
         memset(gpio, 0, sizeof(GPIO_t));
         return MEMREG_RESULT_OK;
     }
+
+    OP_ASSERT_SIZE(op, WORD);
 
     // PIN_CNF[n]
     if (offset >= 0x700 && offset <= 0x77C)
