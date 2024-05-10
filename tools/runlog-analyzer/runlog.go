@@ -21,6 +21,8 @@ const (
 	RUNLOG_EV_EXECUTE_INST
 	RUNLOG_EV_MEMORY_LOAD
 	RUNLOG_EV_MEMORY_STORE
+	RUNLOG_EV_EXCEPTION_ENTER
+	RUNLOG_EV_EXCEPTION_EXIT
 )
 
 type RunlogRegister byte
@@ -286,6 +288,15 @@ func ReadFrames(r io.Reader) (Frames, error) {
 					Register:  srcReg,
 					SizeBytes: int(size),
 				})
+			}
+
+		case RUNLOG_EV_EXCEPTION_ENTER, RUNLOG_EV_EXCEPTION_EXIT:
+			{
+				var exceptionType uint16
+
+				binary.Read(br, binary.LittleEndian, &exceptionType)
+
+				//TODO: Implement
 			}
 
 		default:

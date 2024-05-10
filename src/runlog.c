@@ -13,6 +13,8 @@ typedef enum
     RUNLOG_EV_EXECUTE_INST,
     RUNLOG_EV_MEMORY_LOAD,
     RUNLOG_EV_MEMORY_STORE,
+    RUNLOG_EV_EXCEPTION_ENTER,
+    RUNLOG_EV_EXCEPTION_EXIT,
 } __attribute__((__packed__)) runlog_ev_type;
 static_assert(sizeof(runlog_ev_type) == 1);
 
@@ -118,4 +120,16 @@ void runlog_record_memory_store(runlog_t *runlog, runlog_register_t src, uint32_
     runlog_write(runlog, &value, sizeof(value));
     runlog_write(runlog, &addr, sizeof(addr));
     runlog_write(runlog, &size, sizeof(size));
+}
+
+void runlog_exception_enter(runlog_t *runlog, uint16_t ex_num)
+{
+    runlog_write_type(runlog, RUNLOG_EV_EXCEPTION_ENTER);
+    runlog_write(runlog, &ex_num, sizeof(ex_num));
+}
+
+void runlog_exception_exit(runlog_t *runlog, uint16_t ex_num)
+{
+    runlog_write_type(runlog, RUNLOG_EV_EXCEPTION_EXIT);
+    runlog_write(runlog, &ex_num, sizeof(ex_num));
 }
