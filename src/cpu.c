@@ -253,9 +253,6 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
     case ARM_OP_REG:
         cpu_reg_write(cpu, op->reg, value);
 
-        if (op->reg == ARM_REG_PC)
-            cpu->branched = true;
-
         break;
     case ARM_OP_MEM:
     {
@@ -384,7 +381,10 @@ static int cpu_execution_priority(cpu_t *cpu)
 static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool sync)
 {
     uint32_t this_addr = cpu->core_regs[ARM_REG_PC];
-    uint32_t next_addr = this_addr + cpu_insn_at(cpu, this_addr)->size;
+
+    // If we just branched before taking the exception, the instruction at $PC hasn't been executed yet.
+    // Thus, the next instruction to execute after returning from the exception would be the one at $PC.
+    uint32_t next_addr = cpu->branched ? this_addr : (this_addr + cpu_insn_at(cpu, this_addr)->size);
 
     switch (ex)
     {
@@ -583,6 +583,9 @@ static void cpu_exception_entry(cpu_t *cpu, arm_exception ex, bool sync)
 {
     LOG_CPU_EX("Entering exception %d from 0x%08X", ex, cpu->core_regs[ARM_REG_PC]);
 
+    if (cpu->runlog)
+        runlog_exception_enter(cpu->runlog, ex);
+
     cpu_push_stack(cpu, ex, sync);
     cpu_exception_taken(cpu, ex);
 
@@ -595,6 +598,9 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 
     arm_exception returning_exception_number = cpu->xpsr.ipsr;
     uint32_t nested_activation = 0;
+
+    if (cpu->runlog)
+        runlog_exception_exit(cpu->runlog, returning_exception_number);
 
     for (size_t i = 0; i < cpu->exception_count; i++)
     {
@@ -1727,7 +1733,7 @@ next_pc:
 
     if (!cpu->branched)
     {
-        cpu_reg_write(cpu, ARM_REG_PC, next | 1);
+        cpu->core_regs[ARM_REG_PC] = next;
     }
     else
     {
