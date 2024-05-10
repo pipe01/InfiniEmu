@@ -2,4 +2,6 @@
 
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(GPIO, gpio)
+#include "pins.h"
+
+PERIPHERAL(GPIO, gpio, pins_t *pins)
