@@ -8,6 +8,8 @@
 #include "nrf52832.h"
 #include "gdb.h"
 
+#include "components/spi/spinorflash.h"
+
 #ifdef ENABLE_SEGGER_RTT
 #include "segger_rtt.h"
 #endif
@@ -65,6 +67,8 @@ int main(int argc, char **argv)
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
     NRF52832_t *nrf = nrf52832_new(program, fsize);
+
+    spi_add_slave(nrf52832_get_spi(nrf), spinorflash_new(4 * 1024 * 1024, 5));
 
 #ifdef ENABLE_SEGGER_RTT
     rtt_t *rtt = rtt_new(cpu_mem(nrf52832_get_cpu(nrf)));
