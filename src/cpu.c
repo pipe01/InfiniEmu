@@ -150,7 +150,7 @@ static inline runlog_registers_t cpu_get_runlog_regs(cpu_t *cpu)
             cpu->core_regs[ARM_REG_R10],
             cpu->core_regs[ARM_REG_R11],
             cpu->core_regs[ARM_REG_R12],
-            cpu->core_regs[ARM_REG_SP],
+            cpu_reg_read(cpu, ARM_REG_SP),
             cpu->core_regs[ARM_REG_LR],
             cpu->core_regs[ARM_REG_PC],
             cpu->xpsr.value,
@@ -404,6 +404,55 @@ static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool 
     }
 }
 
+void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
+{
+    cpu->exceptions[ex].pending = true;
+
+    LOG_CPU_EX("Exception %d is now pending", ex);
+}
+
+static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_priority)
+{
+    int16_t min_priority = ARM_MAX_PRIORITY;
+    arm_exception min_ex = 0;
+
+    for (arm_exception i = 1; i < cpu->exception_count; i++)
+    {
+        exception_t *ex = &cpu->exceptions[i];
+
+        if (ex->enabled && ex->pending && !ex->active && ex->priority <= min_priority)
+        {
+            min_priority = ex->priority;
+            min_ex = i;
+        }
+    }
+
+    if (min_priority >= current_priority)
+        return 0;
+
+    return min_ex;
+}
+
+void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
+{
+    cpu->exceptions[ex].pending = false;
+
+    LOG_CPU_EX("Exception %d is no longer pending", ex);
+}
+
+bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex)
+{
+    return cpu->exceptions[ex].pending;
+}
+
+void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
+{
+    if (cpu->exceptions[ex].fixed_enabled)
+        abort();
+
+    cpu->exceptions[ex].enabled = enabled;
+}
+
 static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
 {
     // Copied as closely as possible from the ARMv7-M Architecture Reference Manual's pseudocode at B1.5.6
@@ -592,6 +641,12 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
         cpu->faultmask = 0;
 
     cpu_pop_stack(cpu, frameptr, exc_return);
+
+    arm_exception pending = cpu_exception_get_pending(cpu, cpu_execution_priority(cpu));
+    if (pending != 0)
+    {
+        cpu_exception_entry(cpu, pending, false);
+    }
 }
 
 void cpu_set_fault_jmp(cpu_t *cpu, jmp_buf *buf)
@@ -616,55 +671,6 @@ static void cpu_do_fault_jmp(cpu_t *cpu)
 void cpu_set_runlog(cpu_t *cpu, runlog_t *runlog)
 {
     cpu->runlog = runlog;
-}
-
-void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
-{
-    cpu->exceptions[ex].pending = true;
-
-    LOG_CPU_EX("Exception %d is now pending", ex);
-}
-
-void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
-{
-    cpu->exceptions[ex].pending = false;
-
-    LOG_CPU_EX("Exception %d is no longer pending", ex);
-}
-
-bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex)
-{
-    return cpu->exceptions[ex].pending;
-}
-
-void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
-{
-    if (cpu->exceptions[ex].fixed_enabled)
-        abort();
-
-    cpu->exceptions[ex].enabled = enabled;
-}
-
-static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_priority)
-{
-    int16_t min_priority = ARM_MAX_PRIORITY;
-    arm_exception min_ex = 0;
-
-    for (arm_exception i = 1; i < cpu->exception_count; i++)
-    {
-        exception_t *ex = &cpu->exceptions[i];
-
-        if (ex->enabled && ex->pending && !ex->active && ex->priority <= min_priority)
-        {
-            min_priority = ex->priority;
-            min_ex = i;
-        }
-    }
-
-    if (min_priority >= current_priority)
-        return 0;
-
-    return min_ex;
 }
 
 static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, uint32_t alignment, bool sign_extend)

@@ -24,6 +24,7 @@ var Commands = map[string]Command{
 	"exit":     func(string, string) error { return ErrExit },
 	"find":     CommandFind(false),
 	"frame":    CommandFrame,
+	"log":      CommandLog,
 	"next":     CommandNextPreviousFrame(1),
 	"pop":      CommandPop,
 	"previous": CommandNextPreviousFrame(-1),
@@ -293,8 +294,6 @@ func CommandFind(reverse bool) Command {
 			}
 
 			regStr, valueStr, hasValue := strings.Cut(arg, " ")
-			_ = valueStr
-			_ = hasValue
 
 			reg, err := ParseRegister(regStr)
 			if err != nil {
@@ -332,6 +331,10 @@ func CommandFind(reverse bool) Command {
 				}
 
 				fmt.Printf("No registry %s access found %s frame #%d\n", reg.String(), dirStr, frameIndex)
+			} else {
+				// The frame index we found is the frame *after* the change, so we need to go back one
+				// in order to find the instruction that caused the change
+				// frameIndex--
 			}
 
 		case "inst":
@@ -444,6 +447,39 @@ func CommandBookmark(_, arg string) error {
 		}
 
 		frameIndex = bookmarks[idx]
+	}
+
+	return nil
+}
+
+func CommandLog(_, arg string) (err error) {
+	before := 10
+	after := 0
+
+	if arg != "" {
+		beforeStr, afterStr, hasAfter := strings.Cut(arg, " ")
+
+		before, err = strconv.Atoi(beforeStr)
+		if err != nil || before < 0 {
+			return errors.New("invalid before count")
+		}
+
+		if hasAfter {
+			after, err = strconv.Atoi(afterStr)
+			if err != nil || after < 0 {
+				return errors.New("invalid after count")
+			}
+		}
+	}
+
+	for i := frameIndex - before; i <= frameIndex+after; i++ {
+		if i < 0 || i >= len(frames) {
+			continue
+		}
+
+		frame := frames[i]
+
+		fmt.Printf("0x%08x %s\n", frame.NextInstruction.Address, frame.NextInstruction.Mnemonic)
 	}
 
 	return nil
