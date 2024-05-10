@@ -1461,6 +1461,22 @@ void cpu_step(cpu_t *cpu)
         UPDATE_NZC;
         break;
 
+    case ARM_INS_ORN:
+        assert(detail.op_count == 3); // TODO: Implement other cases
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = OPERAND(2); // Use OPERAND here since the value may be shifted
+
+        value = op0 | ~op1;
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
+
+        UPDATE_NZC;
+        break;
+
     case ARM_INS_ORR:
         op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
@@ -1489,6 +1505,18 @@ void cpu_step(cpu_t *cpu)
 
     case ARM_INS_PUSH:
         cpu_do_stmdb(cpu, ARM_REG_SP, true, &detail.operands[0], detail.op_count);
+        break;
+
+    case ARM_INS_REV:
+        assert(detail.op_count == 2);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
+
+        value = ((op0 & 0xFF) << 24) | ((op0 & 0xFF00) << 8) | ((op0 & 0xFF0000) >> 8) | ((op0 & 0xFF000000) >> 24);
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
         break;
 
     case ARM_INS_RSB:
@@ -1520,6 +1548,23 @@ void cpu_step(cpu_t *cpu)
         assert(op1 != 0);
 
         value = div(op0, op1).quot;
+
+        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        break;
+
+    case ARM_INS_SEL:
+        assert(detail.op_count == 3);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail.operands[2].reg);
+
+        value = (cpu->xpsr.apsr_ge0 ? (op0 & 0xFF) : (op1 & 0xFF)) |
+            (cpu->xpsr.apsr_ge1 ? ((op0 >> 8) & 0xFF) : ((op1 >> 8) & 0xFF)) |
+            (cpu->xpsr.apsr_ge2 ? ((op0 >> 16) & 0xFF) : ((op1 >> 16) & 0xFF)) |
+            (cpu->xpsr.apsr_ge3 ? ((op0 >> 24) & 0xFF) : ((op1 >> 24) & 0xFF));
 
         cpu_reg_write(cpu, detail.operands[0].reg, value);
         break;
@@ -1656,6 +1701,34 @@ void cpu_step(cpu_t *cpu)
 
         UPDATE_NZ
         break;
+
+    case ARM_INS_UADD8:
+    {
+        assert(detail.op_count == 3); // TODO: Implement 2-register case
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail.operands[2].reg);
+
+        uint16_t sum1 = (op0 & 0xFF) + (op1 & 0xFF);
+        uint16_t sum2 = ((op0 >> 8) & 0xFF) + ((op1 >> 8) & 0xFF);
+        uint16_t sum3 = ((op0 >> 16) & 0xFF) + ((op1 >> 16) & 0xFF);
+        uint16_t sum4 = ((op0 >> 24) & 0xFF) + ((op1 >> 24) & 0xFF);
+
+        cpu_reg_write(cpu, detail.operands[0].reg,
+                      ((sum4 & 0xFF) << 24) |
+                          ((sum3 & 0xFF) << 16) |
+                          ((sum2 & 0xFF) << 8) |
+                          (sum1 & 0xFF));
+
+        cpu->xpsr.apsr_ge0 = sum1 > 0x100;
+        cpu->xpsr.apsr_ge1 = sum2 > 0x100;
+        cpu->xpsr.apsr_ge2 = sum3 > 0x100;
+        cpu->xpsr.apsr_ge3 = sum4 > 0x100;
+        break;
+    }
 
     case ARM_INS_UBFX:
     {
