@@ -1539,6 +1539,23 @@ void cpu_step(cpu_t *cpu)
         UPDATE_NZCV
         break;
 
+    case ARM_INS_SBFX:
+    {
+        op1 = OPERAND(1);
+        uint32_t lsb = OPERAND(2);
+        uint32_t width = OPERAND(3);
+
+        uint32_t mask = 1 << (width - 1);
+
+        assert(lsb + width <= 32);
+
+        value = (op1 >> lsb) & ((1 << width) - 1);
+        value = (value ^ mask) - mask; // Sign extend https://stackoverflow.com/a/17719010
+
+        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        break;
+    }
+
     case ARM_INS_SDIV: // TODO: Perform signed division
     case ARM_INS_UDIV:
         assert(detail.op_count == 2 || detail.op_count == 3);
@@ -1567,14 +1584,15 @@ void cpu_step(cpu_t *cpu)
         op1 = cpu_reg_read(cpu, detail.operands[2].reg);
 
         value = (cpu->xpsr.apsr_ge0 ? (op0 & 0xFF) : (op1 & 0xFF)) |
-            (cpu->xpsr.apsr_ge1 ? ((op0 >> 8) & 0xFF) : ((op1 >> 8) & 0xFF)) |
-            (cpu->xpsr.apsr_ge2 ? ((op0 >> 16) & 0xFF) : ((op1 >> 16) & 0xFF)) |
-            (cpu->xpsr.apsr_ge3 ? ((op0 >> 24) & 0xFF) : ((op1 >> 24) & 0xFF));
+                (cpu->xpsr.apsr_ge1 ? ((op0 >> 8) & 0xFF) : ((op1 >> 8) & 0xFF)) |
+                (cpu->xpsr.apsr_ge2 ? ((op0 >> 16) & 0xFF) : ((op1 >> 16) & 0xFF)) |
+                (cpu->xpsr.apsr_ge3 ? ((op0 >> 24) & 0xFF) : ((op1 >> 24) & 0xFF));
 
         cpu_reg_write(cpu, detail.operands[0].reg, value);
         break;
 
     case ARM_INS_SMULL:
+    {
         assert(detail.op_count == 4);
         assert(detail.operands[0].type == ARM_OP_REG);
         assert(detail.operands[1].type == ARM_OP_REG);
@@ -1586,6 +1604,7 @@ void cpu_step(cpu_t *cpu)
         cpu_reg_write(cpu, detail.operands[0].reg, result & x(FFFF, FFFF));
         cpu_reg_write(cpu, detail.operands[1].reg, result >> 32);
         break;
+    }
 
     case ARM_INS_STM:
         assert(detail.op_count >= 2);
@@ -1746,6 +1765,21 @@ void cpu_step(cpu_t *cpu)
         value = (op1 >> lsb) & ((1 << width) - 1);
 
         cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        break;
+    }
+
+    case ARM_INS_UMULL:
+    {
+        assert(detail.op_count == 4);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_REG);
+        assert(detail.operands[3].type == ARM_OP_REG);
+
+        uint64_t result = (uint64_t)(uint32_t)cpu_reg_read(cpu, detail.operands[2].reg) * (uint64_t)(uint32_t)cpu_reg_read(cpu, detail.operands[3].reg);
+
+        cpu_reg_write(cpu, detail.operands[0].reg, result & x(FFFF, FFFF));
+        cpu_reg_write(cpu, detail.operands[1].reg, result >> 32);
         break;
     }
 
