@@ -32,12 +32,23 @@ typedef struct
     uint32_t value;
 } inten_t;
 
+typedef struct
+{
+    uint32_t ptr;    // Data pointer
+    uint32_t maxcnt; // Maximum number of bytes in buffer
+    uint32_t amount; // Number of bytes transferred in the last transaction
+    uint32_t list;   // EasyDMA list type
+} easydma_reg_t;
+
 struct SPIM_inst_t
 {
     bool enabled;
+    bus_spi_t *bus;
 
     uint32_t psel_sck, psel_mosi, psel_miso;
     uint32_t frequency;
+
+    easydma_reg_t tx, rx;
 
     uint32_t event_stopped, event_endrx, event_end, event_endtx, event_started;
 
@@ -51,7 +62,9 @@ OPERATION(spim)
 
     if (op == OP_RESET)
     {
+        bus_spi_t *bus = spim->bus;
         memset(spim, 0, sizeof(SPIM_t));
+        spim->bus = bus;
         return MEMREG_RESULT_OK;
     }
 
@@ -71,6 +84,10 @@ OPERATION(spim)
     {
     case 0x010: // TASKS_START
         OP_ASSERT_WRITE(op);
+
+        if (*value)
+            spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
+
         return MEMREG_RESULT_OK;
 
     case 0x104: // EVENTS_STOPPED
@@ -132,29 +149,23 @@ OPERATION(spim)
         OP_RETURN_REG_RESULT(spim->frequency, WORD, MEMREG_RESULT_OK_CONTINUE);
 
     case 0x534: // RXD.PTR
-        OP_ASSERT_WRITE(op);
-        return MEMREG_RESULT_OK; // TODO: Implement
+        OP_RETURN_REG_RESULT(spim->rx.ptr, WORD, MEMREG_RESULT_OK_CONTINUE);
 
     case 0x538: // RXD.MAXCNT
-        OP_ASSERT_WRITE(op);
-        return MEMREG_RESULT_OK; // TODO: Implement
+        OP_RETURN_REG_RESULT(spim->rx.maxcnt, WORD, MEMREG_RESULT_OK_CONTINUE);
 
     case 0x540: // RXD.LIST
-        OP_ASSERT_WRITE(op);
-        return MEMREG_RESULT_OK; // TODO: Implement
+        OP_RETURN_REG_RESULT(spim->rx.list, WORD, MEMREG_RESULT_OK_CONTINUE);
 
     case 0x544: // TXD.PTR
-        OP_ASSERT_WRITE(op);
-        return MEMREG_RESULT_OK; // TODO: Implement
+        OP_RETURN_REG_RESULT(spim->tx.ptr, WORD, MEMREG_RESULT_OK_CONTINUE);
 
     case 0x548: // TXD.MAXCNT
-        OP_ASSERT_WRITE(op);
-        return MEMREG_RESULT_OK; // TODO: Implement
+        OP_RETURN_REG_RESULT(spim->tx.maxcnt, WORD, MEMREG_RESULT_OK_CONTINUE);
 
     case 0x550: // TXD.LIST
-        OP_ASSERT_WRITE(op);
-        return MEMREG_RESULT_OK; // TODO: Implement
-    
+        OP_RETURN_REG_RESULT(spim->tx.list, WORD, MEMREG_RESULT_OK_CONTINUE);
+
     case 0x554: // CONFIG
         OP_RETURN_REG_RESULT(spim->config.value, WORD, MEMREG_RESULT_OK_CONTINUE);
     }
@@ -162,7 +173,9 @@ OPERATION(spim)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-SPIM_t *spim_new()
+SPIM_t *spim_new(bus_spi_t *spi)
 {
-    return (SPIM_t *)malloc(sizeof(SPIM_t));
+    SPIM_t *spim = (SPIM_t *)malloc(sizeof(SPIM_t));
+    spim->bus = spi;
+    return spim;
 }

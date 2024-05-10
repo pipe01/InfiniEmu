@@ -2,8 +2,12 @@
 
 #include <string.h>
 
-#include "nrf52832.h"
 #include "byte_util.h"
+#include "bus_spi.h"
+#include "nrf52832.h"
+#include "pins.h"
+
+#include "components/spi/spinorflash.h"
 
 #include "peripherals/peripheral.h"
 #include "peripherals/nrf52832/clock.h"
@@ -30,6 +34,8 @@ struct NRF52832_inst_t
     uint64_t cycle_counter;
 
     memreg_t *mem;
+    bus_spi_t *spi;
+    pins_t *pins;
 
     CLOCK_t *clock;
     COMP_t *comp;
@@ -47,13 +53,17 @@ struct NRF52832_inst_t
 
 NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
 {
+    uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
+
     NRF52832_t *chip = (NRF52832_t *)malloc(sizeof(NRF52832_t));
+    chip->pins = pins_new();
+    chip->spi = spi_new(chip->pins, sram, NRF52832_SRAM_SIZE);
+
+    spi_add_slave(chip->spi, spinorflash_new(5));
 
     uint8_t *flash = malloc(NRF52832_FLASH_SIZE);
     memcpy(flash, program, program_size);
     memset(flash + program_size, 0xFF, NRF52832_FLASH_SIZE - program_size); // 0xFF out the rest of the flash
-
-    uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
 
     chip->mem = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
     memreg_t *last = chip->mem;
@@ -63,7 +73,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, CLOCK, clock, clock, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, POWER, power, power, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, RADIO, radio, radio, x(4000, 1000), 0x1000);
-    NEW_PERIPH(chip, SPIM, spim, spim, x(4000, 3000), 0x1000);
+    NEW_PERIPH(chip, SPIM, spim, spim, x(4000, 3000), 0x1000, chip->spi);
     NEW_PERIPH(chip, GPIOTE, gpiote, gpiote, x(4000, 6000), 0x1000);
     NEW_PERIPH(chip, TIMER, timer, timer[0], x(4000, 8000), 0x1000, 4);
     NEW_PERIPH(chip, TIMER, timer, timer[1], x(4000, 9000), 0x1000, 4);
@@ -77,7 +87,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, TIMER, timer, timer[4], x(4001, B000), 0x1000, 6);
     NEW_PERIPH(chip, PPI, ppi, ppi, x(4001, F000), 0x1000);
     NEW_PERIPH(chip, RTC, rtc, rtc[2], x(4002, 4000), 0x1000, 4, &chip->cpu, 0x24);
-    NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000);
+    NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000, chip->pins);
 
     last = memreg_set_next(last, memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len));
     last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len));
@@ -94,7 +104,9 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 {
     nrf52832->cycle_counter = 0;
 
-        memreg_reset_all(nrf52832->mem);
+    memreg_reset_all(nrf52832->mem);
+    pins_reset(nrf52832->pins);
+    spi_reset(nrf52832->spi);
     cpu_reset(nrf52832->cpu);
 }
 
