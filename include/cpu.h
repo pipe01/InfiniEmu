@@ -37,3 +37,4 @@ void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex);
 void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex);
 bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex);
 void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled);
+bool cpu_exception_get_enabled(cpu_t *cpu, arm_exception ex);
