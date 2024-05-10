@@ -1,24 +1,43 @@
 #include "components/spi/spinorflash.h"
 
+#include <assert.h>
 #include <stdlib.h>
+
+enum
+{
+    COMMAND_RDID = 0x9F, // Read Identification
+};
 
 typedef struct
 {
     uint32_t data;
+
+    uint8_t last_command;
 } spinorflash_t;
 
 void spinorflash_write(uint8_t *data, size_t data_size, void *userdata)
 {
     spinorflash_t *flash = (spinorflash_t *)userdata;
-    (void)flash;
+    flash->last_command = data[0];
 }
 
-uint8_t spinorflash_read(size_t *data_size, void *userdata)
+size_t spinorflash_read(uint8_t *data, size_t data_size, void *userdata)
 {
     spinorflash_t *flash = (spinorflash_t *)userdata;
-    (void)flash;
+    
+    switch (flash->last_command)
+    {
+    case COMMAND_RDID:
+        assert(data_size >= 3);
 
-    abort();
+        // Dummy data
+        data[0] = 0xA5;
+        data[1] = 0xA5;
+        data[2] = 0xA5;
+        return 3;
+    }
+
+    return 0;
 }
 
 void spinorflash_reset(void *userdata)

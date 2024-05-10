@@ -78,3 +78,22 @@ spi_result_t spi_write(bus_spi_t *spi, uint32_t address, size_t size)
 
     return SPI_RESULT_OK;
 }
+
+size_t spi_read(bus_spi_t *spi, uint32_t address, size_t size)
+{
+    if (address < ARM_SRAM_START || address >= ARM_SRAM_END) // TODO: Check end too
+    {
+        printf("Invalid EasyDMA address 0x%08X\n", address);
+        abort();
+    }
+
+    uint32_t offset = address - ARM_SRAM_START;
+
+    for (size_t i = 0; i < spi->slave_count; i++)
+    {
+        if (pins_is_set(spi->pins, spi->slaves[i]->cs_pin))
+            return spi->slaves[i]->read(spi->ram + offset, size, spi->slaves[i]->userdata);
+    }
+
+    return 0;
+}

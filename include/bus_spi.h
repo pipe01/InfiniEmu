@@ -9,7 +9,7 @@
 typedef struct bus_spi_t bus_spi_t;
 
 typedef void (*spi_write_f)(uint8_t *data, size_t data_size, void *userdata);
-typedef uint8_t (*spi_read_f)(size_t *data_size, void *userdata);
+typedef size_t (*spi_read_f)(uint8_t *data, size_t data_size, void *userdata);
 typedef void (*spi_reset_f)(void *userdata);
 
 typedef enum
@@ -32,3 +32,4 @@ void spi_reset(bus_spi_t *);
 void spi_free(bus_spi_t *);
 void spi_add_slave(bus_spi_t *, spi_slave_t slave);
 spi_result_t spi_write(bus_spi_t *, uint32_t address, size_t size);
+size_t spi_read(bus_spi_t *, uint32_t address, size_t size);

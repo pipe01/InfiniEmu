@@ -86,7 +86,28 @@ OPERATION(spim)
         OP_ASSERT_WRITE(op);
 
         if (*value)
-            spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
+        {
+            if (spim->tx.ptr)
+            {
+                spi_result_t result = spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
+                if (result == SPI_RESULT_OK)
+                {
+                    spim->event_endtx = 1;
+                    spim->event_end = 1;
+                }
+                else
+                {
+                    abort(); // TODO: Handle better
+                }
+            }
+            else if (spim->rx.ptr)
+            {
+                size_t read = spi_read(spim->bus, spim->rx.ptr, spim->rx.maxcnt);
+                spim->rx.amount = read;
+                spim->event_endrx = 1;
+                spim->event_end = 1;
+            }
+        }
 
         return MEMREG_RESULT_OK;
 
