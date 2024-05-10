@@ -1,8 +1,9 @@
 NRFX_MDK = $(NRFX_PATH)/mdk
-FREERTOS = 0
+FREERTOS = 1
+SEGGER_RTT = 1
 
 CC = $(ARM_TOOLCHAIN_PATH)/bin/arm-none-eabi-gcc
-CC_FLAGS = --specs=nosys.specs -mcpu=cortex-m4 -mthumb -mabi=aapcs -lnosys -mfloat-abi=hard -mfpu=fpv4-sp-d16
+CC_FLAGS = -O3 --specs=nosys.specs -mcpu=cortex-m4 -mthumb -mabi=aapcs -lnosys -mfloat-abi=hard -mfpu=fpv4-sp-d16
 
 FILES += main.c
 
@@ -17,6 +18,13 @@ ifeq ($(FREERTOS),1)
 	SDK_FILES += external/freertos/source/stream_buffer.c
 	SDK_FILES += external/freertos/source/tasks.c
 	SDK_FILES += external/freertos/source/timers.c
+endif
+
+ifeq ($(SEGGER_RTT),1)
+	SDK_FILES += external/segger_rtt/SEGGER_RTT.c
+	SDK_FILES += external/segger_rtt/SEGGER_RTT_printf.c
+	SDK_FILES += external/segger_rtt/SEGGER_RTT_Syscalls_GCC.c
+	SDK_INCLUDES += external/segger_rtt
 endif
 
 SDK_FILES += components/libraries/atomic/nrf_atomic.c
@@ -125,4 +133,4 @@ firmware.readelf: firmware.elf
 	$(ARM_TOOLCHAIN_PATH)/bin/arm-none-eabi-readelf -a $< > $@
 
 firmware.dis: firmware.elf
-	$(ARM_TOOLCHAIN_PATH)/bin/arm-none-eabi-objdump -D --visualize-jumps $< > $@
+	$(ARM_TOOLCHAIN_PATH)/bin/arm-none-eabi-objdump -d --visualize-jumps $< > $@
