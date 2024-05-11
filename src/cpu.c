@@ -1012,7 +1012,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     bool update_flags = detail.update_flags;
-    if (in_it && i->size == 2)
+    if (in_it && i->size == 2 && i->id != ARM_INS_CMP && i->id != ARM_INS_CMN && i->id != ARM_INS_TST)
         update_flags = false;
 
     bool carry = false;
