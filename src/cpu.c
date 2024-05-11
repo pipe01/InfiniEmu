@@ -304,7 +304,10 @@ static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
 
     assert(cpu_in_it_block(cpu));
 
-    switch (cpu->itstate.cond)
+    uint8_t cond = cpu->itstate.cond;
+    cpu_it_advance(cpu);
+
+    switch (cond)
     {
     case 0: // 0000
         return ARM_CC_EQ;
@@ -346,25 +349,6 @@ static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
 static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 {
     arm_cc cc = cpu_current_cond(cpu, i);
-
-    // if ((cpu->itstate.value & 0xF) != 0)
-    // {
-    //     // cc = cpu->it_cond;
-
-    //     // if ((cpu->it_mask & 0x7) != 0 && !!(cpu->it_mask & (1 << 3)) != !!cpu->it_firstcond0)
-    //     //     cc = invert_cc(cc);
-
-    //     if ((cpu->itstate.value & 0x7) == 0)
-    //         cpu->itstate.value = 0;
-    //     else
-    //         cpu->itstate.mask <<= 1;
-    // }
-    // else
-    // {
-    //     assert(i->detail->arm.cc != ARM_CC_INVALID);
-
-    //     cc = i->detail->arm.cc;
-    // }
 
     switch (cc)
     {
@@ -1905,9 +1889,6 @@ void cpu_step(cpu_t *cpu)
     if (cpu->runlog)
         runlog_record_execute(cpu->runlog, cpu_get_runlog_regs(cpu));
 
-    if (i->id != ARM_INS_IT && cpu_in_it_block(cpu))
-        cpu_it_advance(cpu);
-
     pending = cpu_exception_get_pending(cpu, cpu_execution_priority(cpu));
     if (pending != 0)
         cpu_exception_entry(cpu, pending, false);
@@ -2039,7 +2020,7 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
         cpu->xpsr.value = value;
 
         if (can_update_it)
-            cpu->itstate.value = ((value >> 10) & 0x3F) | ((value >> 25) & 0x3);
+            cpu->itstate.value = ((value >> 10) & 0x3F) | ((value >> 25) & 0x3) << 6;
 
         break;
 
