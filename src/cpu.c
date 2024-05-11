@@ -45,14 +45,14 @@
 #define UPDATE_V(cpu, overflow) (cpu)->xpsr.apsr_v = (overflow) ? 1 : 0
 
 #define UPDATE_NZ                 \
-    if (detail.update_flags)      \
+    if (update_flags)      \
     {                             \
         UPDATE_N((cpu), (value)); \
         UPDATE_Z((cpu), (value)); \
     }
 
 #define UPDATE_NZC                \
-    if (detail.update_flags)      \
+    if (update_flags)      \
     {                             \
         UPDATE_N((cpu), (value)); \
         UPDATE_Z((cpu), (value)); \
@@ -60,7 +60,7 @@
     }
 
 #define UPDATE_NZCV                  \
-    if (detail.update_flags)         \
+    if (update_flags)         \
     {                                \
         UPDATE_N((cpu), (value));    \
         UPDATE_Z((cpu), (value));    \
@@ -997,6 +997,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     LOG_CPU_INST("%s %s", i->mnemonic, i->op_str);
 
+    bool in_it = cpu->it_block_size > 0;
+
     switch (i->id)
     {
     case ARM_INS_CBZ:
@@ -1008,6 +1010,10 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             return;
         break;
     }
+
+    bool update_flags = detail.update_flags;
+    if (in_it && i->size == 2)
+        update_flags = false;
 
     bool carry = false;
     bool overflow = false;
