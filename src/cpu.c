@@ -1777,6 +1777,22 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
     }
 
+    case ARM_INS_UMLAL:
+    {
+        assert(detail.op_count == 4);
+        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail.operands[2].type == ARM_OP_REG);
+        assert(detail.operands[3].type == ARM_OP_REG);
+
+        uint64_t result = (uint64_t)cpu_reg_read(cpu, detail.operands[2].reg) * (uint64_t)cpu_reg_read(cpu, detail.operands[3].reg);
+        result += ((uint64_t)cpu_reg_read(cpu, detail.operands[1].reg) << 32) | (uint64_t)cpu_reg_read(cpu, detail.operands[0].reg);
+
+        cpu_reg_write(cpu, detail.operands[0].reg, result & x(FFFF, FFFF));
+        cpu_reg_write(cpu, detail.operands[1].reg, result >> 32);
+        break;
+    }
+
     case ARM_INS_UMULL:
     {
         assert(detail.op_count == 4);
@@ -1785,7 +1801,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail.operands[2].type == ARM_OP_REG);
         assert(detail.operands[3].type == ARM_OP_REG);
 
-        uint64_t result = (uint64_t)(uint32_t)cpu_reg_read(cpu, detail.operands[2].reg) * (uint64_t)(uint32_t)cpu_reg_read(cpu, detail.operands[3].reg);
+        uint64_t result = (uint64_t)cpu_reg_read(cpu, detail.operands[2].reg) * (uint64_t)cpu_reg_read(cpu, detail.operands[3].reg);
 
         cpu_reg_write(cpu, detail.operands[0].reg, result & x(FFFF, FFFF));
         cpu_reg_write(cpu, detail.operands[1].reg, result >> 32);
@@ -1828,13 +1844,13 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_reg_write(cpu, detail.operands[0].reg, op1 & 0xFFFF);
         break;
 
-    // case ARM_INS_VLDMIA:
-    // case ARM_INS_VMRS:
-    // case ARM_INS_VMSR:
-    // case ARM_INS_VSTMDB:
-    //     LOG_CPU_INST("Implement instruction %d\n", i->id);
-    //     // TODO: Implement
-    //     break;
+        // case ARM_INS_VLDMIA:
+        // case ARM_INS_VMRS:
+        // case ARM_INS_VMSR:
+        // case ARM_INS_VSTMDB:
+        //     LOG_CPU_INST("Implement instruction %d\n", i->id);
+        //     // TODO: Implement
+        //     break;
 
     default:
         fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, cpu->core_regs[ARM_REG_PC]);
