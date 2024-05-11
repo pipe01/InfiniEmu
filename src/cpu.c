@@ -45,14 +45,14 @@
 #define UPDATE_V(cpu, overflow) (cpu)->xpsr.apsr_v = (overflow) ? 1 : 0
 
 #define UPDATE_NZ                 \
-    if (update_flags)      \
+    if (update_flags)             \
     {                             \
         UPDATE_N((cpu), (value)); \
         UPDATE_Z((cpu), (value)); \
     }
 
 #define UPDATE_NZC                \
-    if (update_flags)      \
+    if (update_flags)             \
     {                             \
         UPDATE_N((cpu), (value)); \
         UPDATE_Z((cpu), (value)); \
@@ -60,7 +60,7 @@
     }
 
 #define UPDATE_NZCV                  \
-    if (update_flags)         \
+    if (update_flags)                \
     {                                \
         UPDATE_N((cpu), (value));    \
         UPDATE_Z((cpu), (value));    \
@@ -89,6 +89,21 @@ typedef struct
     bool pending;
 } exception_t;
 
+typedef union
+{
+    struct
+    {
+        unsigned int mask : 5;
+        unsigned int firstcond : 3;
+    };
+    struct
+    {
+        unsigned int : 4;
+        unsigned int cond : 4;
+    };
+    uint8_t value;
+} itstate_t;
+
 struct cpu_inst_t
 {
     jmp_buf *fault_jmp_buf;
@@ -102,8 +117,7 @@ struct cpu_inst_t
     uint32_t control, faultmask, basepri, primask;
     xPSR_t xpsr;
 
-    arm_cc it_cond[4];
-    uint32_t it_block_size, it_block_index;
+    itstate_t itstate;
 
     arm_mode mode;
 
@@ -267,23 +281,90 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
     }
 }
 
+static bool cpu_in_it_block(cpu_t *cpu)
+{
+    return (cpu->itstate.value & 0xF) != 0;
+}
+
+static void cpu_it_advance(cpu_t *cpu)
+{
+    if ((cpu->itstate.value & 0x7) == 0)
+        cpu->itstate.value = 0;
+    else
+        cpu->itstate.mask <<= 1;
+}
+
+static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
+{
+    if (i->id == ARM_INS_B)
+        return i->detail->arm.cc;
+
+    if (cpu->itstate.value == 0)
+        return ARM_CC_AL;
+
+    assert(cpu_in_it_block(cpu));
+    
+    switch (cpu->itstate.cond)
+    {   
+    case 0: // 0000
+        return ARM_CC_EQ;
+    case 1: // 0001
+        return ARM_CC_NE;
+    case 2: // 0010
+        return ARM_CC_HS;
+    case 3: // 0011
+        return ARM_CC_LO;
+    case 4: // 0100
+        return ARM_CC_MI;
+    case 5: // 0101
+        return ARM_CC_PL;
+    case 6: // 0110
+        return ARM_CC_VS;
+    case 7: // 0111
+        return ARM_CC_VC;
+    case 8: // 1000
+        return ARM_CC_HI;
+    case 9: // 1001
+        return ARM_CC_LS;
+    case 10: // 1010
+        return ARM_CC_GE;
+    case 11: // 1011
+        return ARM_CC_LT;
+    case 12: // 1100
+        return ARM_CC_GT;
+    case 13: // 1101
+        return ARM_CC_LE;
+    case 14: // 1110
+    case 15: // 1111
+        return ARM_CC_AL;
+
+    default:
+        return ARM_CC_INVALID;
+    }
+}
+
 static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 {
-    arm_cc cc;
+    arm_cc cc = cpu_current_cond(cpu, i);
 
-    if (cpu->it_block_size > 0)
-    {
-        cc = cpu->it_cond[cpu->it_block_index++];
+    // if ((cpu->itstate.value & 0xF) != 0)
+    // {
+    //     // cc = cpu->it_cond;
 
-        if (cpu->it_block_index == cpu->it_block_size)
-            cpu->it_block_size = 0;
-    }
-    else
-    {
-        assert(i->detail->arm.cc != ARM_CC_INVALID);
+    //     // if ((cpu->it_mask & 0x7) != 0 && !!(cpu->it_mask & (1 << 3)) != !!cpu->it_firstcond0)
+    //     //     cc = invert_cc(cc);
 
-        cc = i->detail->arm.cc;
-    }
+    //     if ((cpu->itstate.value & 0x7) == 0)
+    //         cpu->itstate.value = 0;
+    //     else
+    //         cpu->itstate.mask <<= 1;
+    // }
+    // else
+    // {
+    //     assert(i->detail->arm.cc != ARM_CC_INVALID);
+
+    //     cc = i->detail->arm.cc;
+    // }
 
     switch (cc)
     {
@@ -906,6 +987,7 @@ void cpu_reset(cpu_t *cpu)
     cpu->core_regs[ARM_REG_LR] = x(FFFF, FFFF);
     cpu->xpsr.value = 0;
     cpu->xpsr.epsr_t = 1;
+    cpu->itstate.value = 0;
 
     memset(cpu->exceptions, 0, sizeof(cpu->exceptions));
 
@@ -973,8 +1055,6 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     LOG_CPU_INST("%s %s", i->mnemonic, i->op_str);
 
-    bool in_it = cpu->it_block_size > 0;
-
     switch (i->id)
     {
     case ARM_INS_CBZ:
@@ -988,7 +1068,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     bool update_flags = detail.update_flags;
-    if (in_it && i->size == 2 && i->id != ARM_INS_CMP && i->id != ARM_INS_CMN && i->id != ARM_INS_TST)
+    if (cpu_in_it_block(cpu) && i->size == 2 && i->id != ARM_INS_CMP && i->id != ARM_INS_CMN && i->id != ARM_INS_TST)
         update_flags = false;
 
     bool carry = false;
@@ -1227,56 +1307,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(i->size == 2);
         assert(i->bytes[1] == 0xBF);
 
-        union
-        {
-            struct
-            {
-                unsigned int mask0 : 1;
-                unsigned int mask1 : 1;
-                unsigned int mask2 : 1;
-                unsigned int mask3 : 1;
-                unsigned int firstcond0 : 1;
-                unsigned int firstcond : 3;
-            } __attribute__((packed));
-            uint8_t value;
-        } it;
-        static_assert(sizeof(it) == 1, "IT block must be a single byte");
-
-        it.value = i->bytes[0];
-
-        arm_cc cond = detail.cc;
-        arm_cc invcond = invert_cc(cond);
-
-        cpu->it_block_index = 0;
-        cpu->it_cond[0] = cond;
-
-        if (it.mask0 == 1)
-        {
-            cpu->it_block_size = 4;
-            cpu->it_cond[1] = it.mask3 == it.firstcond0 ? cond : invcond;
-            cpu->it_cond[2] = it.mask2 == it.firstcond0 ? cond : invcond;
-            cpu->it_cond[3] = it.mask1 == it.firstcond0 ? cond : invcond;
-        }
-        else if (it.mask1 == 1)
-        {
-            cpu->it_block_size = 3;
-            cpu->it_cond[1] = it.mask3 == it.firstcond0 ? cond : invcond;
-            cpu->it_cond[2] = it.mask2 == it.firstcond0 ? cond : invcond;
-        }
-        else if (it.mask2 == 1)
-        {
-            cpu->it_block_size = 2;
-            cpu->it_cond[1] = it.mask3 == it.firstcond0 ? cond : invcond;
-        }
-        else if (it.mask3 == 1)
-        {
-            cpu->it_block_size = 1;
-        }
-        else
-        {
-            abort();
-        }
-
+        cpu->itstate.value = i->bytes[0];
         break;
     }
 
@@ -1867,6 +1898,9 @@ void cpu_step(cpu_t *cpu)
 
     if (cpu->runlog)
         runlog_record_execute(cpu->runlog, cpu_get_runlog_regs(cpu));
+
+    if (i->id != ARM_INS_IT && cpu_in_it_block(cpu))
+        cpu_it_advance(cpu);
 
     pending = cpu_exception_get_pending(cpu, cpu_execution_priority(cpu));
     if (pending != 0)
