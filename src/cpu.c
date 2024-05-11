@@ -458,9 +458,31 @@ bool cpu_exception_get_enabled(cpu_t *cpu, arm_exception ex)
     return cpu->exceptions[ex].enabled;
 }
 
+static void cpu_print_regs(cpu_t *cpu)
+{
+    printf("R0: 0x%08X\n", cpu->core_regs[ARM_REG_R0]);
+    printf("R1: 0x%08X\n", cpu->core_regs[ARM_REG_R1]);
+    printf("R2: 0x%08X\n", cpu->core_regs[ARM_REG_R2]);
+    printf("R3: 0x%08X\n", cpu->core_regs[ARM_REG_R3]);
+    printf("R4: 0x%08X\n", cpu->core_regs[ARM_REG_R4]);
+    printf("R5: 0x%08X\n", cpu->core_regs[ARM_REG_R5]);
+    printf("R6: 0x%08X\n", cpu->core_regs[ARM_REG_R6]);
+    printf("R7: 0x%08X\n", cpu->core_regs[ARM_REG_R7]);
+    printf("R8: 0x%08X\n", cpu->core_regs[ARM_REG_R8]);
+    printf("R9: 0x%08X\n", cpu->core_regs[ARM_REG_R9]);
+    printf("R10: 0x%08X\n", cpu->core_regs[ARM_REG_R10]);
+    printf("R11: 0x%08X\n", cpu->core_regs[ARM_REG_R11]);
+    printf("R12: 0x%08X\n", cpu->core_regs[ARM_REG_R12]);
+    printf("LR: 0x%08X\n", cpu->core_regs[ARM_REG_LR]);
+    printf("SP: 0x%08X\n", cpu_reg_read(cpu, ARM_REG_SP));
+    printf("PC: 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
+}
+
 static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
 {
     // Copied as closely as possible from the ARMv7-M Architecture Reference Manual's pseudocode at B1.5.6
+
+    cpu_print_regs(cpu);
 
     uint32_t framesize;
     uint32_t forcealign;
@@ -557,6 +579,8 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     new_psr |= psr & IPSR_MASK;
     new_psr |= psr & 0x700FC00;
     cpu->xpsr.value = new_psr;
+
+    cpu_print_regs(cpu);
 }
 
 static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
@@ -966,39 +990,24 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
     return cpu->inst_by_pc[pc];
 }
 
-void cpu_step(cpu_t *cpu)
+void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 {
-    dwt_increment_cycle(cpu->dwt);
-
-    arm_exception pending;
-
-    uint32_t pc = cpu->core_regs[ARM_REG_PC];
-
     uint32_t op0, op1, value, address;
-
-    cs_insn *i = cpu_insn_at(cpu, pc);
-    if (i == NULL)
-    {
-        fprintf(stderr, "Failed to find instruction at 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
-        abort();
-    }
-
-    if (cpu->runlog)
-    {
-        runlog_record_fetch(cpu->runlog, pc);
-    }
-
     cs_arm detail = i->detail->arm;
 
     LOG_CPU_INST("%s %s", i->mnemonic, i->op_str);
 
-    uint32_t next = pc + i->size;
-
-    cpu->branched = false;
-
-    // TODO: Ignore condition on certain instructions
-    if (i->id != ARM_INS_IT && !cpu_condition_passed(cpu, i))
-        goto next_pc;
+    switch (i->id)
+    {
+    case ARM_INS_CBZ:
+    case ARM_INS_CBNZ:
+    case ARM_INS_IT:
+        break;
+    default:
+        if (!cpu_condition_passed(cpu, i))
+            return;
+        break;
+    }
 
     bool carry = false;
     bool overflow = false;
@@ -1134,7 +1143,7 @@ void cpu_step(cpu_t *cpu)
     case ARM_INS_BLX:
         assert(detail.op_count == 1);
 
-        cpu_reg_write(cpu, ARM_REG_LR, next | 1);
+        cpu_reg_write(cpu, ARM_REG_LR, next_pc | 1);
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
         break;
 
@@ -1819,21 +1828,47 @@ void cpu_step(cpu_t *cpu)
         cpu_reg_write(cpu, detail.operands[0].reg, op1 & 0xFFFF);
         break;
 
-    case ARM_INS_VLDMIA:
-    case ARM_INS_VMRS:
-    case ARM_INS_VMSR:
-    case ARM_INS_VSTMDB:
-        LOG_CPU_INST("Implement instruction %d\n", i->id);
-        // TODO: Implement
-        break;
+    // case ARM_INS_VLDMIA:
+    // case ARM_INS_VMRS:
+    // case ARM_INS_VMSR:
+    // case ARM_INS_VSTMDB:
+    //     LOG_CPU_INST("Implement instruction %d\n", i->id);
+    //     // TODO: Implement
+    //     break;
 
     default:
-        fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, pc);
+        fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, cpu->core_regs[ARM_REG_PC]);
         cpu_do_fault_jmp(cpu);
         abort();
     }
+}
 
-next_pc:
+void cpu_step(cpu_t *cpu)
+{
+    dwt_increment_cycle(cpu->dwt);
+
+    arm_exception pending;
+
+    uint32_t pc = cpu->core_regs[ARM_REG_PC];
+
+    cs_insn *i = cpu_insn_at(cpu, pc);
+    if (i == NULL)
+    {
+        fprintf(stderr, "Failed to find instruction at 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
+        abort();
+    }
+
+    if (cpu->runlog)
+    {
+        runlog_record_fetch(cpu->runlog, pc);
+    }
+
+    uint32_t next = pc + i->size;
+
+    cpu->branched = false;
+
+    cpu_execute_instruction(cpu, i, next);
+
     if (cpu->runlog)
     {
         runlog_record_execute(cpu->runlog, cpu_get_runlog_regs(cpu));
