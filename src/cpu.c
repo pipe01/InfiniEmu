@@ -1859,9 +1859,7 @@ void cpu_step(cpu_t *cpu)
     }
 
     if (cpu->runlog)
-    {
         runlog_record_fetch(cpu->runlog, pc);
-    }
 
     uint32_t next = pc + i->size;
 
@@ -1870,15 +1868,11 @@ void cpu_step(cpu_t *cpu)
     cpu_execute_instruction(cpu, i, next);
 
     if (cpu->runlog)
-    {
         runlog_record_execute(cpu->runlog, cpu_get_runlog_regs(cpu));
-    }
 
     pending = cpu_exception_get_pending(cpu, cpu_execution_priority(cpu));
     if (pending != 0)
-    {
         cpu_exception_entry(cpu, pending, false);
-    }
 
     if (!cpu->branched)
     {
