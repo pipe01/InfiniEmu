@@ -1580,9 +1580,10 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
     }
 
-    case ARM_INS_SDIV: // TODO: Perform signed division
+    case ARM_INS_SDIV:
     case ARM_INS_UDIV:
         assert(detail.op_count == 2 || detail.op_count == 3);
+
         assert(detail.operands[0].type == ARM_OP_REG);
         assert(detail.operands[1].type == ARM_OP_REG);
         assert(detail.op_count < 3 || detail.operands[2].type == ARM_OP_REG);
@@ -1593,7 +1594,10 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         // TODO: Exception if op1 is zero
         assert(op1 != 0);
 
-        value = div(op0, op1).quot;
+        if (i->id == ARM_INS_SDIV)
+            value = (int32_t)op0 / (int32_t)op1;
+        else
+            value = op0 / op1;
 
         cpu_reg_write(cpu, detail.operands[0].reg, value);
         break;
