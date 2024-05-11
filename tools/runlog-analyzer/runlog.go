@@ -124,6 +124,10 @@ func (f Frames) Last() *Frame {
 	return f[len(f)-1]
 }
 
+func (f Frames) Until(n int) Frames {
+	return f[:n+1]
+}
+
 func (f Frames) ReadMemoryAt(addr uint32) (uint32, error) {
 	var value uint32
 

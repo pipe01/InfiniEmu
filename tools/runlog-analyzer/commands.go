@@ -199,7 +199,7 @@ func CommandEval(modifier, arg string) error {
 	return nil
 }
 
-func doFindFrame(reverse bool, pred func(*Frame) bool) bool {
+func doFindFrame(reverse bool, pred func(*Frame) bool) (int, bool) {
 	dir := 1
 	if reverse {
 		dir = -1
@@ -208,7 +208,7 @@ func doFindFrame(reverse bool, pred func(*Frame) bool) bool {
 	wrapped := false
 
 	for i := frameIndex + dir; ; i += dir {
-		if (reverse && i <= 0) || (!reverse && i >= len(frames)-1) {
+		if (reverse && i < 0) || (!reverse && i > len(frames)-1) {
 			if wrapped {
 				break
 			}
@@ -226,12 +226,11 @@ func doFindFrame(reverse bool, pred func(*Frame) bool) bool {
 		frame := frames[i]
 
 		if pred(frame) {
-			frameIndex = i
-			return true
+			return i, true
 		}
 	}
 
-	return false
+	return 0, false
 }
 
 func CommandFind(reverse bool) Command {
@@ -268,7 +267,7 @@ func CommandFind(reverse bool) Command {
 				hasValue = true
 			}
 
-			found := doFindFrame(reverse, func(f *Frame) bool {
+			idx, found := doFindFrame(reverse, func(f *Frame) bool {
 				for _, acc := range f.MemoryAccesses {
 					if acc.Address == uint32(addr) && acc.IsWrite == isWrite && (!hasValue || acc.Value == uint32(value)) {
 						printInt(acc.Value, modifier)
@@ -279,7 +278,9 @@ func CommandFind(reverse bool) Command {
 				return false
 			})
 
-			if !found {
+			if found {
+				frameIndex = idx
+			} else {
 				dirStr := "after"
 				if reverse {
 					dirStr = "before"
@@ -314,7 +315,7 @@ func CommandFind(reverse bool) Command {
 
 			originalValue := frames[frameIndex].Registers[reg]
 
-			found := doFindFrame(reverse, func(f *Frame) bool {
+			idx, found := doFindFrame(reverse, func(f *Frame) bool {
 				if (hasValue && f.Registers[reg] == uint32(value)) || (!hasValue && f.Registers[reg] != originalValue) {
 					fmt.Printf("%s = 0x%08x\n", reg.String(), f.Registers[reg])
 
@@ -324,17 +325,19 @@ func CommandFind(reverse bool) Command {
 				return false
 			})
 
-			if !found {
+			if found {
+				frameIndex = idx
+
+				// The frame index we found is the frame *after* the change, so we need to go back one
+				// in order to find the instruction that caused the change
+				// frameIndex--
+			} else {
 				dirStr := "after"
 				if reverse {
 					dirStr = "before"
 				}
 
 				fmt.Printf("No registry %s access found %s frame #%d\n", reg.String(), dirStr, frameIndex)
-			} else {
-				// The frame index we found is the frame *after* the change, so we need to go back one
-				// in order to find the instruction that caused the change
-				// frameIndex--
 			}
 
 		case "inst":
@@ -343,17 +346,62 @@ func CommandFind(reverse bool) Command {
 				return err
 			}
 
-			found := doFindFrame(reverse, func(f *Frame) bool {
+			idx, found := doFindFrame(reverse, func(f *Frame) bool {
 				return f.NextInstruction.Address == pc
 			})
 
-			if !found {
+			if found {
+				frameIndex = idx
+			} else {
 				dirStr := "after"
 				if reverse {
 					dirStr = "before"
 				}
 
 				fmt.Printf("No instruction found at address 0x%08x %s frame #%d\n", pc, dirStr, frameIndex)
+			}
+
+		case "change":
+			expr, err := ParseExpression(arg)
+			if err != nil {
+				return err
+			}
+
+			initialValue, err := expr.Evaluate(ExpressionContext{
+				Frames: frames.Until(frameIndex),
+			})
+			if err != nil {
+				return err
+			}
+
+			seenFrames := make(Frames, 0, len(frames))
+
+			idx, found := doFindFrame(reverse, func(f *Frame) bool {
+				seenFrames = append(seenFrames, f)
+
+				val, err := expr.Evaluate(ExpressionContext{
+					Frames: seenFrames,
+				})
+				if err != nil {
+					return false
+				}
+
+				return val != initialValue
+			})
+
+			if found {
+				finalValue, err := expr.Evaluate(ExpressionContext{
+					Frames: frames.Until(idx),
+				})
+				if err != nil {
+					return err
+				}
+
+				fmt.Printf("%s changed from 0x%08x to 0x%08x\n", arg, initialValue, finalValue)
+
+				frameIndex = idx
+			} else {
+				fmt.Println("No change found")
 			}
 
 		default:

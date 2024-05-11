@@ -144,6 +144,36 @@ func visitExpression(ctx *ExpressionContext, expr ast.Expr) uint32 {
 			return left << right
 		case token.SHR:
 			return left >> right
+		case token.EQL:
+			if left == right {
+				return 1
+			}
+			return 0
+		case token.NEQ:
+			if left != right {
+				return 1
+			}
+			return 0
+		case token.LSS:
+			if left < right {
+				return 1
+			}
+			return 0
+		case token.LEQ:
+			if left <= right {
+				return 1
+			}
+			return 0
+		case token.GTR:
+			if left > right {
+				return 1
+			}
+			return 0
+		case token.GEQ:
+			if left >= right {
+				return 1
+			}
+			return 0
 
 		default:
 			panic(ExpressionError(fmt.Errorf("unsupported binary operator: %s", expr.Op.String())))
@@ -155,6 +185,11 @@ func visitExpression(ctx *ExpressionContext, expr ast.Expr) uint32 {
 		switch expr.Op {
 		case token.SUB:
 			return ^value + 1
+		case token.NOT:
+			if value == 0 {
+				return 1
+			}
+			return 0
 		}
 
 	case *ast.StarExpr:
