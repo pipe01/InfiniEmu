@@ -303,9 +303,9 @@ static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
         return ARM_CC_AL;
 
     assert(cpu_in_it_block(cpu));
-    
+
     switch (cpu->itstate.cond)
-    {   
+    {
     case 0: // 0000
         return ARM_CC_EQ;
     case 1: // 0001
@@ -573,6 +573,8 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
         frameptr = cpu->sp_main;
     }
 
+    uint32_t xpsr = cpu_sysreg_read(cpu, ARM_SYSREG_XPSR);
+
     memreg_write(cpu->mem, frameptr, cpu->core_regs[ARM_REG_R0], SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x4, cpu->core_regs[ARM_REG_R1], SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x8, cpu->core_regs[ARM_REG_R2], SIZE_WORD);
@@ -580,7 +582,7 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
     memreg_write(cpu->mem, frameptr + 0x10, cpu->core_regs[ARM_REG_R12], SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x14, cpu->core_regs[ARM_REG_LR], SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x18, cpu_exception_return_address(cpu, ex, sync), SIZE_WORD);
-    memreg_write(cpu->mem, frameptr + 0x1C, (cpu->xpsr.value & ~(1 << 9)) | (frameptralign << 9), SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0x1C, (xpsr & ~(1 << 9)) | (frameptralign << 9), SIZE_WORD);
 
     if (HAS_FP)
     {
@@ -637,7 +639,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     new_psr |= (psr >> 27) << 27;
     new_psr |= psr & IPSR_MASK;
     new_psr |= psr & 0x700FC00;
-    cpu->xpsr.value = new_psr;
+    cpu_sysreg_write(cpu, ARM_SYSREG_XPSR, new_psr, true);
 }
 
 static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
@@ -655,7 +657,7 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
 
     cpu->xpsr.value &= ~IPSR_MASK;
     cpu->xpsr.value |= ex & IPSR_MASK;
-    // TODO: Clear EPSR IT
+    cpu->itstate.value = 0;
 
     cpu->control &= ~(1 << CONTROL_FPCA);
     cpu->control &= ~(1 << CONTROL_SPSEL);
@@ -1464,7 +1466,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         value = cpu_reg_read(cpu, detail.operands[1].reg);
 
-        cpu_sysreg_write(cpu, detail.operands[0].reg, value);
+        cpu_sysreg_write(cpu, detail.operands[0].reg, value, false);
         break;
 
     case ARM_INS_MUL:
@@ -1990,10 +1992,13 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
     switch (reg)
     {
     case ARM_SYSREG_XPSR:
-    case ARM_SYSREG_APSR:
-    case ARM_SYSREG_EPSR:
-    case ARM_SYSREG_IPSR:
-        return cpu->xpsr.value;
+    {
+        uint32_t value = cpu->xpsr.value;
+        value &= ~0x600F800; // Remove EPSR.IT bits
+        value |= (cpu->itstate.value >> 6) << 25;
+        value |= (cpu->itstate.value & 0x3F) << 10;
+        return value;
+    }
 
     case ARM_SYSREG_MSP:
         return cpu->sp_main;
@@ -2019,7 +2024,7 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
     }
 }
 
-void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value)
+void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_update_it)
 {
     switch (reg)
     {
@@ -2028,6 +2033,10 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value)
     case ARM_SYSREG_EPSR:
     case ARM_SYSREG_IPSR:
         cpu->xpsr.value = value;
+
+        if (can_update_it)
+            cpu->itstate.value = ((value >> 10) & 0x3F) | ((value >> 25) & 0x3);
+
         break;
 
     case ARM_SYSREG_MSP:
