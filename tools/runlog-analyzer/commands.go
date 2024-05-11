@@ -20,6 +20,7 @@ type Command func(mod, arg string) error
 var Commands = map[string]Command{
 	"accesses": CommandAccesses,
 	"bookmark": CommandBookmark,
+	"disasm":   CommandDisassemble,
 	"eval":     CommandEval,
 	"exit":     func(string, string) error { return ErrExit },
 	"find":     CommandFind(false),
@@ -43,6 +44,34 @@ func printInt(v uint32, modifier string) {
 	} else {
 		fmt.Printf("0x%08x\n", v)
 	}
+}
+
+func splitQuoted(str string) []string {
+	parts := []string{}
+
+	var sb strings.Builder
+
+	inQuote := false
+
+	for _, r := range str {
+		if r == '"' {
+			inQuote = !inQuote
+		} else if r == ' ' && !inQuote {
+			if sb.Len() > 0 {
+				parts = append(parts, sb.String())
+				sb.Reset()
+			}
+		} else {
+			sb.WriteRune(r)
+		}
+	}
+
+	if sb.Len() > 0 {
+		parts = append(parts, sb.String())
+	}
+
+	return parts
+
 }
 
 func FindCommand(name string) (Command, error) {
@@ -341,7 +370,7 @@ func CommandFind(reverse bool) Command {
 			}
 
 		case "inst":
-			pc, err := EvaluateExpression(arg, ExpressionContext{Frames: frames})
+			pc, err := EvaluateExpression(arg, ExpressionContext{Frames: frames.Until(frameIndex)})
 			if err != nil {
 				return err
 			}
@@ -528,6 +557,61 @@ func CommandLog(_, arg string) (err error) {
 		frame := frames[i]
 
 		fmt.Printf("0x%08x %s\n", frame.NextInstruction.Address, frame.NextInstruction.Mnemonic)
+	}
+
+	return nil
+}
+
+func CommandDisassemble(_, arg string) (err error) {
+	addr := frames[frameIndex].NextInstruction.Address
+	count := 10
+
+	if arg != "" {
+		args := splitQuoted(arg)
+		if len(args) > 2 {
+			return errors.New("too many arguments")
+		}
+
+		if len(args) > 0 {
+			addr, err = EvaluateExpression(args[0], ExpressionContext{Frames: frames.Until(frameIndex)})
+			if err != nil {
+				return err
+			}
+		}
+		if len(args) > 1 {
+			count, err = strconv.Atoi(args[1])
+			if err != nil || count < 0 {
+				return errors.New("invalid count")
+			}
+		}
+	}
+
+	if addr >= uint32(len(frames[frameIndex].Program)) {
+		return errors.New("address out of bounds")
+	}
+
+	program := frames[frameIndex].Program[addr:]
+
+	disasm, err := NewDisassembler()
+	if err != nil {
+		return fmt.Errorf("failed to create disassembler: %w", err)
+	}
+
+	for i := 0; i < count; i++ {
+		inst, err := disasm.Disassemble(program, addr)
+		if err != nil {
+			return err
+		}
+
+		marker := "  "
+		if addr == frames[frameIndex].NextInstruction.Address {
+			marker = "=>"
+		}
+
+		fmt.Printf("%s 0x%08x %s\n", marker, addr, inst.Mnemonic)
+
+		addr += uint32(inst.Size)
+		program = program[inst.Size:]
 	}
 
 	return nil

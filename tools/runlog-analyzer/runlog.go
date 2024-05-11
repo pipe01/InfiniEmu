@@ -8,10 +8,6 @@ import (
 	"io"
 )
 
-// #cgo LDFLAGS: -lcapstone
-// #include <capstone/capstone.h>
-import "C"
-
 type RunlogEventType byte
 
 const (
@@ -104,11 +100,6 @@ type MemoryAccess struct {
 	SizeBytes int
 }
 
-type Instruction struct {
-	Address  uint32
-	Mnemonic string
-}
-
 type Registers [RUNLOG_REG_MAX + 1]uint32
 
 type Frame struct {
@@ -187,11 +178,11 @@ func ReadFrames(r io.Reader) (Frames, error) {
 
 	br := bufio.NewReader(r)
 
-	var cs C.ulong
-	if C.cs_open(C.CS_ARCH_ARM, C.CS_MODE_THUMB+C.CS_MODE_MCLASS, &cs) != C.CS_ERR_OK {
-		return nil, fmt.Errorf("failed to initialize capstone")
+	disasm, err := NewDisassembler()
+	if err != nil {
+		return nil, fmt.Errorf("create disassembler: %v", err)
 	}
-	defer C.cs_close(&cs)
+	defer disasm.Close()
 
 	for {
 		evType, err := br.ReadByte()
@@ -225,19 +216,17 @@ func ReadFrames(r io.Reader) (Frames, error) {
 			var pc uint32
 			binary.Read(br, binary.LittleEndian, &pc)
 
-			var insn *C.cs_insn
-
 			addr := pc & 0xFFFF_FFFE
-			if C.cs_disasm(cs, (*C.uchar)(&program[addr]), C.size_t(len(program)-int(addr)), C.uint64_t(addr), 1, &insn) == 0 {
-				return nil, fmt.Errorf("failed to disassemble instruction")
+
+			ins, err := disasm.Disassemble(program[addr:], addr)
+			if err != nil {
+				return nil, fmt.Errorf("disassemble instruction: %v", err)
 			}
 
 			currentInst = Instruction{
 				Address:  addr,
-				Mnemonic: C.GoString(&insn.mnemonic[0]) + " " + C.GoString(&insn.op_str[0]),
+				Mnemonic: ins.Mnemonic,
 			}
-
-			C.cs_free(insn, 1)
 
 			currentFrame = &Frame{
 				Program:         program,
