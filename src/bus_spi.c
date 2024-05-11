@@ -17,6 +17,7 @@ struct bus_spi_t
     uint8_t *ram;
     size_t ram_size;
 
+    bool was_selected[MAX_SLAVES];
     spi_slave_t *slaves[MAX_SLAVES];
     size_t slave_count;
 
@@ -50,6 +51,21 @@ void spi_free(bus_spi_t *spi)
     free(spi);
 }
 
+void spi_step(bus_spi_t *spi)
+{
+    for (size_t i = 0; i < spi->slave_count; i++)
+    {
+        bool selected = !pins_is_set(spi->pins, spi->slaves[i]->cs_pin);
+
+        if ((selected != spi->was_selected[i]) && spi->slaves[i]->cs_changed)
+        {
+            spi->slaves[i]->cs_changed(selected, spi->slaves[i]->userdata);
+        }
+
+        spi->was_selected[i] = selected;
+    }
+}
+
 void spi_add_slave(bus_spi_t *spi, spi_slave_t slave)
 {
     // TODO: Check too many slaves
@@ -72,7 +88,7 @@ spi_result_t spi_write(bus_spi_t *spi, uint32_t address, size_t size)
 
     for (size_t i = 0; i < spi->slave_count; i++)
     {
-        if (pins_is_set(spi->pins, spi->slaves[i]->cs_pin))
+        if (!pins_is_set(spi->pins, spi->slaves[i]->cs_pin))
             spi->slaves[i]->write(spi->ram + offset, size, spi->slaves[i]->userdata);
     }
 
@@ -91,7 +107,7 @@ size_t spi_read(bus_spi_t *spi, uint32_t address, size_t size)
 
     for (size_t i = 0; i < spi->slave_count; i++)
     {
-        if (pins_is_set(spi->pins, spi->slaves[i]->cs_pin))
+        if (!pins_is_set(spi->pins, spi->slaves[i]->cs_pin))
             return spi->slaves[i]->read(spi->ram + offset, size, spi->slaves[i]->userdata);
     }
 

@@ -458,31 +458,9 @@ bool cpu_exception_get_enabled(cpu_t *cpu, arm_exception ex)
     return cpu->exceptions[ex].enabled;
 }
 
-static void cpu_print_regs(cpu_t *cpu)
-{
-    printf("R0: 0x%08X\n", cpu->core_regs[ARM_REG_R0]);
-    printf("R1: 0x%08X\n", cpu->core_regs[ARM_REG_R1]);
-    printf("R2: 0x%08X\n", cpu->core_regs[ARM_REG_R2]);
-    printf("R3: 0x%08X\n", cpu->core_regs[ARM_REG_R3]);
-    printf("R4: 0x%08X\n", cpu->core_regs[ARM_REG_R4]);
-    printf("R5: 0x%08X\n", cpu->core_regs[ARM_REG_R5]);
-    printf("R6: 0x%08X\n", cpu->core_regs[ARM_REG_R6]);
-    printf("R7: 0x%08X\n", cpu->core_regs[ARM_REG_R7]);
-    printf("R8: 0x%08X\n", cpu->core_regs[ARM_REG_R8]);
-    printf("R9: 0x%08X\n", cpu->core_regs[ARM_REG_R9]);
-    printf("R10: 0x%08X\n", cpu->core_regs[ARM_REG_R10]);
-    printf("R11: 0x%08X\n", cpu->core_regs[ARM_REG_R11]);
-    printf("R12: 0x%08X\n", cpu->core_regs[ARM_REG_R12]);
-    printf("LR: 0x%08X\n", cpu->core_regs[ARM_REG_LR]);
-    printf("SP: 0x%08X\n", cpu_reg_read(cpu, ARM_REG_SP));
-    printf("PC: 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
-}
-
 static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
 {
     // Copied as closely as possible from the ARMv7-M Architecture Reference Manual's pseudocode at B1.5.6
-
-    cpu_print_regs(cpu);
 
     uint32_t framesize;
     uint32_t forcealign;
@@ -579,8 +557,6 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     new_psr |= psr & IPSR_MASK;
     new_psr |= psr & 0x700FC00;
     cpu->xpsr.value = new_psr;
-
-    cpu_print_regs(cpu);
 }
 
 static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)

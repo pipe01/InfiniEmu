@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 
     NRF52832_t *nrf = nrf52832_new(program, fsize);
 
-    spi_add_slave(nrf52832_get_spi(nrf), spinorflash_new(4 * 1024 * 1024, 5));
+    spi_add_slave(nrf52832_get_spi(nrf), spinorflash_new(4 * 1024 * 1024, 4 * 1024, 5));
 
 #ifdef ENABLE_SEGGER_RTT
     rtt_t *rtt = rtt_new(cpu_mem(nrf52832_get_cpu(nrf)));

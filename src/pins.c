@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 typedef struct
 {
@@ -44,7 +45,7 @@ void pins_clear(pins_t *pins, int pin)
 {
     assert(pin >= 0 && pin < PINS_COUNT);
 
-    pins->pins[pin].is_set = true;
+    pins->pins[pin].is_set = false;
 }
 
 bool pins_is_set(pins_t *pins, int pin)

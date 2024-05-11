@@ -118,6 +118,8 @@ void nrf52832_step(NRF52832_t *nrf52832)
         rtc_tick(nrf52832->rtc[2]);
     }
 
+    spi_step(nrf52832->spi);
+
     cpu_step(nrf52832->cpu);
 }
 
