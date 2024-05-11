@@ -85,14 +85,18 @@ spi_result_t spi_write(bus_spi_t *spi, uint32_t address, size_t size)
     }
 
     uint32_t offset = address - ARM_SRAM_START;
+    bool handled = false;
 
     for (size_t i = 0; i < spi->slave_count; i++)
     {
         if (!pins_is_set(spi->pins, spi->slaves[i]->cs_pin))
+        {
             spi->slaves[i]->write(spi->ram + offset, size, spi->slaves[i]->userdata);
+            handled = true;
+        }
     }
 
-    return SPI_RESULT_OK;
+    return handled ? SPI_RESULT_OK : SPI_RESULT_NO_SELECTED;
 }
 
 size_t spi_read(bus_spi_t *spi, uint32_t address, size_t size)
