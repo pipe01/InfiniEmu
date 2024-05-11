@@ -171,7 +171,6 @@ func readRegs(br *bufio.Reader, regs *Registers) error {
 func ReadFrames(r io.Reader) (Frames, error) {
 	var regs Registers
 	var program []byte
-	var currentInst Instruction
 
 	var currentFrame *Frame
 	frames := make([]*Frame, 0)
@@ -223,15 +222,10 @@ func ReadFrames(r io.Reader) (Frames, error) {
 				return nil, fmt.Errorf("disassemble instruction: %v", err)
 			}
 
-			currentInst = Instruction{
-				Address:  addr,
-				Mnemonic: ins.Mnemonic,
-			}
-
 			currentFrame = &Frame{
 				Program:         program,
 				Registers:       regs,
-				NextInstruction: currentInst,
+				NextInstruction: *ins,
 			}
 			frames = append(frames, currentFrame)
 

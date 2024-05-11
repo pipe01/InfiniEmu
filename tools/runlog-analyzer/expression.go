@@ -106,8 +106,11 @@ func visitExpression(ctx *ExpressionContext, expr ast.Expr) uint32 {
 		}
 
 	case *ast.Ident:
-		if expr.Name == "i" {
+		switch expr.Name {
+		case "i":
 			return ctx.Offset
+		case "next":
+			return ctx.Frames.Last().NextInstruction.Address + uint32(ctx.Frames.Last().NextInstruction.Size)
 		}
 
 		reg, err := ParseRegister(expr.Name)
