@@ -1,5 +1,6 @@
 /*.bin
 /*.dis
+/*.out
 obj
 infiniemu
 tests.out

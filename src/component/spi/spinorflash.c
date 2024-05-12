@@ -164,6 +164,7 @@ size_t spinorflash_read(uint8_t *data, size_t data_size, void *userdata)
         assert(flash->last_command_size == 4);
 
         uint32_t offset = READ_UINT24(flash->last_command, 1);
+
         memcpy(data, flash->data + offset, data_size);
         return data_size;
     }
