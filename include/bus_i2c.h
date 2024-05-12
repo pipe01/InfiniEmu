@@ -23,3 +23,15 @@ void i2c_free(bus_i2c_t *);
 void i2c_add_slave(bus_i2c_t *, uint8_t address, i2c_slave_t slave);
 void i2c_write(bus_i2c_t *, uint8_t address, uint32_t data_address, size_t data_size);
 size_t i2c_read(bus_i2c_t *, uint8_t address, uint32_t data_address, size_t data_size);
+
+#define RETURN_REG(periph, reg)                 \
+    do                                          \
+    {                                           \
+        if (data_size == 1)                     \
+        {                                       \
+            periph->next_read[0] = periph->reg; \
+            periph->next_read_size = 1;         \
+        }                                       \
+        else                                    \
+            periph->reg = data[1];              \
+    } while (0)

@@ -73,6 +73,7 @@ int main(int argc, char **argv)
     spi_add_slave(nrf52832_get_spi(nrf), spinorflash_new(4 * 1024 * 1024, 4 * 1024, 5));
     i2c_add_slave(nrf52832_get_i2c(nrf), 0x15, cst816s_new());
     i2c_add_slave(nrf52832_get_i2c(nrf), 0x18, bma425_new());
+    nrf52832_reset(nrf);
 
 #ifdef ENABLE_SEGGER_RTT
     rtt_t *rtt = rtt_new(cpu_mem(nrf52832_get_cpu(nrf)));

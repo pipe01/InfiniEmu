@@ -102,8 +102,6 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
 
     chip->cpu = cpu_new(flash, NRF52832_FLASH_SIZE, chip->mem, NRF52832_MAX_EXTERNAL_INTERRUPTS, NRF52832_PRIORITY_BITS);
 
-    nrf52832_reset(chip);
-
     return chip;
 }
 
@@ -114,6 +112,7 @@ void nrf52832_reset(NRF52832_t *nrf52832)
     memreg_reset_all(nrf52832->mem);
     pins_reset(nrf52832->pins);
     spi_reset(nrf52832->spi);
+    i2c_reset(nrf52832->i2c);
     cpu_reset(nrf52832->cpu);
 }
 

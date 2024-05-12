@@ -25,6 +25,11 @@ bus_i2c_t *i2c_new(uint8_t *ram, size_t ram_size)
 
 void i2c_reset(bus_i2c_t *i2c)
 {
+    for (size_t i = 0; i < MAX_SLAVES; i++)
+    {
+        if (i2c->slaves[i])
+            i2c->slaves[i]->reset(i2c->slaves[i]->userdata);
+    }
 }
 
 void i2c_free(bus_i2c_t *i2c)
