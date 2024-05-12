@@ -480,7 +480,10 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
     }
     length = strtol(token, NULL, 16);
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuse-after-free"
     msg += token + strlen(token) - dup; // Skip numbers
+#pragma GCC diagnostic pop
 
     free(dup);
 

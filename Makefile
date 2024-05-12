@@ -1,3 +1,6 @@
+DEBUG := 0
+PROFILE := 0
+
 DUMPS = $(patsubst dumps/%.bin, dumps/%.h, $(wildcard dumps/*.bin))
 
 IDIR = include
@@ -7,7 +10,17 @@ SDIR = src
 TDIR = test
 
 CC = gcc
-CFLAGS = -I$(IDIR) -I$(LDIR) -g -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
+CFLAGS = -I$(IDIR) -I$(LDIR) -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
+
+ifeq ($(DEBUG), 1)
+	CFLAGS += -g -O0
+
+	ifeq ($(PROFILE), 1)
+		CFLAGS += -pg
+	endif
+else
+	CFLAGS += -O3
+endif
 
 LIBS = -lm -lcapstone
 
