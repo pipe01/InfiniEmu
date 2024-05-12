@@ -5,23 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bus_i2c.h"
 #include "config.h"
 
 #define CHIPID 0x13
 
 #define MAX_READ_SIZE 100
-
-#define RETURN_REG(reg)                         \
-    do                                          \
-    {                                           \
-        if (data_size == 1)                     \
-        {                                       \
-            bma425->next_read[0] = bma425->reg; \
-            bma425->next_read_size = 1;         \
-        }                                       \
-        else                                    \
-            bma425->reg = data[1];              \
-    } while (0)
 
 static const uint8_t features_default[] = {
     0x00, 0xAA, // any_motion settings_1
@@ -118,19 +107,19 @@ void bma425_write(uint8_t *data, size_t data_size, void *userdata)
         break;
 
     case 0x2A: // INTERNAL_STATUS
-        RETURN_REG(internal_status);
+        RETURN_REG(bma425, internal_status);
         break;
 
     case 0x40: // ACC_CONF
-        RETURN_REG(acc_conf);
+        RETURN_REG(bma425, acc_conf);
         break;
 
     case 0x41: // ACC_RANGE
-        RETURN_REG(acc_range);
+        RETURN_REG(bma425, acc_range);
         break;
 
     case 0x55: // INT_LATCH
-        RETURN_REG(int_latch);
+        RETURN_REG(bma425, int_latch);
         break;
 
     case 0x59: // INIT_CTRL
@@ -151,19 +140,19 @@ void bma425_write(uint8_t *data, size_t data_size, void *userdata)
         break;
 
     case 0x5A: // Reserved
-        RETURN_REG(reserved[0]);
+        RETURN_REG(bma425, reserved[0]);
         break;
 
     case 0x5B: // Reserved
-        RETURN_REG(features_start_addr.lsb);
+        RETURN_REG(bma425, features_start_addr.lsb);
         break;
 
     case 0x5C: // Reserved
-        RETURN_REG(features_start_addr.msb);
+        RETURN_REG(bma425, features_start_addr.msb);
         break;
 
     case 0x5D: // Reserved
-        RETURN_REG(reserved[1]);
+        RETURN_REG(bma425, reserved[1]);
         break;
 
     case 0x5E: // FEATURES_IN
@@ -179,11 +168,11 @@ void bma425_write(uint8_t *data, size_t data_size, void *userdata)
         break;
 
     case 0x7C: // PWR_CONF
-        RETURN_REG(pwr_conf);
+        RETURN_REG(bma425, pwr_conf);
         break;
 
     case 0x7D: // PWR_CTRL
-        RETURN_REG(pwr_ctrl);
+        RETURN_REG(bma425, pwr_ctrl);
         break;
 
     case 0x7E: // CMD
