@@ -2,7 +2,7 @@
 #include "byte_util.h"
 #include "config.h"
 #include "cpu.h"
-#include "psudocode.h"
+#include "pseudocode.h"
 
 #include "peripherals/peripheral.h"
 #include "peripherals/dwt.h"
