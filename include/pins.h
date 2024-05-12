@@ -14,6 +14,7 @@ void pins_reset(pins_t *);
 void pins_set(pins_t *, int pin);
 void pins_clear(pins_t *, int pin);
 
+bool pins_is_input(pins_t *, int pin);
 void pins_set_input(pins_t *, int pin);
 void pins_set_output(pins_t *, int pin);
 

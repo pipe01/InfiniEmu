@@ -55,6 +55,13 @@ bool pins_is_set(pins_t *pins, int pin)
     return pins->pins[pin].is_set;
 }
 
+bool pins_is_input(pins_t *pins, int pin)
+{
+    assert(pin >= 0 && pin < PINS_COUNT);
+
+    return pins->pins[pin].is_input;
+}
+
 void pins_set_input(pins_t *pins, int pin)
 {
     assert(pin >= 0 && pin < PINS_COUNT);

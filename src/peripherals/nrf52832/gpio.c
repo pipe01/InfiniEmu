@@ -56,14 +56,23 @@ OPERATION(gpio)
     if (offset >= 0x700 && offset <= 0x77C)
     {
         uint32_t pin = (offset - 0x700) / 4;
-        pincnf_t cnf = (pincnf_t){.value = *value};
 
-        OP_ASSERT_WRITE(op);
+        if (OP_IS_READ(op))
+        {
+            pincnf_t cnf = {0};
+            cnf.dir = pins_is_input(gpio->pins, pin) ? 1 : 0;
 
-        if (cnf.dir)
-            pins_set_output(gpio->pins, pin);
+            *value = cnf.value;
+        }
         else
-            pins_set_input(gpio->pins, pin);
+        {
+            pincnf_t cnf = (pincnf_t){.value = *value};
+
+            if (cnf.dir)
+                pins_set_output(gpio->pins, pin);
+            else
+                pins_set_input(gpio->pins, pin);
+        }
 
         return MEMREG_RESULT_OK;
     }
@@ -85,6 +94,12 @@ OPERATION(gpio)
                     pins_clear(gpio->pins, i);
             }
         }
+        return MEMREG_RESULT_OK;
+
+    case 0x510: // IN
+        OP_ASSERT_READ(op);
+
+        *value = read_gpios(gpio->pins);
         return MEMREG_RESULT_OK;
 
     case 0x508: // OUTSET
