@@ -1709,13 +1709,16 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_exception_set_pending(cpu, ARM_EXC_SVC);
         break;
 
-    case ARM_INS_SXTB:
-        assert(detail->op_count == 2); // TODO: Handle rotation case
+    case ARM_INS_SXTAB:
+        assert(detail->op_count == 3); // TODO: Handle rotation case
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
-        value = SIGNEXTEND8_32(op1);
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+
+        value = op0 + SIGNEXTEND8_32(op1);
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
@@ -1730,6 +1733,17 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op1 = cpu_reg_read(cpu, detail->operands[2].reg);
 
         value = op0 + SIGNEXTEND16_32(op1);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+        break;
+
+    case ARM_INS_SXTB:
+        assert(detail->op_count == 2); // TODO: Handle rotation case
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+
+        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
+        value = SIGNEXTEND8_32(op1);
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
