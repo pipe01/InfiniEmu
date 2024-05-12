@@ -1701,6 +1701,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         op1 = cpu_reg_read(cpu, detail->operands[1].reg);
         value = (uint32_t)(int8_t)(op1 & 0xFF);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_SXTH:
@@ -1710,6 +1712,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         op1 = cpu_reg_read(cpu, detail->operands[1].reg);
         value = (uint32_t)(int16_t)(op1 & 0xFFFF);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_TBB:
