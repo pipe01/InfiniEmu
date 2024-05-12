@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "peripherals/nrf52832/easydma.h"
+
 typedef struct
 {
     union
@@ -31,14 +33,6 @@ typedef struct
     };
     uint32_t value;
 } inten_t;
-
-typedef struct
-{
-    uint32_t ptr;    // Data pointer
-    uint32_t maxcnt; // Maximum number of bytes in buffer
-    uint32_t amount; // Number of bytes transferred in the last transaction
-    uint32_t list;   // EasyDMA list type
-} easydma_reg_t;
 
 struct SPIM_inst_t
 {
@@ -69,16 +63,6 @@ OPERATION(spim)
     }
 
     OP_ASSERT_SIZE(op, WORD);
-
-    // if (spim->enabled)
-    // {
-    //     switch (offset)
-    //     {
-
-    //     default:
-    //         return MEMREG_RESULT_UNHANDLED;
-    //     }
-    // }
 
     switch (offset)
     {
@@ -165,23 +149,7 @@ OPERATION(spim)
     case 0x524: // FREQUENCY
         OP_RETURN_REG_RESULT(spim->frequency, WORD, MEMREG_RESULT_OK_CONTINUE);
 
-    case 0x534: // RXD.PTR
-        OP_RETURN_REG_RESULT(spim->rx.ptr, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x538: // RXD.MAXCNT
-        OP_RETURN_REG_RESULT(spim->rx.maxcnt, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x540: // RXD.LIST
-        OP_RETURN_REG_RESULT(spim->rx.list, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x544: // TXD.PTR
-        OP_RETURN_REG_RESULT(spim->tx.ptr, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x548: // TXD.MAXCNT
-        OP_RETURN_REG_RESULT(spim->tx.maxcnt, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x550: // TXD.LIST
-        OP_RETURN_REG_RESULT(spim->tx.list, WORD, MEMREG_RESULT_OK_CONTINUE);
+    EASYDMA_CASES(spim)
 
     case 0x554: // CONFIG
         OP_RETURN_REG_RESULT(spim->config.value, WORD, MEMREG_RESULT_OK_CONTINUE);

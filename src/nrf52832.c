@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "byte_util.h"
+#include "bus_i2c.h"
 #include "bus_spi.h"
 #include "nrf52832.h"
 #include "pins.h"
@@ -21,6 +22,7 @@
 #include "peripherals/nrf52832/spim.h"
 #include "peripherals/nrf52832/temp.h"
 #include "peripherals/nrf52832/timer.h"
+#include "peripherals/nrf52832/twim.h"
 #include "peripherals/nrf52832/wdt.h"
 
 #include "../dumps/ficr.h"
@@ -35,6 +37,7 @@ struct NRF52832_inst_t
 
     memreg_t *mem;
     bus_spi_t *spi;
+    bus_i2c_t *i2c;
     pins_t *pins;
 
     CLOCK_t *clock;
@@ -47,8 +50,9 @@ struct NRF52832_inst_t
     RTC_t *rtc[3];
     TIMER_t *timer[5];
     WDT_t *wdt;
-    SPIM_t *spim;
+    SPIM_t *spim[3];
     PPI_t *ppi;
+    TWIM_t *twim[2];
 };
 
 NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
@@ -58,6 +62,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NRF52832_t *chip = (NRF52832_t *)malloc(sizeof(NRF52832_t));
     chip->pins = pins_new();
     chip->spi = spi_new(chip->pins, sram, NRF52832_SRAM_SIZE);
+    chip->i2c = i2c_new(sram, NRF52832_SRAM_SIZE);
 
     uint8_t *flash = malloc(NRF52832_FLASH_SIZE);
     memcpy(flash, program, program_size);
@@ -71,7 +76,10 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, CLOCK, clock, clock, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, POWER, power, power, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, RADIO, radio, radio, x(4000, 1000), 0x1000);
-    NEW_PERIPH(chip, SPIM, spim, spim, x(4000, 3000), 0x1000, chip->spi);
+    NEW_PERIPH(chip, SPIM, spim, spim[0], x(4000, 3000), 0x1000, chip->spi);
+    NEW_PERIPH(chip, TWIM, twim, twim[0], x(4000, 3000), 0x1000, chip->i2c);
+    NEW_PERIPH(chip, SPIM, spim, spim[1], x(4000, 4000), 0x1000, chip->spi);
+    NEW_PERIPH(chip, TWIM, twim, twim[1], x(4000, 4000), 0x1000, chip->i2c);
     NEW_PERIPH(chip, GPIOTE, gpiote, gpiote, x(4000, 6000), 0x1000);
     NEW_PERIPH(chip, TIMER, timer, timer[0], x(4000, 8000), 0x1000, 4);
     NEW_PERIPH(chip, TIMER, timer, timer[1], x(4000, 9000), 0x1000, 4);
@@ -84,6 +92,7 @@ NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
     NEW_PERIPH(chip, TIMER, timer, timer[3], x(4001, A000), 0x1000, 6);
     NEW_PERIPH(chip, TIMER, timer, timer[4], x(4001, B000), 0x1000, 6);
     NEW_PERIPH(chip, PPI, ppi, ppi, x(4001, F000), 0x1000);
+    NEW_PERIPH(chip, SPIM, spim, spim[2], x(4002, 3000), 0x1000, chip->spi);
     NEW_PERIPH(chip, RTC, rtc, rtc[2], x(4002, 4000), 0x1000, 4, &chip->cpu, 0x24);
     NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000, chip->pins);
 
@@ -131,4 +140,9 @@ cpu_t *nrf52832_get_cpu(NRF52832_t *chip)
 bus_spi_t *nrf52832_get_spi(NRF52832_t *chip)
 {
     return chip->spi;
+}
+
+bus_i2c_t *nrf52832_get_i2c(NRF52832_t *chip)
+{
+    return chip->i2c;
 }

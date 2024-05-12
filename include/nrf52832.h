@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cpu.h"
+#include "bus_i2c.h"
 #include "bus_spi.h"
 
 #define NRF52832_SRAM_SIZE 0x10000
@@ -18,3 +19,4 @@ void nrf52832_step(NRF52832_t *nrf52832);
 
 cpu_t *nrf52832_get_cpu(NRF52832_t *);
 bus_spi_t *nrf52832_get_spi(NRF52832_t *);
+bus_i2c_t *nrf52832_get_i2c(NRF52832_t *);
