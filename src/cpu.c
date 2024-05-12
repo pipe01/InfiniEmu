@@ -69,10 +69,10 @@
     }
 
 #define WRITEBACK(op_n)                                         \
-    if (detail.writeback)                                       \
+    if (detail->writeback)                                       \
     {                                                           \
-        assert(detail.operands[op_n].type == ARM_OP_REG);       \
-        cpu_reg_write(cpu, detail.operands[op_n].reg, address); \
+        assert(detail->operands[op_n].type == ARM_OP_REG);       \
+        cpu_reg_write(cpu, detail->operands[op_n].reg, address); \
     }
 
 #define MAX_EXECUTING_EXCEPTIONS 64
@@ -1046,7 +1046,7 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
 void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 {
     uint32_t op0, op1, value, address;
-    cs_arm detail = i->detail->arm;
+    cs_arm *detail = &i->detail->arm;
 
     LOG_CPU_INST("%s %s", i->mnemonic, i->op_str);
 
@@ -1062,7 +1062,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
     }
 
-    bool update_flags = detail.update_flags;
+    bool update_flags = detail->update_flags;
     if (cpu_in_it_block(cpu) && i->size == 2 && i->id != ARM_INS_CMP && i->id != ARM_INS_CMN && i->id != ARM_INS_TST)
         update_flags = false;
 
@@ -1072,125 +1072,125 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     switch (i->id)
     {
     case ARM_INS_ADC:
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         carry = cpu->xpsr.apsr_c;
         value = AddWithCarry(op0, op1, &carry, &overflow);
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZCV;
         break;
 
     case ARM_INS_ADD:
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         value = AddWithCarry(op0, op1, &carry, &overflow);
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZCV;
         break;
 
     case ARM_INS_ADR:
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_IMM);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_IMM);
 
-        value = cpu_reg_read(cpu, ARM_REG_PC) + detail.operands[1].imm;
+        value = cpu_reg_read(cpu, ARM_REG_PC) + detail->operands[1].imm;
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_AND:
         carry = cpu->xpsr.apsr_c;
 
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         value = op0 & op1;
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
         UPDATE_NZC;
         break;
 
     case ARM_INS_ASR:
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         value = Shift_C(op0, ARM_SFT_ASR, op1, &carry);
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
         break;
 
     case ARM_INS_B:
     case ARM_INS_BX:
-        assert(detail.op_count == 1);
+        assert(detail->op_count == 1);
 
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
         break;
 
     case ARM_INS_BFC:
     {
-        assert(detail.op_count == 3);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_IMM);
-        assert(detail.operands[2].type == ARM_OP_IMM);
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_IMM);
+        assert(detail->operands[2].type == ARM_OP_IMM);
 
-        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[0].reg);
 
-        uint32_t mask = ((1 << detail.operands[2].imm) - 1) << detail.operands[1].imm;
+        uint32_t mask = ((1 << detail->operands[2].imm) - 1) << detail->operands[1].imm;
         value = op0 & ~mask;
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
     }
 
     case ARM_INS_BFI:
     {
-        assert(detail.op_count == 4);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_IMM);
-        assert(detail.operands[3].type == ARM_OP_IMM);
+        assert(detail->op_count == 4);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_IMM);
+        assert(detail->operands[3].type == ARM_OP_IMM);
 
-        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
-        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[0].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
 
-        uint32_t mask = ((1 << detail.operands[3].imm) - 1) << detail.operands[2].imm;
+        uint32_t mask = ((1 << detail->operands[3].imm) - 1) << detail->operands[2].imm;
 
         op0 &= ~mask;
         op0 |= op1 & mask;
 
-        cpu_reg_write(cpu, detail.operands[0].reg, op0);
+        cpu_reg_write(cpu, detail->operands[0].reg, op0);
         break;
     }
 
     case ARM_INS_BIC:
-        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail->operands[0].type == ARM_OP_REG);
 
-        if (detail.op_count == 3)
+        if (detail->op_count == 3)
         {
-            assert(detail.operands[1].type == ARM_OP_REG);
+            assert(detail->operands[1].type == ARM_OP_REG);
             op0 = OPERAND_REG(1);
             op1 = OPERAND(2);
         }
         else
         {
-            assert(detail.op_count == 4);
-            assert(detail.operands[1].type == ARM_OP_REG);
-            assert(detail.operands[2].type == ARM_OP_REG);
-            assert(detail.operands[3].type == ARM_OP_IMM);
+            assert(detail->op_count == 4);
+            assert(detail->operands[1].type == ARM_OP_REG);
+            assert(detail->operands[2].type == ARM_OP_REG);
+            assert(detail->operands[3].type == ARM_OP_IMM);
             op0 = OPERAND_REG(1);
             op1 = OPERAND_REG(2);
         }
 
         value = op0 & ~op1;
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         // TODO: Update carry
         UPDATE_NZ;
@@ -1198,7 +1198,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_BL:
     case ARM_INS_BLX:
-        assert(detail.op_count == 1);
+        assert(detail->op_count == 1);
 
         cpu_reg_write(cpu, ARM_REG_LR, next_pc | 1);
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
@@ -1206,7 +1206,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_CBZ:
     case ARM_INS_CBNZ:
-        assert(detail.op_count == 2);
+        assert(detail->op_count == 2);
         op0 = OPERAND(0);
         op1 = OPERAND(1);
 
@@ -1215,23 +1215,23 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_CLZ:
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
 
         op0 = OPERAND_REG(0);
         op1 = OPERAND_REG(1);
 
         value = op1 == 0 ? 32 : __builtin_clz(op1);
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_CMN:
-        assert(detail.update_flags);
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail->update_flags);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[0].reg);
         op1 = OPERAND(1);
 
         value = AddWithCarry(op0, op1, &carry, &overflow);
@@ -1240,11 +1240,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_CMP:
-        assert(detail.update_flags);
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail->update_flags);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[0].reg);
         op1 = OPERAND(1);
 
         carry = true;
@@ -1256,19 +1256,19 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_CPS:
         if (cpu_is_privileged(cpu))
         {
-            if (detail.cps_mode == ARM_CPSMODE_IE)
+            if (detail->cps_mode == ARM_CPSMODE_IE)
             {
-                if ((detail.cps_flag & ARM_CPSFLAG_I) != 0)
+                if ((detail->cps_flag & ARM_CPSFLAG_I) != 0)
                     CLEAR(cpu->primask, 0);
-                if ((detail.cps_flag & ARM_CPSFLAG_F) != 0)
+                if ((detail->cps_flag & ARM_CPSFLAG_F) != 0)
                     CLEAR(cpu->faultmask, 0);
             }
-            else if (detail.cps_mode == ARM_CPSMODE_ID)
+            else if (detail->cps_mode == ARM_CPSMODE_ID)
             {
-                if ((detail.cps_flag & ARM_CPSFLAG_I) != 0)
+                if ((detail->cps_flag & ARM_CPSFLAG_I) != 0)
                     SET(cpu->primask, 0);
 
-                if ((detail.cps_flag & ARM_CPSFLAG_F) != 0 && cpu_execution_priority(cpu) > -1)
+                if ((detail->cps_flag & ARM_CPSFLAG_F) != 0 && cpu_execution_priority(cpu) > -1)
                     SET(cpu->faultmask, 0);
             }
         }
@@ -1286,14 +1286,14 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_EOR:
-        assert(detail.op_count == 2 || detail.op_count == 3);
+        assert(detail->op_count == 2 || detail->op_count == 3);
 
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         value = op0 ^ op1;
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
         UPDATE_NZC
         break;
 
@@ -1307,159 +1307,159 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_LDM:
-        assert(detail.op_count >= 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail->op_count >= 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
 
-        address = cpu_reg_read(cpu, detail.operands[0].reg);
+        address = cpu_reg_read(cpu, detail->operands[0].reg);
 
-        for (int n = 0; n < detail.op_count - 1; n++)
+        for (int n = 0; n < detail->op_count - 1; n++)
         {
             value = memreg_read(cpu->mem, address);
             address += 4;
 
-            cpu_reg_write(cpu, detail.operands[n + 1].reg, value);
+            cpu_reg_write(cpu, detail->operands[n + 1].reg, value);
         }
 
         // TODO: Check if registers<n> == '0', else don't write back
-        if (detail.writeback)
-            cpu_reg_write(cpu, detail.operands[0].reg, address);
+        if (detail->writeback)
+            cpu_reg_write(cpu, detail->operands[0].reg, address);
         break;
 
     case ARM_INS_LDMDB:
-        assert(detail.op_count >= 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail->op_count >= 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[0].reg) - 4 * (detail.op_count - 1);
+        op0 = cpu_reg_read(cpu, detail->operands[0].reg) - 4 * (detail->op_count - 1);
         address = op0;
 
-        for (int n = 0; n < detail.op_count - 1; n++)
+        for (int n = 0; n < detail->op_count - 1; n++)
         {
             value = memreg_read(cpu->mem, address);
             address += 4;
 
-            cpu_reg_write(cpu, detail.operands[n + 1].reg, value);
+            cpu_reg_write(cpu, detail->operands[n + 1].reg, value);
         }
 
         // TODO: Check if registers<n> == '0', else don't write back
-        if (detail.writeback)
-            cpu_reg_write(cpu, detail.operands[0].reg, op0);
+        if (detail->writeback)
+            cpu_reg_write(cpu, detail->operands[0].reg, op0);
         break;
 
     case ARM_INS_LDR:
     case ARM_INS_LDREX:
-        cpu_do_load(cpu, &detail, SIZE_WORD, x(FFFF, FFFF) << 2, false);
+        cpu_do_load(cpu, detail, SIZE_WORD, x(FFFF, FFFF) << 2, false);
         break;
 
     case ARM_INS_LDRB:
-        cpu_do_load(cpu, &detail, SIZE_BYTE, x(FFFF, FFFF), false);
+        cpu_do_load(cpu, detail, SIZE_BYTE, x(FFFF, FFFF), false);
         break;
 
     case ARM_INS_LDRSB:
-        cpu_do_load(cpu, &detail, SIZE_BYTE, x(FFFF, FFFF), true);
+        cpu_do_load(cpu, detail, SIZE_BYTE, x(FFFF, FFFF), true);
         break;
 
     case ARM_INS_LDRD:
-        value = cpu_mem_operand_address(cpu, &detail.operands[2]);
+        value = cpu_mem_operand_address(cpu, &detail->operands[2]);
 
-        cpu_store_operand(cpu, &detail.operands[0], memreg_read(cpu->mem, value), SIZE_WORD);
-        cpu_store_operand(cpu, &detail.operands[1], memreg_read(cpu->mem, value + 4), SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], memreg_read(cpu->mem, value), SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[1], memreg_read(cpu->mem, value + 4), SIZE_WORD);
         break;
 
     case ARM_INS_LDRH:
-        cpu_do_load(cpu, &detail, SIZE_HALFWORD, x(FFFF, FFFF) << 1, false);
+        cpu_do_load(cpu, detail, SIZE_HALFWORD, x(FFFF, FFFF) << 1, false);
         break;
 
     case ARM_INS_LDRSH:
-        cpu_do_load(cpu, &detail, SIZE_HALFWORD, x(FFFF, FFFF) << 1, true);
+        cpu_do_load(cpu, detail, SIZE_HALFWORD, x(FFFF, FFFF) << 1, true);
         break;
 
     case ARM_INS_LSL:
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         value = Shift_C(op0, ARM_SFT_LSL, op1, &carry);
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
         break;
 
     case ARM_INS_LSR:
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         value = Shift_C(op0, ARM_SFT_LSR, op1, &carry);
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
         break;
 
     case ARM_INS_MLA:
-        assert(detail.op_count == 4);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_REG);
-        assert(detail.operands[3].type == ARM_OP_REG);
+        assert(detail->op_count == 4);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
+        assert(detail->operands[3].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
-        op1 = cpu_reg_read(cpu, detail.operands[2].reg);
-        value = cpu_reg_read(cpu, detail.operands[3].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+        value = cpu_reg_read(cpu, detail->operands[3].reg);
         value += op0 * op1;
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZ
         break;
 
     case ARM_INS_MLS:
     {
-        assert(detail.op_count == 4);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_REG);
-        assert(detail.operands[3].type == ARM_OP_REG);
+        assert(detail->op_count == 4);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
+        assert(detail->operands[3].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
-        op1 = cpu_reg_read(cpu, detail.operands[2].reg);
-        uint32_t addend = cpu_reg_read(cpu, detail.operands[3].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+        uint32_t addend = cpu_reg_read(cpu, detail->operands[3].reg);
 
         value = addend - op0 * op1;
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
     }
 
     case ARM_INS_MOV:
     case ARM_INS_MOVS:
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
 
         value = OPERAND(1);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZ; // FIXME: Carry should also be set sometimes but it seems like Capstone doesn't expose it
         break;
 
     case ARM_INS_MRS:
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_SYSREG);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_SYSREG);
 
-        value = cpu_sysreg_read(cpu, detail.operands[1].reg);
+        value = cpu_sysreg_read(cpu, detail->operands[1].reg);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_MSR:
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_SYSREG);
-        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_SYSREG);
+        assert(detail->operands[1].type == ARM_OP_REG);
 
-        value = cpu_reg_read(cpu, detail.operands[1].reg);
+        value = cpu_reg_read(cpu, detail->operands[1].reg);
 
-        cpu_sysreg_write(cpu, detail.operands[0].reg, value, false);
+        cpu_sysreg_write(cpu, detail->operands[0].reg, value, false);
         break;
 
     case ARM_INS_MUL:
@@ -1468,7 +1468,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         value = op0 * op1;
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZ
         break;
@@ -1478,34 +1478,34 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         value = ~op1;
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
         break;
 
     case ARM_INS_ORN:
-        assert(detail.op_count == 3); // TODO: Implement other cases
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_REG);
+        assert(detail->op_count == 3); // TODO: Implement other cases
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
         op1 = OPERAND(2); // Use OPERAND here since the value may be shifted
 
         value = op0 | ~op1;
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZC;
         break;
 
     case ARM_INS_ORR:
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         value = op0 | op1;
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
         break;
@@ -1513,45 +1513,45 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_POP:
         op0 = cpu_reg_read(cpu, ARM_REG_SP);
 
-        cpu_reg_write(cpu, ARM_REG_SP, op0 + 4 * detail.op_count);
+        cpu_reg_write(cpu, ARM_REG_SP, op0 + 4 * detail->op_count);
 
-        for (int n = 0; n < detail.op_count; n++)
+        for (int n = 0; n < detail->op_count; n++)
         {
             value = memreg_read(cpu->mem, op0);
 
-            cpu_store_operand(cpu, &detail.operands[n], value, SIZE_WORD);
+            cpu_store_operand(cpu, &detail->operands[n], value, SIZE_WORD);
 
             op0 += 4;
         }
         break;
 
     case ARM_INS_PUSH:
-        cpu_do_stmdb(cpu, ARM_REG_SP, true, &detail.operands[0], detail.op_count);
+        cpu_do_stmdb(cpu, ARM_REG_SP, true, &detail->operands[0], detail->op_count);
         break;
 
     case ARM_INS_REV:
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
 
         value = ((op0 & 0xFF) << 24) | ((op0 & 0xFF00) << 8) | ((op0 & 0xFF0000) >> 8) | ((op0 & 0xFF000000) >> 24);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_RSB:
-        assert(detail.op_count == 3);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
 
         carry = true;
-        value = AddWithCarry(~op1, detail.operands[2].imm, &carry, &overflow);
+        value = AddWithCarry(~op1, detail->operands[2].imm, &carry, &overflow);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZCV
         break;
@@ -1569,20 +1569,20 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         value = (op1 >> lsb) & ((1 << width) - 1);
         value = (value ^ mask) - mask; // Sign extend https://stackoverflow.com/a/17719010
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
         break;
     }
 
     case ARM_INS_SDIV:
     case ARM_INS_UDIV:
-        assert(detail.op_count == 2 || detail.op_count == 3);
+        assert(detail->op_count == 2 || detail->op_count == 3);
 
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.op_count < 3 || detail.operands[2].type == ARM_OP_REG);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->op_count < 3 || detail->operands[2].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[detail.op_count == 3 ? 1 : 0].reg);
-        op1 = cpu_reg_read(cpu, detail.operands[detail.op_count == 3 ? 2 : 1].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[detail->op_count == 3 ? 1 : 0].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[detail->op_count == 3 ? 2 : 1].reg);
 
         // TODO: Exception if op1 is zero
         assert(op1 != 0);
@@ -1592,100 +1592,100 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         else
             value = op0 / op1;
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_SEL:
-        assert(detail.op_count == 3);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_REG);
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
-        op1 = cpu_reg_read(cpu, detail.operands[2].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
 
         value = (cpu->xpsr.apsr_ge0 ? (op0 & 0xFF) : (op1 & 0xFF)) |
                 (cpu->xpsr.apsr_ge1 ? ((op0 >> 8) & 0xFF) : ((op1 >> 8) & 0xFF)) |
                 (cpu->xpsr.apsr_ge2 ? ((op0 >> 16) & 0xFF) : ((op1 >> 16) & 0xFF)) |
                 (cpu->xpsr.apsr_ge3 ? ((op0 >> 24) & 0xFF) : ((op1 >> 24) & 0xFF));
 
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_SMULL:
     {
-        assert(detail.op_count == 4);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_REG);
-        assert(detail.operands[3].type == ARM_OP_REG);
+        assert(detail->op_count == 4);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
+        assert(detail->operands[3].type == ARM_OP_REG);
 
-        uint64_t result = (int64_t)(int32_t)cpu_reg_read(cpu, detail.operands[2].reg) * (int64_t)(int32_t)cpu_reg_read(cpu, detail.operands[3].reg);
+        uint64_t result = (int64_t)(int32_t)cpu_reg_read(cpu, detail->operands[2].reg) * (int64_t)(int32_t)cpu_reg_read(cpu, detail->operands[3].reg);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, result & x(FFFF, FFFF));
-        cpu_reg_write(cpu, detail.operands[1].reg, result >> 32);
+        cpu_reg_write(cpu, detail->operands[0].reg, result & x(FFFF, FFFF));
+        cpu_reg_write(cpu, detail->operands[1].reg, result >> 32);
         break;
     }
 
     case ARM_INS_STM:
-        assert(detail.op_count >= 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail->op_count >= 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[0].reg);
 
-        for (size_t n = 0; n < detail.op_count; n++)
+        for (size_t n = 0; n < detail->op_count; n++)
         {
-            assert(detail.operands[n].type == ARM_OP_REG);
+            assert(detail->operands[n].type == ARM_OP_REG);
 
-            memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail.operands[n].reg), SIZE_WORD);
+            memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail->operands[n].reg), SIZE_WORD);
 
             op0 += 4;
         }
 
-        if (detail.writeback)
-            cpu_reg_write(cpu, detail.operands[0].reg, op0);
+        if (detail->writeback)
+            cpu_reg_write(cpu, detail->operands[0].reg, op0);
         break;
 
     case ARM_INS_STR:
-        cpu_do_store(cpu, &detail, SIZE_WORD, false);
+        cpu_do_store(cpu, detail, SIZE_WORD, false);
         break;
 
     case ARM_INS_STRB:
-        cpu_do_store(cpu, &detail, SIZE_BYTE, false);
+        cpu_do_store(cpu, detail, SIZE_BYTE, false);
         break;
 
     case ARM_INS_STRD:
-        cpu_do_store(cpu, &detail, SIZE_WORD, true);
+        cpu_do_store(cpu, detail, SIZE_WORD, true);
         break;
 
     case ARM_INS_STREX:
-        assert(detail.op_count == 3);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_MEM);
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_MEM);
 
-        op0 = cpu_mem_operand_address(cpu, &detail.operands[2]);
+        op0 = cpu_mem_operand_address(cpu, &detail->operands[2]);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, 0);
-        memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail.operands[1].reg), SIZE_WORD);
+        cpu_reg_write(cpu, detail->operands[0].reg, 0);
+        memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail->operands[1].reg), SIZE_WORD);
         break;
 
     case ARM_INS_STRH:
-        cpu_do_store(cpu, &detail, SIZE_HALFWORD, false);
+        cpu_do_store(cpu, detail, SIZE_HALFWORD, false);
         break;
 
     case ARM_INS_STMDB:
-        cpu_do_stmdb(cpu, detail.operands[0].reg, detail.writeback, &detail.operands[1], detail.op_count - 1);
+        cpu_do_stmdb(cpu, detail->operands[0].reg, detail->writeback, &detail->operands[1], detail->op_count - 1);
         break;
 
     case ARM_INS_SUB:
-        op0 = OPERAND(detail.op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail.op_count == 3 ? 2 : 1);
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         carry = true;
         value = AddWithCarry(op0, ~op1, &carry, &overflow);
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZCV
         break;
@@ -1695,39 +1695,39 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_SXTB:
-        assert(detail.op_count == 2); // TODO: Handle rotation case
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail->op_count == 2); // TODO: Handle rotation case
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
         value = (uint32_t)(int8_t)(op1 & 0xFF);
         break;
 
     case ARM_INS_SXTH:
-        assert(detail.op_count == 2); // TODO: Handle rotation case
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail->op_count == 2); // TODO: Handle rotation case
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
         value = (uint32_t)(int16_t)(op1 & 0xFFFF);
         break;
 
     case ARM_INS_TBB:
     case ARM_INS_TBH:
-        assert(detail.op_count == 1);
-        assert(detail.operands[0].type == ARM_OP_MEM);
+        assert(detail->op_count == 1);
+        assert(detail->operands[0].type == ARM_OP_MEM);
 
-        op0 = cpu_mem_operand_address(cpu, &detail.operands[0]);
+        op0 = cpu_mem_operand_address(cpu, &detail->operands[0]);
         value = memreg_read(cpu->mem, op0) & (i->id == ARM_INS_TBB ? 0xFF : 0xFFFF);
 
         cpu_reg_write(cpu, ARM_REG_PC, (cpu_reg_read(cpu, ARM_REG_PC) + value * 2) | 1);
         break;
 
     case ARM_INS_TEQ:
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[0].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[0].reg);
         op1 = OPERAND(1);
 
         value = op0 ^ op1;
@@ -1736,8 +1736,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_TST:
-        assert(detail.op_count == 2);
-        assert(detail.operands[1].shift.value == 0);
+        assert(detail->op_count == 2);
+        assert(detail->operands[1].shift.value == 0);
 
         op0 = OPERAND(0);
         op1 = OPERAND(1);
@@ -1749,20 +1749,20 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_UADD8:
     {
-        assert(detail.op_count == 3); // TODO: Implement 2-register case
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_REG);
+        assert(detail->op_count == 3); // TODO: Implement 2-register case
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail.operands[1].reg);
-        op1 = cpu_reg_read(cpu, detail.operands[2].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
 
         uint16_t sum1 = (op0 & 0xFF) + (op1 & 0xFF);
         uint16_t sum2 = ((op0 >> 8) & 0xFF) + ((op1 >> 8) & 0xFF);
         uint16_t sum3 = ((op0 >> 16) & 0xFF) + ((op1 >> 16) & 0xFF);
         uint16_t sum4 = ((op0 >> 24) & 0xFF) + ((op1 >> 24) & 0xFF);
 
-        cpu_reg_write(cpu, detail.operands[0].reg,
+        cpu_reg_write(cpu, detail->operands[0].reg,
                       ((sum4 & 0xFF) << 24) |
                           ((sum3 & 0xFF) << 16) |
                           ((sum2 & 0xFF) << 8) |
@@ -1785,75 +1785,75 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         value = (op1 >> lsb) & ((1 << width) - 1);
 
-        cpu_store_operand(cpu, &detail.operands[0], value, SIZE_WORD);
+        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
         break;
     }
 
     case ARM_INS_UMLAL:
     {
-        assert(detail.op_count == 4);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_REG);
-        assert(detail.operands[3].type == ARM_OP_REG);
+        assert(detail->op_count == 4);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
+        assert(detail->operands[3].type == ARM_OP_REG);
 
-        uint64_t result = (uint64_t)cpu_reg_read(cpu, detail.operands[2].reg) * (uint64_t)cpu_reg_read(cpu, detail.operands[3].reg);
-        result += ((uint64_t)cpu_reg_read(cpu, detail.operands[1].reg) << 32) | (uint64_t)cpu_reg_read(cpu, detail.operands[0].reg);
+        uint64_t result = (uint64_t)cpu_reg_read(cpu, detail->operands[2].reg) * (uint64_t)cpu_reg_read(cpu, detail->operands[3].reg);
+        result += ((uint64_t)cpu_reg_read(cpu, detail->operands[1].reg) << 32) | (uint64_t)cpu_reg_read(cpu, detail->operands[0].reg);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, result & x(FFFF, FFFF));
-        cpu_reg_write(cpu, detail.operands[1].reg, result >> 32);
+        cpu_reg_write(cpu, detail->operands[0].reg, result & x(FFFF, FFFF));
+        cpu_reg_write(cpu, detail->operands[1].reg, result >> 32);
         break;
     }
 
     case ARM_INS_UMULL:
     {
-        assert(detail.op_count == 4);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
-        assert(detail.operands[2].type == ARM_OP_REG);
-        assert(detail.operands[3].type == ARM_OP_REG);
+        assert(detail->op_count == 4);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
+        assert(detail->operands[3].type == ARM_OP_REG);
 
-        uint64_t result = (uint64_t)cpu_reg_read(cpu, detail.operands[2].reg) * (uint64_t)cpu_reg_read(cpu, detail.operands[3].reg);
+        uint64_t result = (uint64_t)cpu_reg_read(cpu, detail->operands[2].reg) * (uint64_t)cpu_reg_read(cpu, detail->operands[3].reg);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, result & x(FFFF, FFFF));
-        cpu_reg_write(cpu, detail.operands[1].reg, result >> 32);
+        cpu_reg_write(cpu, detail->operands[0].reg, result & x(FFFF, FFFF));
+        cpu_reg_write(cpu, detail->operands[1].reg, result >> 32);
         break;
     }
 
     case ARM_INS_USAT:
-        assert(detail.op_count == 3);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_IMM);
-        assert(detail.operands[2].type == ARM_OP_REG);
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_IMM);
+        assert(detail->operands[2].type == ARM_OP_REG);
 
-        op0 = detail.operands[1].imm;
+        op0 = detail->operands[1].imm;
         op1 = OPERAND(2);
 
         bool saturated = UnsignedSatQ(op1, op0, &value);
-        cpu_reg_write(cpu, detail.operands[0].reg, value);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         if (saturated)
             cpu->xpsr.apsr_q = 1;
         break;
 
     case ARM_INS_UXTB:
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, op1 & 0xFF);
+        cpu_reg_write(cpu, detail->operands[0].reg, op1 & 0xFF);
         break;
 
     case ARM_INS_UXTH:
-        assert(detail.op_count == 2);
-        assert(detail.operands[0].type == ARM_OP_REG);
-        assert(detail.operands[1].type == ARM_OP_REG);
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail.operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
 
-        cpu_reg_write(cpu, detail.operands[0].reg, op1 & 0xFFFF);
+        cpu_reg_write(cpu, detail->operands[0].reg, op1 & 0xFFFF);
         break;
 
         // case ARM_INS_VLDMIA:

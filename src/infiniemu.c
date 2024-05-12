@@ -130,7 +130,8 @@ int main(int argc, char **argv)
             tv_start = tv_now;
 
             printf("Elapsed: %lu us\n", elapsed);
-            printf("Instructions %lu\n", inst_counter);
+            printf("Instructions ran: %lu\n", inst_counter);
+            printf("Instructions per second: %.0f\n", (1000000.f / elapsed) * inst_counter);
             printf("\n");
 
             inst_counter = 0;
