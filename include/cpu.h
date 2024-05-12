@@ -30,11 +30,13 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value);
 uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg);
 void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_update_it);
 
+arm_exception cpu_get_active_exception(cpu_t *cpu);
 void cpu_jump_exception(cpu_t *cpu, arm_exception ex);
 int16_t cpu_get_exception_priority(cpu_t *cpu, arm_exception ex);
 void cpu_set_exception_priority(cpu_t *cpu, arm_exception ex, int16_t priority);
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex);
 void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex);
 bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex);
+bool cpu_exception_is_active(cpu_t *cpu, arm_exception ex);
 void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled);
 bool cpu_exception_get_enabled(cpu_t *cpu, arm_exception ex);

@@ -60,6 +60,8 @@ typedef enum
 
 typedef enum
 {
+    ARM_EXC_NONE = 0,
+    
     ARM_EXC_RESET = 1,
     ARM_EXC_NMI = 2,
     ARM_EXC_HARDFAULT = 3,

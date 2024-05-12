@@ -133,6 +133,8 @@ struct cpu_inst_t
 
     size_t exception_count, pending_exception_count;
     exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
+    arm_exception active_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
+    size_t active_exception_count;
 
     bool branched;
 
@@ -469,6 +471,14 @@ static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool 
     }
 }
 
+arm_exception cpu_get_active_exception(cpu_t *cpu)
+{
+    if (cpu->active_exception_count == 0)
+        return ARM_EXC_NONE;
+
+    return cpu->active_exceptions[cpu->active_exception_count - 1];
+}
+
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
 {
     if (!cpu->exceptions[ex].pending)
@@ -520,6 +530,11 @@ void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
 bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex)
 {
     return cpu->exceptions[ex].pending;
+}
+
+bool cpu_exception_is_active(cpu_t *cpu, arm_exception ex)
+{
+    return cpu->exceptions[ex].active;
 }
 
 void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
@@ -659,6 +674,7 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
     cpu->control &= ~(1 << CONTROL_SPSEL);
 
     cpu->exceptions[ex].active = true;
+    cpu->active_exceptions[cpu->active_exception_count++] = ex;
 
     // TODO: SCS_UpdateStatusRegs
 }
@@ -726,6 +742,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
     }
 
     cpu->exceptions[returning_exception_number].active = false;
+    cpu->active_exception_count--;
 
     if (cpu->xpsr.ipsr != 2)
         cpu->faultmask = 0;
@@ -2038,6 +2055,7 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
         value &= ~0x600F800; // Remove EPSR.IT bits
         value |= (cpu->itstate.value >> 6) << 25;
         value |= (cpu->itstate.value & 0x3F) << 10;
+        value |= cpu_get_active_exception(cpu) & 0x1FF;
         return value;
     }
 

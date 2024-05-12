@@ -40,7 +40,21 @@ OPERATION(scb)
 
         if (OP_IS_READ(op))
         {
-            abort(); // TODO: Implement
+            *value = 0;
+
+            if (cpu_exception_is_active(scb->cpu, ARM_EXC_NMI))
+                *value |= 1 << 31;
+
+            if (cpu_exception_is_pending(scb->cpu, ARM_EXC_PENDSV))
+                *value |= 1 << 28;
+
+            if (cpu_exception_is_pending(scb->cpu, ARM_EXC_SYSTICK))
+                *value |= 1 << 26;
+
+            // TODO: Set RETTOBASE bit
+
+            arm_exception active_exc = cpu_get_active_exception(scb->cpu);
+            *value |= active_exc & 0x1FF;
         }
         else
         {
