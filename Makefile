@@ -1,4 +1,5 @@
 DEBUG := 0
+OPTIMIZE := 1
 PROFILE := 0
 
 DUMPS = $(patsubst dumps/%.bin, dumps/%.h, $(wildcard dumps/*.bin))
@@ -13,13 +14,17 @@ CC = gcc
 CFLAGS = -I$(IDIR) -I$(LDIR) -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
 
 ifeq ($(DEBUG), 1)
-	CFLAGS += -g -O0
+	CFLAGS += -g
+endif
 
-	ifeq ($(PROFILE), 1)
-		CFLAGS += -pg
-	endif
-else
+ifeq ($(OPTIMIZE), 1)
 	CFLAGS += -O3
+else
+	CFLAGS += -O0
+endif
+
+ifeq ($(PROFILE), 1)
+	CFLAGS += -pg
 endif
 
 LIBS = -lm -lcapstone
@@ -63,3 +68,9 @@ clean:
 
 dumps: $(DUMPS)
 .PHONY: dumps
+
+profile: infiniemu
+	valgrind --tool=cachegrind --cachegrind-out-file=cachegrind.out ./infiniemu -f infinitime.bin
+	cg_annotate cachegrind.out > cachegrind.out.txt
+	rm cachegrind.out
+.PHONY: profile
