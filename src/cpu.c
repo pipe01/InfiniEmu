@@ -35,6 +35,9 @@
 // TODO: Implement
 #define BRANCH_WRITE_PC(cpu, pc) cpu_reg_write(cpu, ARM_REG_PC, pc)
 
+#define SIGNEXTEND8_32(value) ((uint32_t)(int8_t)((value) & 0xFF))
+#define SIGNEXTEND16_32(value) ((uint32_t)(int16_t)((value) & 0xFFFF))
+
 #define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address, &carry)
 #define OPERAND(n) OPERAND_OFF(n, 0)
 #define OPERAND_REG(n) cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg)
@@ -68,9 +71,9 @@
         UPDATE_V((cpu), (overflow)); \
     }
 
-#define WRITEBACK(op_n)                                         \
+#define WRITEBACK(op_n)                                          \
     if (detail->writeback)                                       \
-    {                                                           \
+    {                                                            \
         assert(detail->operands[op_n].type == ARM_OP_REG);       \
         cpu_reg_write(cpu, detail->operands[op_n].reg, address); \
     }
@@ -801,11 +804,11 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, uint32_t a
             switch (size)
             {
             case SIZE_BYTE:
-                value = (uint32_t)(int8_t)value;
+                value = SIGNEXTEND8_32(value);
                 break;
 
             case SIZE_HALFWORD:
-                value = (uint32_t)(int16_t)value;
+                value = SIGNEXTEND16_32(value);
                 break;
 
             case SIZE_WORD:
@@ -1556,6 +1559,18 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         UPDATE_NZCV
         break;
 
+    case ARM_INS_SBC:
+        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
+
+        carry = cpu->xpsr.apsr_c;
+        value = AddWithCarry(op0, ~op1, &carry, &overflow);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+
+        UPDATE_NZCV;
+        break;
+
     case ARM_INS_SBFX:
     {
         op1 = OPERAND(1);
@@ -1700,7 +1715,21 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[1].type == ARM_OP_REG);
 
         op1 = cpu_reg_read(cpu, detail->operands[1].reg);
-        value = (uint32_t)(int8_t)(op1 & 0xFF);
+        value = SIGNEXTEND8_32(op1);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+        break;
+
+    case ARM_INS_SXTAH:
+        assert(detail->op_count == 3); // TODO: Handle rotation case
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+
+        value = op0 + SIGNEXTEND16_32(op1);
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
@@ -1711,7 +1740,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[1].type == ARM_OP_REG);
 
         op1 = cpu_reg_read(cpu, detail->operands[1].reg);
-        value = (uint32_t)(int16_t)(op1 & 0xFFFF);
+        value = SIGNEXTEND16_32(op1);
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
@@ -1860,13 +1889,13 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_reg_write(cpu, detail->operands[0].reg, op1 & 0xFFFF);
         break;
 
-        // case ARM_INS_VLDMIA:
-        // case ARM_INS_VMRS:
-        // case ARM_INS_VMSR:
+    // case ARM_INS_VLDMIA:
+    case ARM_INS_VMRS:
+    case ARM_INS_VMSR:
         // case ARM_INS_VSTMDB:
-        //     LOG_CPU_INST("Implement instruction %d\n", i->id);
-        //     // TODO: Implement
-        //     break;
+        LOG_CPU_INST("Implement instruction %d\n", i->id);
+        // TODO: Implement
+        break;
 
     default:
         fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, cpu->core_regs[ARM_REG_PC]);
