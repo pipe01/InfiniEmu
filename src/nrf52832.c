@@ -57,7 +57,7 @@ struct NRF52832_inst_t
     SAADC_t *saadc;
 };
 
-NRF52832_t *nrf52832_new(uint8_t *program, size_t program_size)
+NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size)
 {
     uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
 

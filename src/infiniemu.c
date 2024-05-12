@@ -5,13 +5,8 @@
 #include <sys/time.h>
 
 #include "config.h"
-#include "nrf52832.h"
+#include "pinetime.h"
 #include "gdb.h"
-
-#include "components/i2c/bma425.h"
-#include "components/i2c/cst816s.h"
-#include "components/i2c/hrs3300.h"
-#include "components/spi/spinorflash.h"
 
 #ifdef ENABLE_SEGGER_RTT
 #include "segger_rtt.h"
@@ -69,17 +64,13 @@ int main(int argc, char **argv)
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
-    NRF52832_t *nrf = nrf52832_new(program, fsize);
+    pinetime_t *pt = pinetime_new(program, fsize);
 
-    spi_add_slave(nrf52832_get_spi(nrf), spinorflash_new(4 * 1024 * 1024, 4 * 1024, 5));
-    i2c_add_slave(nrf52832_get_i2c(nrf), 0x15, cst816s_new());
-    i2c_add_slave(nrf52832_get_i2c(nrf), 0x18, bma425_new());
-    i2c_add_slave(nrf52832_get_i2c(nrf), 0x44, hrs3300_new());
-
-    nrf52832_reset(nrf);
+    NRF52832_t *nrf = pinetime_get_nrf52832(pt);
+    cpu_t *cpu = nrf52832_get_cpu(nrf);
 
 #ifdef ENABLE_SEGGER_RTT
-    rtt_t *rtt = rtt_new(cpu_mem(nrf52832_get_cpu(nrf)));
+    rtt_t *rtt = rtt_new(cpu_mem(cpu));
     size_t rtt_counter = 0;
 #endif
 
@@ -96,7 +87,6 @@ int main(int argc, char **argv)
 
         runlog_record_load_program(runlog, program, fsize);
 
-        cpu_t *cpu = nrf52832_get_cpu(nrf);
         cpu_set_runlog(cpu, runlog);
         cpu_reset(cpu);
     }
