@@ -1,6 +1,7 @@
 #include "components/i2c/bma425.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,6 +68,14 @@ typedef struct
     uint8_t features_in[FEATURES_SIZE];
     uint8_t unknown[4096];
 
+    struct
+    {
+        uint16_t x, y, z;
+    } acc;
+
+    uint32_t step_counter;
+    uint8_t temperature, activity_type;
+
     uint8_t next_read[MAX_READ_SIZE];
     size_t next_read_size;
 } bma425_t;
@@ -102,7 +111,37 @@ void bma425_write(uint8_t *data, size_t data_size, void *userdata)
     switch (reg)
     {
     case 0x00: // CHIP_ID
+        assert(data_size == 1);
+
         bma425->next_read[0] = CHIPID;
+        bma425->next_read_size = 1;
+        break;
+
+    case 0x12: // DATA_8 (ACC_X LSB)
+        assert(data_size == 1);
+
+        memcpy(bma425->next_read, &bma425->acc, sizeof(bma425->acc));
+        bma425->next_read_size = sizeof(bma425->acc);
+        break;
+
+    case 0x1E: // STEP_COUNTER_0
+        assert(data_size == 1);
+
+        memcpy(bma425->next_read, &bma425->step_counter, sizeof(bma425->step_counter));
+        bma425->next_read_size = sizeof(bma425->step_counter);
+        break;
+
+    case 0x22: // TEMPERATURE
+        assert(data_size == 1);
+
+        bma425->next_read[0] = bma425->temperature;
+        bma425->next_read_size = 1;
+        break;
+
+    case 0x27: // ACTIVITY_TYPE
+        assert(data_size == 1);
+
+        bma425->next_read[0] = bma425->activity_type;
         bma425->next_read_size = 1;
         break;
 
@@ -193,7 +232,7 @@ size_t bma425_read(uint8_t *data, size_t data_size, void *userdata)
     assert(data_size <= bma425->next_read_size);
 
     memcpy(data, bma425->next_read, data_size);
-    return 1;
+    return data_size;
 }
 
 i2c_slave_t bma425_new()
