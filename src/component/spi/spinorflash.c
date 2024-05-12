@@ -77,7 +77,7 @@ typedef struct
     uint32_t pp_address;
 } spinorflash_t;
 
-void spinorflash_write(uint8_t *data, size_t data_size, void *userdata)
+void spinorflash_write(const uint8_t *data, size_t data_size, void *userdata)
 {
     if (data_size > MAX_COMMAND_SIZE)
     {
@@ -221,7 +221,7 @@ void spinorflash_cs_changed(bool selected, void *userdata)
     }
 }
 
-spi_slave_t spinorflash_new(size_t size, size_t sector_size, uint8_t csPin)
+spi_slave_t spinorflash_new(size_t size, size_t sector_size)
 {
     spinorflash_t *flash = (spinorflash_t *)malloc(sizeof(spinorflash_t));
     flash->data = (uint8_t *)malloc(size);
@@ -229,7 +229,6 @@ spi_slave_t spinorflash_new(size_t size, size_t sector_size, uint8_t csPin)
     flash->sector_size = sector_size;
 
     return (spi_slave_t){
-        .cs_pin = csPin,
         .userdata = flash,
         .read = spinorflash_read,
         .write = spinorflash_write,
