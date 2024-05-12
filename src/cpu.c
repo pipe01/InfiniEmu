@@ -128,11 +128,8 @@ struct cpu_inst_t
     cs_insn *inst;
     cs_insn **inst_by_pc;
 
-    size_t exception_count;
+    size_t exception_count, pending_exception_count;
     exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
-
-    size_t executing_exception_count;
-    arm_exception executing_exceptions[MAX_EXECUTING_EXCEPTIONS];
 
     bool branched;
 
@@ -471,15 +468,23 @@ static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool 
 
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
 {
-    cpu->exceptions[ex].pending = true;
+    if (!cpu->exceptions[ex].pending)
+    {
+        cpu->pending_exception_count++;
+        cpu->exceptions[ex].pending = true;
 
-    LOG_CPU_EX("Exception %d is now pending", ex);
+        LOG_CPU_EX("Exception %d is now pending", ex);
+    }
 }
 
-static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_priority)
+static arm_exception cpu_exception_get_pending(cpu_t *cpu)
 {
+    if (cpu->pending_exception_count == 0)
+        return 0;
+
     int16_t min_priority = ARM_MAX_PRIORITY;
     arm_exception min_ex = 0;
+    int16_t current_priority = cpu_execution_priority(cpu);
 
     for (arm_exception i = 1; i < cpu->exception_count; i++)
     {
@@ -500,9 +505,13 @@ static arm_exception cpu_exception_get_pending(cpu_t *cpu, int16_t current_prior
 
 void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
 {
-    cpu->exceptions[ex].pending = false;
+    if (cpu->exceptions[ex].pending)
+    {
+        cpu->pending_exception_count--;
+        cpu->exceptions[ex].pending = false;
 
-    LOG_CPU_EX("Exception %d is no longer pending", ex);
+        LOG_CPU_EX("Exception %d is no longer pending", ex);
+    }
 }
 
 bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex)
@@ -661,7 +670,7 @@ static void cpu_exception_entry(cpu_t *cpu, arm_exception ex, bool sync)
     cpu_push_stack(cpu, ex, sync);
     cpu_exception_taken(cpu, ex);
 
-    cpu->exceptions[ex].pending = false;
+    cpu_exception_clear_pending(cpu, ex);
 }
 
 static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
@@ -720,7 +729,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 
     cpu_pop_stack(cpu, frameptr, exc_return);
 
-    arm_exception pending = cpu_exception_get_pending(cpu, cpu_execution_priority(cpu));
+    arm_exception pending = cpu_exception_get_pending(cpu);
     if (pending != 0)
     {
         cpu_exception_entry(cpu, pending, false);
@@ -1889,7 +1898,7 @@ void cpu_step(cpu_t *cpu)
     if (cpu->runlog)
         runlog_record_execute(cpu->runlog, cpu_get_runlog_regs(cpu));
 
-    pending = cpu_exception_get_pending(cpu, cpu_execution_priority(cpu));
+    pending = cpu_exception_get_pending(cpu);
     if (pending != 0)
         cpu_exception_entry(cpu, pending, false);
 
