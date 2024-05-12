@@ -26,6 +26,8 @@ OPERATION(wdt)
 
     OP_ASSERT_SIZE(op, WORD);
 
+    // TODO: Make watchdog do something
+
     switch (offset)
     {
     case 0x000: // TASKS_START
@@ -42,6 +44,10 @@ OPERATION(wdt)
 
     case 0x50C: // CONFIG
         OP_RETURN_REG(wdt->config, WORD);
+
+    case 0x600: // RR[0]
+        OP_ASSERT_WRITE(op);
+        return MEMREG_RESULT_OK;
     }
 
     return MEMREG_RESULT_UNHANDLED;
