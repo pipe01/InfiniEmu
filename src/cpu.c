@@ -107,6 +107,18 @@ typedef union
     uint8_t value;
 } itstate_t;
 
+typedef union
+{
+    struct
+    {
+        uint32_t lower : 32;
+        uint32_t upper : 32;
+    };
+    uint64_t value;
+} vreg_t;
+
+static_assert(sizeof(vreg_t) == 8);
+
 struct cpu_inst_t
 {
     jmp_buf *fault_jmp_buf;
@@ -116,6 +128,7 @@ struct cpu_inst_t
 
     uint32_t core_regs[ARM_REG_ENDING - 1];
     uint32_t sp_main, sp_process;
+    vreg_t d[32];
 
     uint32_t control, faultmask, basepri, primask;
     xPSR_t xpsr;
@@ -989,6 +1002,7 @@ void cpu_free(cpu_t *cpu)
 void cpu_reset(cpu_t *cpu)
 {
     memset(cpu->core_regs, 0, sizeof(cpu->core_regs));
+    memset(cpu->d, 0, sizeof(cpu->d));
 
     cpu->mode = ARM_MODE_THREAD;
     cpu->primask = 0;
@@ -1922,6 +1936,34 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_reg_write(cpu, detail->operands[0].reg, op1 & 0xFFFF);
         break;
 
+    case ARM_INS_VLDR:
+    {
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_MEM);
+
+        uint32_t base = cpu_reg_read(cpu, detail->operands[1].mem.base);
+        if (detail->operands[1].mem.base == ARM_REG_PC)
+            base = ALIGN4(base);
+
+        uint32_t address = detail->operands[1].subtracted ? base - detail->operands[1].mem.disp : base + detail->operands[1].mem.disp;
+
+        if (detail->operands[0].reg >= ARM_REG_S0 && detail->operands[0].reg <= ARM_REG_S31)
+        {
+            cpu_reg_write(cpu, detail->operands[0].reg, value);
+        }
+        else
+        {
+            assert(detail->operands[0].reg >= ARM_REG_D0 && detail->operands[0].reg <= ARM_REG_D31);
+
+            uint32_t word1 = memreg_read(cpu->mem, address);
+            uint32_t word2 = memreg_read(cpu->mem, address + 4);
+
+            cpu->d[detail->operands[0].reg - ARM_REG_D0].value = (uint64_t)word1 | ((uint64_t)word2 << 32);
+        }
+        break;
+    }
+
     // case ARM_INS_VLDMIA:
     case ARM_INS_VMRS:
     case ARM_INS_VMSR:
@@ -1929,6 +1971,29 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         LOG_CPU_INST("Implement instruction %d\n", i->id);
         // TODO: Implement
         break;
+
+    case ARM_INS_VSTR:
+    {
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_MEM);
+
+        uint32_t base = cpu_reg_read(cpu, detail->operands[1].mem.base);
+        uint32_t address = detail->operands[1].subtracted ? base - detail->operands[1].mem.disp : base + detail->operands[1].mem.disp;
+
+        if (detail->operands[0].reg >= ARM_REG_S0 && detail->operands[0].reg <= ARM_REG_S31)
+        {
+            memreg_write(cpu->mem, address, cpu_reg_read(cpu, detail->operands[0].reg), SIZE_WORD);
+        }
+        else
+        {
+            assert(detail->operands[0].reg >= ARM_REG_D0 && detail->operands[0].reg <= ARM_REG_D31);
+
+            memreg_write(cpu->mem, address, cpu->d[detail->operands[0].reg - ARM_REG_D0].lower, SIZE_WORD);
+            memreg_write(cpu->mem, address + 4, cpu->d[detail->operands[0].reg - ARM_REG_D0].upper, SIZE_WORD);
+        }
+        break;
+    }
 
     default:
         fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, cpu->core_regs[ARM_REG_PC]);
@@ -2009,6 +2074,18 @@ uint32_t cpu_reg_read(cpu_t *cpu, arm_reg reg)
         return *cpu_get_sp(cpu);
 
     default:
+        if (reg >= ARM_REG_S0 && reg <= ARM_REG_S31)
+        {
+            int n = reg - ARM_REG_S0;
+            if (n % 2 == 0)
+                return cpu->d[n / 2].lower;
+            else
+                return cpu->d[n / 2].upper;
+        }
+    
+        if (reg >= ARM_REG_D0 && reg <= ARM_REG_D31)
+            abort();
+
         return cpu->core_regs[reg];
     }
 }
@@ -2042,7 +2119,19 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
         break;
 
     default:
-        cpu->core_regs[reg] = value;
+        if (reg >= ARM_REG_S0 && reg <= ARM_REG_S31)
+        {
+            int n = reg - ARM_REG_S0;
+            if (n % 2 == 0)
+                cpu->d[n / 2].lower = value;
+            else
+                cpu->d[n / 2].upper = value;
+        }
+        else if (reg >= ARM_REG_D0 && reg <= ARM_REG_D31)
+            abort();
+        else
+            cpu->core_regs[reg] = value;
+
         break;
     }
 }
