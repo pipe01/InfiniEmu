@@ -967,14 +967,14 @@ cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_
     cs_option(cpu->cs, CS_OPT_DETAIL, CS_OPT_ON);
     // cs_option(handle, CS_OPT_SKIPDATA, CS_OPT_ON);
 
-    cpu->inst_by_pc = calloc(program_size, sizeof(cs_insn *));
+    cpu->inst_by_pc = calloc(program_size / 2, sizeof(cs_insn *));
 
     return cpu;
 }
 
 void cpu_free(cpu_t *cpu)
 {
-    for (size_t i = 0; i < cpu->program_size; i++)
+    for (size_t i = 0; i < cpu->program_size / 2; i++)
     {
         cs_insn *ins = cpu->inst_by_pc[i];
 
@@ -1049,9 +1049,11 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
 {
     assert((pc & x(FFFF, FFFE)) == pc); // Check that PC is aligned
 
-    if (!cpu->inst_by_pc[pc])
+    cs_insn **insn = &cpu->inst_by_pc[pc / 2];
+
+    if (!*insn)
     {
-        size_t n = cs_disasm(cpu->cs, &cpu->program[pc], cpu->program_size - pc, pc, 1, &cpu->inst_by_pc[pc]);
+        size_t n = cs_disasm(cpu->cs, &cpu->program[pc], cpu->program_size - pc, pc, 1, insn);
 
         if (n == 0)
         {
@@ -1060,7 +1062,7 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
         }
     }
 
-    return cpu->inst_by_pc[pc];
+    return *insn;
 }
 
 void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
