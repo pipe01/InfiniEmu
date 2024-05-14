@@ -17,10 +17,11 @@ int main(int argc, char **argv)
     char *program_path = NULL;
     bool run_gdb = false;
     char *runlog_path = NULL;
+    bool big_ram = false;
 
     int c;
 
-    while ((c = getopt(argc, argv, "df:l:")) != -1)
+    while ((c = getopt(argc, argv, "bdf:l:")) != -1)
     {
         switch (c)
         {
@@ -34,6 +35,10 @@ int main(int argc, char **argv)
 
         case 'l':
             runlog_path = optarg;
+            break;
+        
+        case 'b':
+            big_ram = true;
             break;
 
         default:
@@ -64,7 +69,7 @@ int main(int argc, char **argv)
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
-    pinetime_t *pt = pinetime_new(program, fsize);
+    pinetime_t *pt = pinetime_new(program, fsize, big_ram);
 
     NRF52832_t *nrf = pinetime_get_nrf52832(pt);
     cpu_t *cpu = nrf52832_get_cpu(nrf);
@@ -112,7 +117,7 @@ int main(int argc, char **argv)
 
     for (;;)
     {
-        nrf52832_step(nrf);
+        pinetime_step(pt);
 
 #ifdef ENABLE_MEASUREMENT
         if (++inst_counter == 1000000)

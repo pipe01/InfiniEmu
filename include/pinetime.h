@@ -13,7 +13,7 @@
 
 typedef struct pinetime_t pinetime_t;
 
-pinetime_t *pinetime_new(const uint8_t *program, size_t program_size);
+pinetime_t *pinetime_new(const uint8_t *program, size_t program_size, bool big_ram);
 void pinetime_free(pinetime_t *);
 void pinetime_reset(pinetime_t *);
 void pinetime_step(pinetime_t *);

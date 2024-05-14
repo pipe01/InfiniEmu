@@ -57,14 +57,14 @@ struct NRF52832_inst_t
     SAADC_t *saadc;
 };
 
-NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size)
+NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sram_size)
 {
-    uint8_t *sram = malloc(NRF52832_SRAM_SIZE);
+    uint8_t *sram = malloc(sram_size);
 
     NRF52832_t *chip = (NRF52832_t *)malloc(sizeof(NRF52832_t));
     chip->pins = pins_new();
-    chip->spi = spi_new(chip->pins, sram, NRF52832_SRAM_SIZE);
-    chip->i2c = i2c_new(sram, NRF52832_SRAM_SIZE);
+    chip->spi = spi_new(chip->pins, sram, sram_size);
+    chip->i2c = i2c_new(sram, sram_size);
 
     uint8_t *flash = malloc(NRF52832_FLASH_SIZE);
     memcpy(flash, program, program_size);
@@ -73,7 +73,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size)
     chip->mem = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
     memreg_t *last = chip->mem;
 
-    last = memreg_set_next(last, memreg_new_simple(x(2000, 0000), sram, NRF52832_SRAM_SIZE));
+    last = memreg_set_next(last, memreg_new_simple(x(2000, 0000), sram, sram_size));
 
     NEW_PERIPH(chip, CLOCK, clock, clock, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, POWER, power, power, x(4000, 0000), 0x1000);

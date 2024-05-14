@@ -13,10 +13,10 @@ struct pinetime_t
     st7789_t *lcd;
 };
 
-pinetime_t *pinetime_new(const uint8_t *program, size_t program_size)
+pinetime_t *pinetime_new(const uint8_t *program, size_t program_size, bool big_ram)
 {
     pinetime_t *pt = (pinetime_t *)malloc(sizeof(pinetime_t));
-    pt->nrf = nrf52832_new(program, program_size);
+    pt->nrf = nrf52832_new(program, program_size, big_ram ? 512 * 1024 : NRF52832_SRAM_SIZE);
     pt->lcd = st7789_new();
 
     spi_add_slave(nrf52832_get_spi(pt->nrf), PINETIME_EXTFLASH_CS_PIN, spinorflash_new(PINETIME_EXTFLASH_SIZE, PINETIME_EXTFLASH_SECTOR_SIZE));
@@ -49,4 +49,3 @@ NRF52832_t *pinetime_get_nrf52832(pinetime_t *pt)
 {
     return pt->nrf;
 }
-
