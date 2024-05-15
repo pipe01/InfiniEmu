@@ -2082,7 +2082,7 @@ uint32_t cpu_reg_read(cpu_t *cpu, arm_reg reg)
             else
                 return cpu->d[n / 2].upper;
         }
-    
+
         if (reg >= ARM_REG_D0 && reg <= ARM_REG_D31)
             abort();
 
@@ -2140,6 +2140,9 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
 {
     switch (reg)
     {
+    case ARM_SYSREG_IPSR:
+        return cpu->xpsr.ipsr;
+
     case ARM_SYSREG_XPSR:
     {
         uint32_t value = cpu->xpsr.value;
