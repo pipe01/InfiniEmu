@@ -375,6 +375,12 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
 
         send_response_str(gdb->fd, "OK");
     }
+    else if (strcmp(command, "step") == 0)
+    {
+        nrf52832_step(gdb->gdb->nrf);
+
+        send_response_str(gdb->fd, "OK");
+    }
     else
     {
         send_response_str(gdb->fd, "");
