@@ -1582,10 +1582,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+        op1 = OPERAND(2);
 
         carry = true;
-        value = AddWithCarry(~op1, detail->operands[2].imm, &carry, &overflow);
+        value = AddWithCarry(~op0, op1, &carry, &overflow);
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
 
@@ -2115,6 +2116,8 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
         break;
 
     case ARM_REG_SP:
+        assert(value >= x(2000, 0000)); // Stack overflow
+
         *cpu_get_sp(cpu) = value;
         break;
 
