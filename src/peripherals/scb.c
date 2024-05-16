@@ -35,6 +35,13 @@ OPERATION(scb)
 
     switch (offset)
     {
+    case 0x00: // CPUID
+        OP_ASSERT_READ(op);
+        OP_ASSERT_SIZE(op, WORD);
+
+        *value = 0x410FC241; // ARM Cortex-M4
+        return MEMREG_RESULT_OK;
+    
     case 0x04: // ICSR
         OP_ASSERT_SIZE(op, WORD);
 
