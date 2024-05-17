@@ -165,14 +165,21 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 	r := rand.New(rand.NewSource(time.Now().UnixMicro()))
 
 	ch := make(chan Instruction)
-	generateInstructions(ch, 4)
+	generateInstructions(ch, 1)
 
 	must(gdb1.Reset())
 	must(gdb2.Reset())
 
+	lastUpdate := time.Now()
+
+	const updateInterval = 100
+
 	for i := 0; count < 0 || i < count; i++ {
-		if i%100 == 0 {
-			log.Printf("%d instructions", i)
+		if i != 0 && i%updateInterval == 0 {
+			instPerSecond := float64(updateInterval) / (time.Now().Sub(lastUpdate).Seconds())
+			lastUpdate = time.Now()
+
+			log.Printf("%d instructions, %.0f per second", i, instPerSecond)
 		}
 
 		inst := <-ch
