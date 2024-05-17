@@ -8,17 +8,36 @@ import (
 
 type Register uint8
 
+const (
+	RegisterR0 Register = iota
+	RegisterR1
+	RegisterR2
+	RegisterR3
+	RegisterR4
+	RegisterR5
+	RegisterR6
+	RegisterR7
+	RegisterR8
+	RegisterR9
+	RegisterR10
+	RegisterR11
+	RegisterR12
+	RegisterSP
+	RegisterLR
+	RegisterPC
+)
+
 func (r Register) String() string {
 	if r <= 12 {
 		return fmt.Sprintf("r%d", r)
 	}
 
 	switch r {
-	case 13:
+	case RegisterSP:
 		return "sp"
-	case 14:
+	case RegisterLR:
 		return "lr"
-	case 15:
+	case RegisterPC:
 		return "pc"
 	default:
 		return "unknown"
@@ -216,5 +235,10 @@ var Instructions = []Generator{
 	// ADD (register) T3
 	func(r RandASM) string {
 		return r.inst("add", true, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// ADD (SP plus immediate) T1
+	func(r RandASM) string {
+		return r.inst("add", false, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
 	},
 }
