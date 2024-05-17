@@ -1171,7 +1171,12 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_IMM);
 
-        value = cpu_reg_read(cpu, ARM_REG_PC) + detail->operands[1].imm;
+        value = cpu_reg_read(cpu, ARM_REG_PC);
+
+        if (detail->operands[1].subtracted)
+            value -= detail->operands[1].imm;
+        else
+            value += detail->operands[1].imm;
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
@@ -1179,6 +1184,19 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_AND:
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
+
+        carry = cpu->xpsr.apsr_c;
+
+        if (i->size == 4 && detail->operands[2].type == ARM_OP_IMM)
+        {
+            bool bit1 = (i->bytes[1] & (1 << 2)) != 0;
+            bool bit2 = (i->bytes[3] & (1 << 6)) != 0;
+
+            if (bit1 || bit2)
+            {
+                carry = (detail->operands[2].imm & (1 << 31)) != 0;
+            }
+        }
 
         value = op0 & op1;
 
