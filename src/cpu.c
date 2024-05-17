@@ -38,7 +38,7 @@
 #define SIGNEXTEND8_32(value) ((uint32_t)(int8_t)((value) & 0xFF))
 #define SIGNEXTEND16_32(value) ((uint32_t)(int16_t)((value) & 0xFFFF))
 
-#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address)
+#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address, NULL)
 #define OPERAND(n) OPERAND_OFF(n, 0)
 #define OPERAND_REG(n) cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg)
 
@@ -252,7 +252,7 @@ static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
     return base + op->mem.disp;
 }
 
-static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address)
+static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address, bool *carry_out)
 {
     uint32_t value;
 
@@ -273,6 +273,9 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uin
     {
         bool carry = cpu->xpsr.apsr_c;
         value = Shift_C(value, op->shift.type, op->shift.value, &carry);
+
+        if (carry_out)
+            *carry_out = carry;
     }
 
     return value;
@@ -1130,8 +1133,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     if (cpu_in_it_block(cpu) && i->size == 2 && i->id != ARM_INS_CMP && i->id != ARM_INS_CMN && i->id != ARM_INS_TST)
         update_flags = false;
 
-    bool carry = false;
-    bool overflow = false;
+    bool carry = false, overflow = false;
 
     switch (i->id)
     {
@@ -1182,25 +1184,39 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_AND:
-        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
 
         carry = cpu->xpsr.apsr_c;
 
-        if (i->size == 4 && detail->operands[2].type == ARM_OP_IMM)
+        if (detail->operands[2].type == ARM_OP_IMM)
         {
-            bool bit1 = (i->bytes[1] & (1 << 2)) != 0;
-            bool bit2 = (i->bytes[3] & (1 << 6)) != 0;
+            op1 = detail->operands[2].imm;
 
-            if (bit1 || bit2)
+            // Capstone doesn't provide the carry bit so we must calculate it ourselves
+            if (i->size == 4)
             {
-                carry = (detail->operands[2].imm & (1 << 31)) != 0;
+                bool bit1 = (i->bytes[1] & (1 << 2)) != 0;
+                bool bit2 = (i->bytes[3] & (1 << 6)) != 0;
+
+                if (bit1 || bit2)
+                {
+                    carry = (detail->operands[2].imm & (1 << 31)) != 0;
+                }
             }
+        }
+        else
+        {
+            op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+            op1 = Shift_C(op1, detail->operands[2].shift.type, detail->operands[2].shift.value, &carry);
         }
 
         value = op0 & op1;
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         UPDATE_NZC;
         break;
 
