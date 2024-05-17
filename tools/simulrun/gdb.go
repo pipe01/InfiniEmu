@@ -203,11 +203,11 @@ func (g *GDBClient) startNoAck() error {
 	return nil
 }
 
-func (g *GDBClient) Registers() [RegisterCount]uint32 {
-	return g.regs
+func (g *GDBClient) Registers() *[RegisterCount]uint32 {
+	return &g.regs
 }
 
-func (g *GDBClient) UpdateRegisters() error {
+func (g *GDBClient) ReadRegisters() error {
 	reply, err := g.makeRequest([]byte("g"))
 	if err != nil {
 		return err
@@ -220,6 +220,20 @@ func (g *GDBClient) UpdateRegisters() error {
 
 	g.regs = *r
 	return nil
+}
+
+func (g *GDBClient) WriteRegisters() error {
+	var data bytes.Buffer
+
+	g.regs[15] |= 1 // Ensure PC has the Thumb bit set
+
+	for _, r := range g.regs {
+		binary.Write(&data, binary.LittleEndian, r)
+	}
+
+	_, err := g.makeRequest([]byte(fmt.Sprintf("G%s", hex.EncodeToString(data.Bytes()))))
+	return err
+
 }
 
 func (g *GDBClient) Reset() error {
@@ -243,5 +257,10 @@ func (g *GDBClient) AddBreakpoint(addr uint32) error {
 
 func (g *GDBClient) RemoveBreakpoint(addr uint32) error {
 	_, err := g.makeRequest([]byte(fmt.Sprintf("z1,%x,2", addr)))
+	return err
+}
+
+func (g *GDBClient) WriteMemory(addr uint32, data []byte) error {
+	_, err := g.makeRequest([]byte(fmt.Sprintf("M%x,%x:%s", addr, len(data), hex.EncodeToString(data))))
 	return err
 }
