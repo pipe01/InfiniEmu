@@ -84,11 +84,15 @@ func main() {
 	fuzzCount := flag.Int("fuzz", 0, "run fuzzer for this amount of instructions, -1 to run indefinitely")
 	flag.Parse()
 
-	gdb1, err := DialGDB("localhost:3333")
+	if flag.NArg() != 2 {
+		log.Fatalf("expected 2 arguments: <gdb1> <gdb2>")
+	}
+
+	gdb1, err := DialGDB(flag.Arg(0))
 	if err != nil {
 		log.Fatalf("failed to dial gdb1: %v", err)
 	}
-	gdb2, err := DialGDB("localhost:3334")
+	gdb2, err := DialGDB(flag.Arg(1))
 	if err != nil {
 		log.Fatalf("failed to dial gdb2: %v", err)
 	}
