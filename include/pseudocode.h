@@ -20,8 +20,6 @@ uint32_t AddWithCarry(uint32_t x, uint32_t y, bool *carry, bool *overflow) {
 
 uint32_t Shift_C(uint32_t value, arm_shifter type, uint32_t amount, bool *carry)
 {
-    assert(!(type == ARM_SFT_RRX && amount != 1));
-
     if (amount == 0)
         return value;
 
@@ -44,7 +42,8 @@ uint32_t Shift_C(uint32_t value, arm_shifter type, uint32_t amount, bool *carry)
         return (value >> amount) | (value << (32 - amount));
 
     case ARM_SFT_RRX:
-        //TODO: Implement
+        *carry = value & 1;
+        return (value >> 1) | (*carry << 31);
 
     default:
         fprintf(stderr, "Unhandled shift type %d\n", type);
