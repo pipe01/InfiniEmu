@@ -329,13 +329,8 @@ char *gdb_qSearchMemory(gdbstub *gdb, char *msg)
 
     free(dup);
 
-    (void)start;
-    (void)length;
-
     char *pattern = msg;
     uint32_t pattern_size = 0;
-
-    (void)pattern;
 
     do
     {
@@ -517,6 +512,52 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
     return msg;
 }
 
+char *gdb_queryWriteMemory(gdbstub *gdb, char *msg)
+{
+    NRF52832_t *nrf = gdb->gdb->nrf;
+    cpu_t *cpu = nrf52832_get_cpu(nrf);
+
+    char *dup = strdup(msg);
+
+    uint32_t start = 0, length = 0;
+
+    char *token = strtok(dup, ",");
+    if (token == NULL)
+    {
+        free(dup);
+        return NULL;
+    }
+    start = strtol(token, NULL, 16);
+
+    token = strtok(NULL, ":");
+    if (token == NULL)
+    {
+        free(dup);
+        return NULL;
+    }
+    length = strtol(token, NULL, 16);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuse-after-free"
+    msg += token + strlen(token) - dup + 1; // Skip numbers
+#pragma GCC diagnostic pop
+
+    free(dup);
+
+    uint8_t data[length];
+
+    parse_hex(msg, length * 2, (uint8_t *)data);
+
+    for (size_t i = 0; i < length; i++)
+    {
+        cpu_mem_write(cpu, start + i, data[i]);
+    }
+
+    send_response_str(gdb->fd, "OK");
+
+    return strchr(msg, '#');
+}
+
 char *gdb_breakpoint(gdbstub *gdb, char *msg)
 {
     bool remove = msg[0] == 'z';
@@ -689,6 +730,11 @@ void gdbstub_run(gdbstub *gdb)
             case 'm':
                 msg++;
                 ret = gdb_queryReadMemory(gdb, msg);
+                break;
+
+            case 'M':
+                msg++;
+                ret = gdb_queryWriteMemory(gdb, msg);
                 break;
 
             case 'R':
