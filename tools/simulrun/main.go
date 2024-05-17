@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"simulrun/asm"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,12 +24,14 @@ func must(err error) {
 }
 
 func generateInstructions(ch chan<- Instruction, workers int) {
+	var instCounter atomic.Uint64
+
 	for i := 0; i < workers; i++ {
 		r := rand.New(rand.NewSource(time.Now().UnixMicro() + int64(i)))
 
 		go func() {
 			for {
-				gen := asm.Instructions[r.Intn(len(asm.Instructions))]
+				gen := asm.Instructions[instCounter.Add(1)%uint64(len(asm.Instructions))]
 				inst := gen(asm.RandASM{Rand: r})
 
 				b, err := asm.Assemble(inst, asm.ToolPaths{
