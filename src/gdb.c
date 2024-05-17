@@ -25,6 +25,8 @@
 #define LOG(msg)
 #endif
 
+#define REGISTER_COUNT 24
+
 const char target_xml[] = QUOTE(
     <?xml version="1.0"?>
     <target>
@@ -425,7 +427,7 @@ char *gdb_queryReadRegisters(gdbstub *gdb, char *msg)
     NRF52832_t *nrf = gdb->gdb->nrf;
     cpu_t *cpu = nrf52832_get_cpu(nrf);
 
-    uint8_t registers[24 * 4];
+    uint8_t registers[REGISTER_COUNT * sizeof(uint32_t)];
     WRITE_UINT32(registers, 0, cpu_reg_read(cpu, ARM_REG_R0));
     WRITE_UINT32(registers, 4, cpu_reg_read(cpu, ARM_REG_R1));
     WRITE_UINT32(registers, 8, cpu_reg_read(cpu, ARM_REG_R2));
@@ -453,7 +455,49 @@ char *gdb_queryReadRegisters(gdbstub *gdb, char *msg)
 
     send_response_bytes(gdb->fd, registers, sizeof(registers));
 
-    return msg + 1;
+    return msg;
+}
+
+char *gdb_queryWriteRegisters(gdbstub *gdb, char *msg)
+{
+    size_t len = strlen(msg) - 3; // Don't count trailing checksum
+    
+    if (len != REGISTER_COUNT * 8)
+        return NULL;
+
+    NRF52832_t *nrf = gdb->gdb->nrf;
+    cpu_t *cpu = nrf52832_get_cpu(nrf);
+
+    uint32_t registers[REGISTER_COUNT];
+
+    parse_hex(msg, REGISTER_COUNT * 8, (uint8_t *)registers);
+
+    cpu_reg_write(cpu, ARM_REG_R0, registers[0]);
+    cpu_reg_write(cpu, ARM_REG_R1, registers[1]);
+    cpu_reg_write(cpu, ARM_REG_R2, registers[2]);
+    cpu_reg_write(cpu, ARM_REG_R3, registers[3]);
+    cpu_reg_write(cpu, ARM_REG_R4, registers[4]);
+    cpu_reg_write(cpu, ARM_REG_R5, registers[5]);
+    cpu_reg_write(cpu, ARM_REG_R6, registers[6]);
+    cpu_reg_write(cpu, ARM_REG_R7, registers[7]);
+    cpu_reg_write(cpu, ARM_REG_R8, registers[8]);
+    cpu_reg_write(cpu, ARM_REG_R9, registers[9]);
+    cpu_reg_write(cpu, ARM_REG_R10, registers[10]);
+    cpu_reg_write(cpu, ARM_REG_R11, registers[11]);
+    cpu_reg_write(cpu, ARM_REG_R12, registers[12]);
+    cpu_reg_write(cpu, ARM_REG_SP, registers[13]);
+    cpu_reg_write(cpu, ARM_REG_LR, registers[14]);
+    cpu_reg_write(cpu, ARM_REG_PC, registers[15]);
+    cpu_sysreg_write(cpu, ARM_SYSREG_XPSR, registers[16], true);
+    cpu_reg_write(cpu, ARM_REG_FPSCR, registers[17]);
+    cpu_sysreg_write(cpu, ARM_SYSREG_MSP, registers[18], true);
+    cpu_sysreg_write(cpu, ARM_SYSREG_PSP, registers[19], true);
+    cpu_sysreg_write(cpu, ARM_SYSREG_PRIMASK, registers[20], true);
+    cpu_sysreg_write(cpu, ARM_SYSREG_CONTROL, registers[21], true);
+    cpu_sysreg_write(cpu, ARM_SYSREG_BASEPRI, registers[22], true);
+    cpu_sysreg_write(cpu, ARM_SYSREG_FAULTMASK, registers[23], true);
+
+    return 0;
 }
 
 char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
@@ -724,7 +768,13 @@ void gdbstub_run(gdbstub *gdb)
                 break;
 
             case 'g':
+                msg++;
                 ret = gdb_queryReadRegisters(gdb, msg);
+                break;
+
+            case 'G':
+                msg++;
+                ret = gdb_queryWriteRegisters(gdb, msg);
                 break;
 
             case 'm':
