@@ -188,8 +188,8 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 			gdb2.Registers()[i] = val
 		}
 
-		gdb1.Registers()[15] = 0x2000_0000
-		gdb2.Registers()[15] = 0x2000_0000
+		gdb1.Registers()[asm.RegisterPC] = 0x2000_0000
+		gdb2.Registers()[asm.RegisterPC] = 0x2000_0000
 
 		must(gdb1.WriteRegisters())
 		must(gdb2.WriteRegisters())

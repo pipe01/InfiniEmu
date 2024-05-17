@@ -239,6 +239,10 @@ var Instructions = []Generator{
 
 	// ADD (SP plus immediate) T1
 	func(r RandASM) string {
-		return r.inst("add", false, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+		return r.inst("add", false, r.RandRegisterN(8), RegisterSP, r.RandIntBits(8))
+	},
+	// ADD (SP plus immediate) T2
+	func(r RandASM) string {
+		return r.inst("add", false, RegisterSP, RegisterSP, r.RandIntBits(7)<<2)
 	},
 }
