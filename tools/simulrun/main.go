@@ -28,10 +28,9 @@ func generateInstructions(ch chan<- Instruction, workers int) {
 		go func() {
 			for {
 				gen := asm.Instructions[r.Intn(len(asm.Instructions))]
-				inst := gen(asm.RandASM{r})
-				inst = "adds r0, r1, r2"
+				inst := gen(asm.RandASM{Rand: r})
 
-				b, err := asm.Assemble(".syntax unified\n"+inst+"\n", asm.ToolPaths{
+				b, err := asm.Assemble(inst, asm.ToolPaths{
 					As:      "toolchain/bin/arm-none-eabi-as",
 					Objcopy: "toolchain/bin/arm-none-eabi-objcopy",
 				})
@@ -53,7 +52,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to dial gdb1: %v", err)
 	}
-	gdb2, err := DialGDB("localhost:3335")
+	gdb2, err := DialGDB("localhost:3334")
 	if err != nil {
 		log.Fatalf("failed to dial gdb2: %v", err)
 	}

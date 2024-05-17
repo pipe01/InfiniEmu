@@ -1,11 +1,11 @@
 package asm
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 )
 
 type ToolPaths struct {
@@ -21,8 +21,13 @@ func Assemble(code string, tools ToolPaths) ([]byte, error) {
 	asmOut.Close()
 	defer os.Remove(asmOut.Name())
 
+	var assembly bytes.Buffer
+	assembly.WriteString(".syntax unified\n")
+	assembly.WriteString(code)
+	assembly.WriteByte('\n')
+
 	as := exec.Command(tools.As, "-mcpu=cortex-m4", "-march=armv7-m", "-mthumb", "-o", asmOut.Name())
-	as.Stdin = strings.NewReader(code)
+	as.Stdin = &assembly
 	as.Stderr = os.Stderr
 	if err := as.Run(); err != nil {
 		return nil, fmt.Errorf("run as: %w", err)
