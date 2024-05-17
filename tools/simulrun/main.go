@@ -47,6 +47,38 @@ func generateInstructions(ch chan<- Instruction, workers int) {
 	}
 }
 
+func printRegisters(regs1, regs2 *[RegisterCount]uint32, mismatched map[int]struct{}) {
+	for i := 0; i < RegisterCount; i++ {
+		marker := ""
+		if _, ok := mismatched[i]; ok {
+			marker = " !!"
+		}
+
+		log.Printf("  %s: 0x%08X 0x%08X%s", RegisterNames[i], regs1[i], regs2[i], marker)
+	}
+}
+
+func checkRegisterMismatches(regs1, regs2 *[RegisterCount]uint32) bool {
+	mismatch := false
+	mismatched := map[int]struct{}{}
+
+	for i := 0; i < RegisterCount; i++ {
+		if regs1[i] != regs2[i] {
+			mismatch = true
+			mismatched[i] = struct{}{}
+		}
+	}
+
+	if mismatch {
+		log.Printf("registers mismatch")
+		printRegisters(regs1, regs2, mismatched)
+
+		return true
+	}
+
+	return false
+}
+
 func main() {
 	gdb1, err := DialGDB("localhost:3333")
 	if err != nil {
@@ -109,36 +141,7 @@ func doSimulrun(gdb1, gdb2 *GDBClient) {
 		regs1 := gdb1.Registers()
 		regs2 := gdb2.Registers()
 
-		mismatch := false
-		mismatched := map[int]struct{}{}
-
-		for i := 0; i < RegisterCount; i++ {
-			a := regs1[i]
-			b := regs2[i]
-
-			if i == 16 { // xPSR, ignore IT/ICI bits
-				a &^= 0x600FC00
-				b &^= 0x600FC00
-			}
-
-			if a != b {
-				mismatch = true
-				mismatched[i] = struct{}{}
-			}
-		}
-
-		if mismatch {
-			log.Printf("registers mismatch")
-
-			for i := 0; i < RegisterCount; i++ {
-				marker := ""
-				if _, ok := mismatched[i]; ok {
-					marker = " !!"
-				}
-
-				log.Printf("  %s: 0x%08X 0x%08X%s", RegisterNames[i], regs1[i], regs2[i], marker)
-			}
-
+		if checkRegisterMismatches(regs1, regs2) {
 			break
 		}
 	}
@@ -161,6 +164,9 @@ func doFuzz(gdb1, gdb2 *GDBClient) {
 
 		must(gdb1.ReadRegisters())
 		must(gdb2.ReadRegisters())
+
+		// befRegs1 := *gdb1.Registers()
+		// befRegs2 := *gdb2.Registers()
 
 		// Seed registers with random values
 		for i := 0; i < 12; i++ {
@@ -185,29 +191,8 @@ func doFuzz(gdb1, gdb2 *GDBClient) {
 		regs1 := gdb1.Registers()
 		regs2 := gdb2.Registers()
 
-		mismatch := false
-		mismatched := map[int]struct{}{}
-
-		for i := 0; i < RegisterCount; i++ {
-			if regs1[i] != regs2[i] {
-				mismatch = true
-				mismatched[i] = struct{}{}
-			}
-		}
-
-		if mismatch {
-			log.Printf("registers mismatch")
-
-			for i := 0; i < RegisterCount; i++ {
-				marker := ""
-				if _, ok := mismatched[i]; ok {
-					marker = " !!"
-				}
-
-				log.Printf("  %s: 0x%08X 0x%08X%s", RegisterNames[i], regs1[i], regs2[i], marker)
-			}
-
-			return
+		if checkRegisterMismatches(regs1, regs2) {
+			break
 		}
 	}
 }
