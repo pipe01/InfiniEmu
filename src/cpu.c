@@ -2151,7 +2151,7 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
     case ARM_REG_SP:
         assert(value >= x(2000, 0000)); // Stack overflow
 
-        *cpu_get_sp(cpu) = value;
+        *cpu_get_sp(cpu) = value & x(FFFF, FFFC); // Lowest 2 bits are always zero
         break;
 
     default:
