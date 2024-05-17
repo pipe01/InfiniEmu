@@ -144,6 +144,8 @@ struct cpu_inst_t
     cs_insn *inst;
     cs_insn **inst_by_pc;
 
+    cs_insn *last_external_inst;
+
     size_t exception_count, pending_exception_count;
     exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
     arm_exception active_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
@@ -961,8 +963,7 @@ static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op
 
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts, size_t priority_bits)
 {
-    cpu_t *cpu = malloc(sizeof(cpu_t));
-    memset(cpu, 0, sizeof(cpu_t));
+    cpu_t *cpu = calloc(1, sizeof(cpu_t));
 
     cpu->program = program;
     cpu->program_size = program_size;
@@ -994,6 +995,9 @@ void cpu_free(cpu_t *cpu)
         if (ins)
             cs_free(cpu->inst_by_pc[i], 1);
     }
+
+    if (cpu->last_external_inst)
+        cs_free(cpu->last_external_inst, 1);
 
     free(cpu->inst_by_pc);
     free(cpu);
@@ -1063,20 +1067,43 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
 {
     assert((pc & x(FFFF, FFFE)) == pc); // Check that PC is aligned
 
-    cs_insn **insn = &cpu->inst_by_pc[pc / 2];
-
-    if (!*insn)
+    if (pc < cpu->program_size)
     {
-        size_t n = cs_disasm(cpu->cs, &cpu->program[pc], cpu->program_size - pc, pc, 1, insn);
+        // Optimized path for instrutions in NRF52 program flash
 
-        if (n == 0)
+        cs_insn **insn = &cpu->inst_by_pc[pc / 2];
+
+        if (!*insn)
         {
-            fprintf(stderr, "Failed to disassemble code at 0x%08X\n", pc);
-            abort();
+            size_t n = cs_disasm(cpu->cs, &cpu->program[pc], cpu->program_size - pc, pc, 1, insn);
+
+            if (n == 0)
+            {
+                fprintf(stderr, "Failed to disassemble code at 0x%08X\n", pc);
+                abort();
+            }
         }
+
+        return *insn;
     }
 
-    return *insn;
+    uint32_t code = memreg_read(cpu->mem, pc);
+
+    if (cpu->last_external_inst)
+        cs_free(cpu->last_external_inst, 1);
+
+    // TODO: Reuse the same buffer for all external instructions using cs_disasm_iter
+    size_t n = cs_disasm(cpu->cs, (const uint8_t *)&code, sizeof(code), pc, 1, &cpu->last_external_inst);
+
+    if (n == 0)
+    {
+        fprintf(stderr, "Failed to disassemble code at 0x%08X\n", pc);
+        abort();
+    }
+
+    assert(n == 1);
+
+    return cpu->last_external_inst;
 }
 
 void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
