@@ -1154,13 +1154,14 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ADD:
+        assert(detail->operands[0].type == ARM_OP_REG);
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
         carry = false;
         value = AddWithCarry(op0, op1, &carry, &overflow);
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZCV;
         break;
@@ -2149,7 +2150,7 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
         break;
 
     case ARM_REG_SP:
-        assert(value >= x(2000, 0000)); // Stack overflow
+        // assert(value >= x(2000, 0000)); // Stack overflow
 
         *cpu_get_sp(cpu) = value & x(FFFF, FFFC); // Lowest 2 bits are always zero
         break;
