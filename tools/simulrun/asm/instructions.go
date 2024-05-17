@@ -91,6 +91,19 @@ func (r RegisterShift) String() string {
 	return fmt.Sprintf("%s #%d", r.Type, r.Amount)
 }
 
+type InstructionFlags uint32
+
+const (
+	FlagNone        InstructionFlags = 0
+	FlagUpdateFlags InstructionFlags = 1 << iota
+	FlagMaybeUpdateFlags
+	FlagWide
+)
+
+func (f InstructionFlags) Has(flag InstructionFlags) bool {
+	return f&flag != 0
+}
+
 type RandASM struct {
 	*rand.Rand
 }
@@ -162,13 +175,16 @@ func (r RandASM) RandShift() RegisterShift {
 	return RegisterShift{}
 }
 
-func (r RandASM) inst(name string, canUpdateFlags bool, ops ...any) string {
-	if canUpdateFlags && r.maybe() {
-		if strings.HasSuffix(name, ".w") {
-			name = name[:len(name)-2] + "s.w"
-		} else {
-			name += "s"
-		}
+func (r RandASM) inst(name string, flags InstructionFlags, ops ...any) string {
+	if flags.Has(FlagMaybeUpdateFlags) && r.maybe() {
+		flags |= FlagUpdateFlags
+	}
+
+	if flags.Has(FlagUpdateFlags) {
+		name += "s"
+	}
+	if flags.Has(FlagWide) {
+		name += ".w"
 	}
 
 	opStrings := make([]string, 0, len(ops))
@@ -196,53 +212,61 @@ type Generator func(r RandASM) string
 var Instructions = []Generator{
 	// ADC (immediate)
 	func(r RandASM) string {
-		return r.inst("adc", true, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+		return r.inst("adc", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
 	},
 	// ADC (register) T1
 	func(r RandASM) string {
-		return r.inst("adc", true, r.RandLowRegister(), r.RandLowRegister())
+		return r.inst("adc", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister())
 	},
 	// ADC (register) T2
 	func(r RandASM) string {
-		return r.inst("adc", true, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+		return r.inst("adc", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
 	},
 
 	// ADD (immediate) T1
 	func(r RandASM) string {
-		return r.inst("add", false, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(3))
+		return r.inst("add", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(3))
 	},
 	// ADD (immediate) T2
 	func(r RandASM) string {
-		return r.inst("add", false, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(8))
+		return r.inst("add", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(8))
 	},
 	// ADD (immediate) T3
 	func(r RandASM) string {
-		return r.inst("add.w", true, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+		return r.inst("add", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
 	},
 	// ADD (immediate) T4
 	func(r RandASM) string {
-		return r.inst("add.w", false, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(12))
+		return r.inst("add", FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(12))
 	},
 
 	// ADD (register) T1
 	func(r RandASM) string {
-		return r.inst("add", false, r.RandRegisterN(8), r.RandRegisterN(8), r.RandRegisterN(8))
+		return r.inst("add", FlagNone, r.RandRegisterN(8), r.RandRegisterN(8), r.RandRegisterN(8))
 	},
 	// ADD (register) T2
 	func(r RandASM) string {
-		return r.inst("add", false, r.RandLowRegister(), r.RandLowRegister())
+		return r.inst("add", FlagNone, r.RandLowRegister(), r.RandLowRegister())
 	},
 	// ADD (register) T3
 	func(r RandASM) string {
-		return r.inst("add", true, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+		return r.inst("add", FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
 	},
 
 	// ADD (SP plus immediate) T1
 	func(r RandASM) string {
-		return r.inst("add", false, r.RandRegisterN(8), RegisterSP, r.RandIntBits(8))
+		return r.inst("add", FlagNone, r.RandRegisterN(8), RegisterSP, r.RandIntBits(8))
 	},
 	// ADD (SP plus immediate) T2
 	func(r RandASM) string {
-		return r.inst("add", false, RegisterSP, RegisterSP, r.RandIntBits(7)<<2)
+		return r.inst("add", FlagNone, RegisterSP, RegisterSP, r.RandIntBits(7)<<2)
+	},
+	// ADD (SP plus immediate) T3
+	func(r RandASM) string {
+		return r.inst("add", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), RegisterSP, r.RandThumbImm())
+	},
+	// ADD (SP plus immediate) T4
+	func(r RandASM) string {
+		return r.inst("add", FlagWide, r.RandLowRegister(), RegisterSP, r.RandIntBits(12))
 	},
 }
