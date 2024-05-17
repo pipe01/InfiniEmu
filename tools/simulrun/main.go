@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"math/rand"
 	"simulrun/asm"
@@ -80,6 +81,9 @@ func checkRegisterMismatches(regs1, regs2 *[RegisterCount]uint32) bool {
 }
 
 func main() {
+	fuzzCount := flag.Int("fuzz", 0, "run fuzzer for this amount of instructions, -1 to run indefinitely")
+	flag.Parse()
+
 	gdb1, err := DialGDB("localhost:3333")
 	if err != nil {
 		log.Fatalf("failed to dial gdb1: %v", err)
@@ -89,8 +93,11 @@ func main() {
 		log.Fatalf("failed to dial gdb2: %v", err)
 	}
 
-	doFuzz(gdb1, gdb2)
-	// doSimulrun(gdb1, gdb2)
+	if *fuzzCount != 0 {
+		doFuzz(gdb1, gdb2, *fuzzCount)
+	} else {
+		doSimulrun(gdb1, gdb2)
+	}
 }
 
 func doSimulrun(gdb1, gdb2 *GDBClient) {
@@ -147,26 +154,27 @@ func doSimulrun(gdb1, gdb2 *GDBClient) {
 	}
 }
 
-func doFuzz(gdb1, gdb2 *GDBClient) {
-	r := rand.New(rand.NewSource(1))
+func doFuzz(gdb1, gdb2 *GDBClient, count int) {
+	r := rand.New(rand.NewSource(time.Now().UnixMicro()))
 
 	ch := make(chan Instruction)
-	generateInstructions(ch, 1)
+	generateInstructions(ch, 4)
 
 	must(gdb1.Reset())
 	must(gdb2.Reset())
 
-	for inst := range ch {
-		println(inst.Mnemonic)
+	for i := 0; count < 0 || i < count; i++ {
+		if i%100 == 0 {
+			log.Printf("%d instructions", i)
+		}
+
+		inst := <-ch
 
 		must(gdb1.WriteMemory(0x2000_0000, inst.Data))
 		must(gdb2.WriteMemory(0x2000_0000, inst.Data))
 
 		must(gdb1.ReadRegisters())
 		must(gdb2.ReadRegisters())
-
-		// befRegs1 := *gdb1.Registers()
-		// befRegs2 := *gdb2.Registers()
 
 		// Seed registers with random values
 		for i := 0; i < 12; i++ {
@@ -192,6 +200,8 @@ func doFuzz(gdb1, gdb2 *GDBClient) {
 		regs2 := gdb2.Registers()
 
 		if checkRegisterMismatches(regs1, regs2) {
+			log.Printf("when running instruction %s", inst.Mnemonic)
+
 			break
 		}
 	}
