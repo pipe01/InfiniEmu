@@ -38,7 +38,7 @@
 #define SIGNEXTEND8_32(value) ((uint32_t)(int8_t)((value) & 0xFF))
 #define SIGNEXTEND16_32(value) ((uint32_t)(int16_t)((value) & 0xFFFF))
 
-#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address, &carry)
+#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address)
 #define OPERAND(n) OPERAND_OFF(n, 0)
 #define OPERAND_REG(n) cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg)
 
@@ -252,7 +252,7 @@ static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
     return base + op->mem.disp;
 }
 
-static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address, bool *carry)
+static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address)
 {
     uint32_t value;
 
@@ -271,7 +271,8 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uin
 
     if (op->shift.type != ARM_SFT_INVALID)
     {
-        value = Shift_C(value, op->shift.type, op->shift.value, carry);
+        bool carry = cpu->xpsr.apsr_c;
+        value = Shift_C(value, op->shift.type, op->shift.value, &carry);
     }
 
     return value;
@@ -283,8 +284,8 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
     {
     case ARM_OP_REG:
         cpu_reg_write(cpu, op->reg, value);
-
         break;
+
     case ARM_OP_MEM:
     {
         uint32_t addr = ALIGN4(cpu_mem_operand_address(cpu, op));
@@ -1138,6 +1139,12 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
+        if (i->size == 4)
+        {
+            // Fix Capstone bug where update_flags is always true on ADC T2
+            update_flags = i->bytes[0] & (1 << 4);
+        }
+
         carry = cpu->xpsr.apsr_c;
         value = AddWithCarry(op0, op1, &carry, &overflow);
 
@@ -1150,6 +1157,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
+        carry = false;
         value = AddWithCarry(op0, op1, &carry, &overflow);
 
         cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
@@ -1168,8 +1176,6 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_AND:
-        carry = cpu->xpsr.apsr_c;
-
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
