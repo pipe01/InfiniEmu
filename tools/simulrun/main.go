@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"flag"
 	"log"
 	"math/rand"
@@ -11,6 +12,8 @@ import (
 
 // const startAt = 0x4d70 // <main>
 const startAt = 0x572e // <vPortSetupTimerInterrupt>
+
+var randomInstructions bool
 
 type Instruction struct {
 	Mnemonic string
@@ -30,8 +33,16 @@ func generateInstructions(ch chan<- Instruction, workers int) {
 		r := rand.New(rand.NewSource(time.Now().UnixMicro() + int64(i)))
 
 		go func() {
+			var n uint64
+
 			for {
-				gen := asm.Instructions[instCounter.Add(1)%uint64(len(asm.Instructions))]
+				if randomInstructions {
+					n = r.Uint64()
+				} else {
+					n = instCounter.Add(1)
+				}
+
+				gen := asm.Instructions[n%uint64(len(asm.Instructions))]
 				inst := gen(asm.RandASM{Rand: r})
 
 				b, err := asm.Assemble(inst, asm.ToolPaths{
@@ -51,8 +62,8 @@ func generateInstructions(ch chan<- Instruction, workers int) {
 	}
 }
 
-func printRegisters(regs1, regs2 *[RegisterCount]uint32, mismatched map[int]struct{}) {
-	for i := 0; i < RegisterCount; i++ {
+func printRegisters(regs1, regs2 *[RegisterCount]uint32, mismatched map[asm.Register]struct{}) {
+	for i := asm.RegisterR0; i < RegisterCount; i++ {
 		marker := ""
 		if _, ok := mismatched[i]; ok {
 			marker = " !!"
@@ -64,9 +75,9 @@ func printRegisters(regs1, regs2 *[RegisterCount]uint32, mismatched map[int]stru
 
 func checkRegisterMismatches(regs1, regs2 *[RegisterCount]uint32) bool {
 	mismatch := false
-	mismatched := map[int]struct{}{}
+	mismatched := map[asm.Register]struct{}{}
 
-	for i := 0; i < RegisterCount; i++ {
+	for i := asm.RegisterR0; i < RegisterCount; i++ {
 		if regs1[i] != regs2[i] {
 			mismatch = true
 			mismatched[i] = struct{}{}
@@ -77,6 +88,24 @@ func checkRegisterMismatches(regs1, regs2 *[RegisterCount]uint32) bool {
 		log.Printf("registers mismatch")
 		printRegisters(regs1, regs2, mismatched)
 
+		if _, ok := mismatched[asm.RegisterXPSR]; ok {
+			xpsr1 := asm.XPSR(regs1[asm.RegisterXPSR])
+			xpsr2 := asm.XPSR(regs2[asm.RegisterXPSR])
+
+			if xpsr1.N() != xpsr2.N() {
+				log.Printf("  N flag: %v %v", xpsr1.N(), xpsr2.N())
+			}
+			if xpsr1.Z() != xpsr2.Z() {
+				log.Printf("  Z flag: %v %v", xpsr1.Z(), xpsr2.Z())
+			}
+			if xpsr1.C() != xpsr2.C() {
+				log.Printf("  C flag: %v %v", xpsr1.C(), xpsr2.C())
+			}
+			if xpsr1.V() != xpsr2.V() {
+				log.Printf("  V flag: %v %v", xpsr1.V(), xpsr2.V())
+			}
+		}
+
 		return true
 	}
 
@@ -85,6 +114,7 @@ func checkRegisterMismatches(regs1, regs2 *[RegisterCount]uint32) bool {
 
 func main() {
 	fuzzCount := flag.Int("fuzz", 0, "run fuzzer for this amount of instructions, -1 to run indefinitely")
+	flag.BoolVar(&randomInstructions, "random", false, "choose random instructions when fuzzing instead of round-robin")
 	flag.Parse()
 
 	if flag.NArg() != 2 {
@@ -214,7 +244,7 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 		regs2 := gdb2.Registers()
 
 		if checkRegisterMismatches(regs1, regs2) {
-			log.Printf("when running instruction %s", inst.Mnemonic)
+			log.Printf("when running instruction %s (%s)", inst.Mnemonic, hex.EncodeToString(inst.Data))
 
 			break
 		}

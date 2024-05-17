@@ -25,6 +25,7 @@ const (
 	RegisterSP
 	RegisterLR
 	RegisterPC
+	RegisterXPSR
 )
 
 func (r Register) String() string {
@@ -42,6 +43,24 @@ func (r Register) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+type XPSR uint32
+
+func (x XPSR) N() bool {
+	return x&(1<<31) != 0
+}
+
+func (x XPSR) Z() bool {
+	return x&(1<<30) != 0
+}
+
+func (x XPSR) C() bool {
+	return x&(1<<29) != 0
+}
+
+func (x XPSR) V() bool {
+	return x&(1<<28) != 0
 }
 
 type ShiftType uint8
@@ -110,6 +129,14 @@ type RandASM struct {
 
 func (r RandASM) maybe() bool {
 	return r.Int63()%2 == 0
+}
+
+func (r RandASM) MaybeNegative(n uint32) int32 {
+	if r.maybe() {
+		return -int32(n)
+	}
+
+	return int32(n)
 }
 
 func (r RandASM) RandIntBits(n int) uint32 {
@@ -193,7 +220,7 @@ func (r RandASM) inst(name string, flags InstructionFlags, ops ...any) string {
 		switch op := op.(type) {
 		case Register:
 			opStrings = append(opStrings, op.String())
-		case uint32:
+		case uint32, int32:
 			opStrings = append(opStrings, fmt.Sprintf("#%d", op))
 		case RegisterShift:
 			if !op.IsEmpty() {
@@ -268,5 +295,34 @@ var Instructions = []Generator{
 	// ADD (SP plus immediate) T4
 	func(r RandASM) string {
 		return r.inst("add", FlagWide, r.RandLowRegister(), RegisterSP, r.RandIntBits(12))
+	},
+
+	// ADD (SP plus register) T1
+	func(r RandASM) string {
+		reg := r.RandLowRegister()
+		return r.inst("add", FlagNone, reg, RegisterSP, reg)
+	},
+	// ADD (SP plus register) T2
+	func(r RandASM) string {
+		return r.inst("add", FlagNone, RegisterSP, r.RandLowRegister())
+	},
+	// ADD (SP plus register) T3
+	func(r RandASM) string {
+		return r.inst("add", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), RegisterSP, r.RandLowRegister(), r.RandShift())
+	},
+
+	// These seem to emit SUB instructions instead of ADR
+	// ADR T1
+	func(r RandASM) string {
+		return r.inst("adr", FlagNone, r.RandLowRegister(), r.RandIntBits(8)<<2)
+	},
+	// ADR T2, T3
+	func(r RandASM) string {
+		return r.inst("adr", FlagWide, r.RandLowRegister(), r.MaybeNegative(r.RandIntBits(12)))
+	},
+
+	// AND (immediate) T1
+	func(r RandASM) string {
+		return r.inst("and", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
 	},
 }
