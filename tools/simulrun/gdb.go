@@ -175,19 +175,28 @@ func (g *GDBClient) runCommand(cmd string) error {
 		}
 
 		if string(data) == "OK" {
-			return nil
-		}
-		if data[0] != 'O' {
-			return fmt.Errorf("invalid response: 0x%x", data[0])
+			break
 		}
 
-		msg, err := hex.AppendDecode(nil, data[1:])
+		isIntermediate := false
+		if data[0] == 'O' {
+			data = data[1:]
+			isIntermediate = true
+		}
+
+		msg, err := hex.AppendDecode(nil, data)
 		if err != nil {
 			return fmt.Errorf("decode output: %w", err)
 		}
 
 		log.Printf("command '%s' output: %s", cmd, string(msg))
+
+		if !isIntermediate {
+			break
+		}
 	}
+
+	return nil
 }
 
 func (g *GDBClient) startNoAck() error {
