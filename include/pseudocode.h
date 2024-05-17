@@ -44,7 +44,7 @@ uint32_t Shift_C(uint32_t value, arm_shifter type, uint32_t amount, bool *carry)
     case ARM_SFT_RRX:
     {
         uint32_t result = (value >> 1) | (*carry << 31);
-        *carry = result & 1;
+        *carry = value & 1;
         return result;
     }
 
