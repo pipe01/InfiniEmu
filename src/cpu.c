@@ -2019,7 +2019,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         if (detail->operands[0].reg >= ARM_REG_S0 && detail->operands[0].reg <= ARM_REG_S31)
         {
-            cpu_reg_write(cpu, detail->operands[0].reg, value);
+            cpu_reg_write(cpu, detail->operands[0].reg, memreg_read(cpu->mem, address));
         }
         else
         {
