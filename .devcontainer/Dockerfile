@@ -21,13 +21,11 @@ RUN wget -q -O sdk.zip https://developer.nordicsemi.com/nRF5_SDK/nRF5_SDK_v15.x.
     rm sdk.zip
 
 RUN cd /tmp && \
-    wget -q -O capstone.tar.gz https://github.com/capstone-engine/capstone/archive/5.0.1.tar.gz && \
+    wget -q -O capstone.tar.gz https://github.com/capstone-engine/capstone/archive/fe60b1371c109288278faa06b7efb545b18ed45d.tar.gz && \
     tar xf capstone.tar.gz && \
     cd capstone* && \
-    ./make.sh install && \
+    CAPSTONE_ARCHS=arm ./make.sh install && \
     rm -r capstone*
-
-RUN nproc
 
 ENV NRFX_PATH /opt/nrfx
 ENV NRF5_SDK_PATH /opt/nRF5_SDK_15.3.0_59ac345

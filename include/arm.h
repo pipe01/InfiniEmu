@@ -79,39 +79,39 @@ typedef enum
 
 #define ARM_EXC_EXTERNAL(n) (ARM_EXC_EXTERNAL_START + (n))
 
-static inline arm_cc invert_cc(arm_cc cc)
+static inline ARMCC_CondCodes invert_cc(ARMCC_CondCodes cc)
 {
     switch (cc)
     {
-    case ARM_CC_EQ:
-        return ARM_CC_NE;
-    case ARM_CC_NE:
-        return ARM_CC_EQ;
-    case ARM_CC_HS:
-        return ARM_CC_LO;
-    case ARM_CC_LO:
-        return ARM_CC_HS;
-    case ARM_CC_MI:
-        return ARM_CC_PL;
-    case ARM_CC_PL:
-        return ARM_CC_MI;
-    case ARM_CC_VS:
-        return ARM_CC_VC;
-    case ARM_CC_VC:
-        return ARM_CC_VS;
-    case ARM_CC_HI:
-        return ARM_CC_LS;
-    case ARM_CC_LS:
-        return ARM_CC_HI;
-    case ARM_CC_GE:
-        return ARM_CC_LT;
-    case ARM_CC_LT:
-        return ARM_CC_GE;
-    case ARM_CC_GT:
-        return ARM_CC_LE;
-    case ARM_CC_LE:
-        return ARM_CC_GT;
+    case ARMCC_EQ:
+        return ARMCC_NE;
+    case ARMCC_NE:
+        return ARMCC_EQ;
+    case ARMCC_HS:
+        return ARMCC_LO;
+    case ARMCC_LO:
+        return ARMCC_HS;
+    case ARMCC_MI:
+        return ARMCC_PL;
+    case ARMCC_PL:
+        return ARMCC_MI;
+    case ARMCC_VS:
+        return ARMCC_VC;
+    case ARMCC_VC:
+        return ARMCC_VS;
+    case ARMCC_HI:
+        return ARMCC_LS;
+    case ARMCC_LS:
+        return ARMCC_HI;
+    case ARMCC_GE:
+        return ARMCC_LT;
+    case ARMCC_LT:
+        return ARMCC_GE;
+    case ARMCC_GT:
+        return ARMCC_LE;
+    case ARMCC_LE:
+        return ARMCC_GT;
     default:
-        return ARM_CC_INVALID;
+        return ARMCC_UNDEF;
     }
 }
