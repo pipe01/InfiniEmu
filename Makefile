@@ -11,7 +11,7 @@ SDIR = src
 TDIR = test
 
 CC = gcc
-CFLAGS = -I$(IDIR) -I$(LDIR) -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
+CFLAGS = -I$(IDIR) -I$(LDIR) -static -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
 
 ifeq ($(DEBUG), 1)
 	CFLAGS += -g
