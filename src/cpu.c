@@ -72,7 +72,7 @@
     }
 
 #define WRITEBACK(op_n)                                          \
-    if (i->detail->writeback)                                       \
+    if (detail->writeback)                                       \
     {                                                            \
         assert(detail->operands[op_n].type == ARM_OP_REG);       \
         cpu_reg_write(cpu, detail->operands[op_n].reg, address); \
@@ -315,13 +315,13 @@ static void cpu_it_advance(cpu_t *cpu)
         cpu->itstate.mask <<= 1;
 }
 
-static ARMCC_CondCodes cpu_current_cond(cpu_t *cpu, cs_insn *i)
+static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
 {
     if (i->id == ARM_INS_B)
         return i->detail->arm.cc;
 
     if (cpu->itstate.value == 0)
-        return ARMCC_AL;
+        return ARM_CC_AL;
 
     assert(cpu_in_it_block(cpu));
 
@@ -331,80 +331,80 @@ static ARMCC_CondCodes cpu_current_cond(cpu_t *cpu, cs_insn *i)
     switch (cond)
     {
     case 0: // 0000
-        return ARMCC_EQ;
+        return ARM_CC_EQ;
     case 1: // 0001
-        return ARMCC_NE;
+        return ARM_CC_NE;
     case 2: // 0010
-        return ARMCC_HS;
+        return ARM_CC_HS;
     case 3: // 0011
-        return ARMCC_LO;
+        return ARM_CC_LO;
     case 4: // 0100
-        return ARMCC_MI;
+        return ARM_CC_MI;
     case 5: // 0101
-        return ARMCC_PL;
+        return ARM_CC_PL;
     case 6: // 0110
-        return ARMCC_VS;
+        return ARM_CC_VS;
     case 7: // 0111
-        return ARMCC_VC;
+        return ARM_CC_VC;
     case 8: // 1000
-        return ARMCC_HI;
+        return ARM_CC_HI;
     case 9: // 1001
-        return ARMCC_LS;
+        return ARM_CC_LS;
     case 10: // 1010
-        return ARMCC_GE;
+        return ARM_CC_GE;
     case 11: // 1011
-        return ARMCC_LT;
+        return ARM_CC_LT;
     case 12: // 1100
-        return ARMCC_GT;
+        return ARM_CC_GT;
     case 13: // 1101
-        return ARMCC_LE;
+        return ARM_CC_LE;
     case 14: // 1110
     case 15: // 1111
-        return ARMCC_AL;
+        return ARM_CC_AL;
 
     default:
-        return ARMCC_UNDEF;
+        return ARM_CC_INVALID;
     }
 }
 
 static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 {
-    ARMCC_CondCodes cc = cpu_current_cond(cpu, i);
+    arm_cc cc = cpu_current_cond(cpu, i);
 
     switch (cc)
     {
-    case ARMCC_UNDEF:
-    case ARMCC_AL:
+    case ARM_CC_INVALID:
+    case ARM_CC_AL:
         return true;
 
-    case ARMCC_EQ:
+    case ARM_CC_EQ:
         return cpu->xpsr.apsr_z;
-    case ARMCC_NE:
+    case ARM_CC_NE:
         return !cpu->xpsr.apsr_z;
 
-    case ARMCC_HS:
+    case ARM_CC_HS:
         return cpu->xpsr.apsr_c;
-    case ARMCC_LO:
+    case ARM_CC_LO:
         return !cpu->xpsr.apsr_c;
 
-    case ARMCC_MI:
+    case ARM_CC_MI:
         return cpu->xpsr.apsr_n;
-    case ARMCC_PL:
+    case ARM_CC_PL:
         return !cpu->xpsr.apsr_n;
 
-    case ARMCC_GT:
+    case ARM_CC_GT:
         return (cpu->xpsr.apsr_n == cpu->xpsr.apsr_v) && !cpu->xpsr.apsr_z;
-    case ARMCC_LE:
+    case ARM_CC_LE:
         return (cpu->xpsr.apsr_n != cpu->xpsr.apsr_v) || cpu->xpsr.apsr_z;
 
-    case ARMCC_HI:
+    case ARM_CC_HI:
         return cpu->xpsr.apsr_c && !cpu->xpsr.apsr_z;
-    case ARMCC_LS:
+    case ARM_CC_LS:
         return !cpu->xpsr.apsr_c || cpu->xpsr.apsr_z;
 
-    case ARMCC_GE:
+    case ARM_CC_GE:
         return cpu->xpsr.apsr_n == cpu->xpsr.apsr_v;
-    case ARMCC_LT:
+    case ARM_CC_LT:
         return cpu->xpsr.apsr_n != cpu->xpsr.apsr_v;
 
     default:
@@ -603,7 +603,7 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
         frameptr = cpu->sp_main;
     }
 
-    uint32_t xpsr = cpu_sysreg_read(cpu, ARM_MCLASSSYSREG_XPSR);
+    uint32_t xpsr = cpu_sysreg_read(cpu, ARM_SYSREG_XPSR);
 
     memreg_write(cpu->mem, frameptr, cpu->core_regs[ARM_REG_R0], SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x4, cpu->core_regs[ARM_REG_R1], SIZE_WORD);
@@ -669,7 +669,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     new_psr |= (psr >> 27) << 27;
     new_psr |= psr & IPSR_MASK;
     new_psr |= psr & 0x700FC00;
-    cpu_sysreg_write(cpu, ARM_MCLASSSYSREG_XPSR, new_psr, true);
+    cpu_sysreg_write(cpu, ARM_SYSREG_XPSR, new_psr, true);
 }
 
 static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
@@ -799,10 +799,8 @@ void cpu_set_runlog(cpu_t *cpu, runlog_t *runlog)
     cpu->runlog = runlog;
 }
 
-static void cpu_do_load(cpu_t *cpu, cs_insn *i, byte_size_t size, uint32_t alignment, bool sign_extend)
+static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, uint32_t alignment, bool sign_extend)
 {
-    cs_arm *detail = &i->detail->arm;
-
     assert(detail->op_count == 2 || detail->op_count == 3);
     assert(detail->operands[0].type == ARM_OP_REG);
     assert(detail->operands[1].type == ARM_OP_MEM);
@@ -863,7 +861,7 @@ static void cpu_do_load(cpu_t *cpu, cs_insn *i, byte_size_t size, uint32_t align
 
     cpu_reg_write(cpu, detail->operands[0].reg, value);
 
-    if (i->detail->writeback)
+    if (detail->writeback)
     {
         address += offset;
 
@@ -871,12 +869,10 @@ static void cpu_do_load(cpu_t *cpu, cs_insn *i, byte_size_t size, uint32_t align
     }
 }
 
-static void cpu_do_store(cpu_t *cpu, cs_insn *i, byte_size_t size, bool dual)
+static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
 {
     uint32_t base, offset_addr;
     bool is_long;
-
-    cs_arm *detail = &i->detail->arm;
 
     uint8_t op_count = detail->op_count;
     cs_arm_op *mem_op;
@@ -936,7 +932,7 @@ static void cpu_do_store(cpu_t *cpu, cs_insn *i, byte_size_t size, bool dual)
         memreg_write(cpu->mem, address + 4, value, size);
     }
 
-    if (i->detail->writeback)
+    if (detail->writeback)
         cpu_reg_write(cpu, mem_op->mem.base, offset_addr);
 }
 
@@ -1386,6 +1382,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_DMB:
     case ARM_INS_DSB:
     case ARM_INS_ISB:
+    case ARM_INS_NOP:
     case ARM_INS_HINT:
     case ARM_INS_PLD:
     case ARM_INS_PLI:
@@ -1428,7 +1425,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         }
 
         // TODO: Check if registers<n> == '0', else don't write back
-        if (i->detail->writeback)
+        if (detail->writeback)
             cpu_reg_write(cpu, detail->operands[0].reg, address);
         break;
 
@@ -1448,21 +1445,21 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         }
 
         // TODO: Check if registers<n> == '0', else don't write back
-        if (i->detail->writeback)
+        if (detail->writeback)
             cpu_reg_write(cpu, detail->operands[0].reg, op0);
         break;
 
     case ARM_INS_LDR:
     case ARM_INS_LDREX:
-        cpu_do_load(cpu, i, SIZE_WORD, x(FFFF, FFFF) << 2, false);
+        cpu_do_load(cpu, detail, SIZE_WORD, x(FFFF, FFFF) << 2, false);
         break;
 
     case ARM_INS_LDRB:
-        cpu_do_load(cpu, i, SIZE_BYTE, x(FFFF, FFFF), false);
+        cpu_do_load(cpu, detail, SIZE_BYTE, x(FFFF, FFFF), false);
         break;
 
     case ARM_INS_LDRSB:
-        cpu_do_load(cpu, i, SIZE_BYTE, x(FFFF, FFFF), true);
+        cpu_do_load(cpu, detail, SIZE_BYTE, x(FFFF, FFFF), true);
         break;
 
     case ARM_INS_LDRD:
@@ -1473,11 +1470,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_LDRH:
-        cpu_do_load(cpu, i, SIZE_HALFWORD, x(FFFF, FFFF) << 1, false);
+        cpu_do_load(cpu, detail, SIZE_HALFWORD, x(FFFF, FFFF) << 1, false);
         break;
 
     case ARM_INS_LDRSH:
-        cpu_do_load(cpu, i, SIZE_HALFWORD, x(FFFF, FFFF) << 1, true);
+        cpu_do_load(cpu, detail, SIZE_HALFWORD, x(FFFF, FFFF) << 1, true);
         break;
 
     case ARM_INS_LSL:
@@ -1762,20 +1759,20 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             op0 += 4;
         }
 
-        if (i->detail->writeback)
+        if (detail->writeback)
             cpu_reg_write(cpu, detail->operands[0].reg, op0);
         break;
 
     case ARM_INS_STR:
-        cpu_do_store(cpu, i, SIZE_WORD, false);
+        cpu_do_store(cpu, detail, SIZE_WORD, false);
         break;
 
     case ARM_INS_STRB:
-        cpu_do_store(cpu, i, SIZE_BYTE, false);
+        cpu_do_store(cpu, detail, SIZE_BYTE, false);
         break;
 
     case ARM_INS_STRD:
-        cpu_do_store(cpu, i, SIZE_WORD, true);
+        cpu_do_store(cpu, detail, SIZE_WORD, true);
         break;
 
     case ARM_INS_STREX:
@@ -1791,11 +1788,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_STRH:
-        cpu_do_store(cpu, i, SIZE_HALFWORD, false);
+        cpu_do_store(cpu, detail, SIZE_HALFWORD, false);
         break;
 
     case ARM_INS_STMDB:
-        cpu_do_stmdb(cpu, detail->operands[0].reg, i->detail->writeback, &detail->operands[1], detail->op_count - 1);
+        cpu_do_stmdb(cpu, detail->operands[0].reg, detail->writeback, &detail->operands[1], detail->op_count - 1);
         break;
 
     case ARM_INS_SUB:
@@ -2214,10 +2211,10 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
 {
     switch (reg)
     {
-    case ARM_MCLASSSYSREG_IPSR:
+    case ARM_SYSREG_IPSR:
         return cpu->xpsr.ipsr;
 
-    case ARM_MCLASSSYSREG_XPSR:
+    case ARM_SYSREG_XPSR:
     {
         uint32_t value = cpu->xpsr.value;
         value &= ~0x600F800; // Remove EPSR.IT bits
@@ -2227,22 +2224,22 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
         return value;
     }
 
-    case ARM_MCLASSSYSREG_MSP:
+    case ARM_SYSREG_MSP:
         return cpu->sp_main;
 
-    case ARM_MCLASSSYSREG_PSP:
+    case ARM_SYSREG_PSP:
         return cpu->sp_process;
 
-    case ARM_MCLASSSYSREG_CONTROL:
+    case ARM_SYSREG_CONTROL:
         return cpu->control;
 
-    case ARM_MCLASSSYSREG_FAULTMASK:
+    case ARM_SYSREG_FAULTMASK:
         return cpu->faultmask;
 
-    case ARM_MCLASSSYSREG_BASEPRI:
+    case ARM_SYSREG_BASEPRI:
         return cpu->basepri;
 
-    case ARM_MCLASSSYSREG_PRIMASK:
+    case ARM_SYSREG_PRIMASK:
         return cpu->primask;
 
     default:
@@ -2255,10 +2252,10 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
 {
     switch (reg)
     {
-    case ARM_MCLASSSYSREG_XPSR:
-    case ARM_MCLASSSYSREG_APSR:
-    case ARM_MCLASSSYSREG_EPSR:
-    case ARM_MCLASSSYSREG_IPSR:
+    case ARM_SYSREG_XPSR:
+    case ARM_SYSREG_APSR:
+    case ARM_SYSREG_EPSR:
+    case ARM_SYSREG_IPSR:
         cpu->xpsr.value = value;
 
         if (can_update_it)
@@ -2266,27 +2263,27 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
 
         break;
 
-    case ARM_MCLASSSYSREG_MSP:
+    case ARM_SYSREG_MSP:
         cpu->sp_main = value;
         break;
 
-    case ARM_MCLASSSYSREG_PSP:
+    case ARM_SYSREG_PSP:
         cpu->sp_process = value;
         break;
 
-    case ARM_MCLASSSYSREG_CONTROL:
+    case ARM_SYSREG_CONTROL:
         cpu->control = value;
         break;
 
-    case ARM_MCLASSSYSREG_FAULTMASK:
+    case ARM_SYSREG_FAULTMASK:
         cpu->faultmask = value;
         break;
 
-    case ARM_MCLASSSYSREG_BASEPRI:
+    case ARM_SYSREG_BASEPRI:
         cpu->basepri = value;
         break;
 
-    case ARM_MCLASSSYSREG_PRIMASK:
+    case ARM_SYSREG_PRIMASK:
         cpu->primask = value;
         break;
 

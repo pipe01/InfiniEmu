@@ -444,14 +444,14 @@ char *gdb_queryReadRegisters(gdbstub *gdb, char *msg)
     WRITE_UINT32(registers, 52, cpu_reg_read(cpu, ARM_REG_SP));
     WRITE_UINT32(registers, 56, cpu_reg_read(cpu, ARM_REG_LR));
     WRITE_UINT32(registers, 60, cpu_reg_read(cpu, ARM_REG_PC) - 4);
-    WRITE_UINT32(registers, 64, cpu_sysreg_read(cpu, ARM_MCLASSSYSREG_XPSR));
+    WRITE_UINT32(registers, 64, cpu_sysreg_read(cpu, ARM_SYSREG_XPSR));
     WRITE_UINT32(registers, 68, cpu_reg_read(cpu, ARM_REG_FPSCR));
-    WRITE_UINT32(registers, 72, cpu_sysreg_read(cpu, ARM_MCLASSSYSREG_MSP));
-    WRITE_UINT32(registers, 76, cpu_sysreg_read(cpu, ARM_MCLASSSYSREG_PSP));
-    WRITE_UINT32(registers, 80, cpu_sysreg_read(cpu, ARM_MCLASSSYSREG_PRIMASK));
-    WRITE_UINT32(registers, 84, cpu_sysreg_read(cpu, ARM_MCLASSSYSREG_CONTROL));
-    WRITE_UINT32(registers, 88, cpu_sysreg_read(cpu, ARM_MCLASSSYSREG_BASEPRI));
-    WRITE_UINT32(registers, 92, cpu_sysreg_read(cpu, ARM_MCLASSSYSREG_FAULTMASK));
+    WRITE_UINT32(registers, 72, cpu_sysreg_read(cpu, ARM_SYSREG_MSP));
+    WRITE_UINT32(registers, 76, cpu_sysreg_read(cpu, ARM_SYSREG_PSP));
+    WRITE_UINT32(registers, 80, cpu_sysreg_read(cpu, ARM_SYSREG_PRIMASK));
+    WRITE_UINT32(registers, 84, cpu_sysreg_read(cpu, ARM_SYSREG_CONTROL));
+    WRITE_UINT32(registers, 88, cpu_sysreg_read(cpu, ARM_SYSREG_BASEPRI));
+    WRITE_UINT32(registers, 92, cpu_sysreg_read(cpu, ARM_SYSREG_FAULTMASK));
 
     send_response_bytes(gdb->fd, registers, sizeof(registers));
 
@@ -493,28 +493,28 @@ char *gdb_queryWriteRegisters(gdbstub *gdb, char *msg)
             cpu_reg_write(cpu, ARM_REG_PC, registers[i]);
             break;
         case 16:
-            cpu_sysreg_write(cpu, ARM_MCLASSSYSREG_XPSR, registers[i], true);
+            cpu_sysreg_write(cpu, ARM_SYSREG_XPSR, registers[i], true);
             break;
         case 17:
             cpu_reg_write(cpu, ARM_REG_FPSCR, registers[i]);
             break;
         case 18:
-            cpu_sysreg_write(cpu, ARM_MCLASSSYSREG_MSP, registers[i], true);
+            cpu_sysreg_write(cpu, ARM_SYSREG_MSP, registers[i], true);
             break;
         case 19:
-            cpu_sysreg_write(cpu, ARM_MCLASSSYSREG_PSP, registers[i], true);
+            cpu_sysreg_write(cpu, ARM_SYSREG_PSP, registers[i], true);
             break;
         case 20:
-            cpu_sysreg_write(cpu, ARM_MCLASSSYSREG_PRIMASK, registers[i], true);
+            cpu_sysreg_write(cpu, ARM_SYSREG_PRIMASK, registers[i], true);
             break;
         case 21:
-            cpu_sysreg_write(cpu, ARM_MCLASSSYSREG_CONTROL, registers[i], true);
+            cpu_sysreg_write(cpu, ARM_SYSREG_CONTROL, registers[i], true);
             break;
         case 22:
-            cpu_sysreg_write(cpu, ARM_MCLASSSYSREG_BASEPRI, registers[i], true);
+            cpu_sysreg_write(cpu, ARM_SYSREG_BASEPRI, registers[i], true);
             break;
         case 23:
-            cpu_sysreg_write(cpu, ARM_MCLASSSYSREG_FAULTMASK, registers[i], true);
+            cpu_sysreg_write(cpu, ARM_SYSREG_FAULTMASK, registers[i], true);
             break;
         }
     }
