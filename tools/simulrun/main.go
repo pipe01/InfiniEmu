@@ -16,8 +16,8 @@ const startAt = 0x572e // <vPortSetupTimerInterrupt>
 var randomInstructions bool
 
 type Instruction struct {
-	Mnemonic string
-	Data     []byte
+	Instruction asm.Instruction
+	Data        []byte
 }
 
 func must(err error) {
@@ -45,7 +45,7 @@ func generateInstructions(ch chan<- Instruction, workers int) {
 				gen := asm.Instructions[n%uint64(len(asm.Instructions))]
 				inst := gen(asm.RandASM{Rand: r})
 
-				b, err := asm.Assemble(inst, asm.ToolPaths{
+				b, err := asm.Assemble(inst.String(), asm.ToolPaths{
 					As:      "toolchain/bin/arm-none-eabi-as",
 					Objcopy: "toolchain/bin/arm-none-eabi-objcopy",
 				})
@@ -54,8 +54,8 @@ func generateInstructions(ch chan<- Instruction, workers int) {
 				}
 
 				ch <- Instruction{
-					Mnemonic: inst,
-					Data:     b,
+					Instruction: inst,
+					Data:        b,
 				}
 			}
 		}()
@@ -244,7 +244,7 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 		regs2 := gdb2.Registers()
 
 		if checkRegisterMismatches(regs1, regs2) {
-			log.Printf("when running instruction %s (%s)", inst.Mnemonic, hex.EncodeToString(inst.Data))
+			log.Printf("when running instruction %s (%s)", inst.Instruction, hex.EncodeToString(inst.Data))
 
 			break
 		}

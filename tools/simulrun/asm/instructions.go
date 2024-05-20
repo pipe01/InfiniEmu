@@ -110,6 +110,42 @@ func (r RegisterShift) String() string {
 	return fmt.Sprintf("%s #%d", r.Type, r.Amount)
 }
 
+type Instruction struct {
+	Name     string
+	Flags    InstructionFlags
+	Operands []any
+}
+
+func (i Instruction) String() string {
+	name := i.Name
+
+	if i.Flags.Has(FlagUpdateFlags) {
+		name += "s"
+	}
+	if i.Flags.Has(FlagWide) {
+		name += ".w"
+	}
+
+	opStrings := make([]string, 0, len(i.Operands))
+
+	for _, op := range i.Operands {
+		switch op := op.(type) {
+		case Register:
+			opStrings = append(opStrings, op.String())
+		case uint32, int32:
+			opStrings = append(opStrings, fmt.Sprintf("#%d", op))
+		case RegisterShift:
+			if !op.IsEmpty() {
+				opStrings = append(opStrings, op.String())
+			}
+		default:
+			panic("invalid operand type")
+		}
+	}
+
+	return fmt.Sprintf("%s %s", name, strings.Join(opStrings, ", "))
+}
+
 type InstructionFlags uint32
 
 const (
@@ -151,7 +187,7 @@ func (r RandASM) RandLowRegister() Register {
 	return Register(r.Intn(13))
 }
 
-func (r RandASM) RandRegisterN(n int) Register {
+func (r RandASM) RandRegisterBits(n int) Register {
 	return Register(r.Intn(n))
 }
 
@@ -202,127 +238,134 @@ func (r RandASM) RandShift() RegisterShift {
 	return RegisterShift{}
 }
 
-func (r RandASM) inst(name string, flags InstructionFlags, ops ...any) string {
+func (r RandASM) inst(name string, flags InstructionFlags, ops ...any) Instruction {
 	if flags.Has(FlagMaybeUpdateFlags) && r.maybe() {
 		flags |= FlagUpdateFlags
 	}
 
-	if flags.Has(FlagUpdateFlags) {
-		name += "s"
+	return Instruction{
+		Name:     name,
+		Flags:    flags,
+		Operands: ops,
 	}
-	if flags.Has(FlagWide) {
-		name += ".w"
-	}
-
-	opStrings := make([]string, 0, len(ops))
-
-	for _, op := range ops {
-		switch op := op.(type) {
-		case Register:
-			opStrings = append(opStrings, op.String())
-		case uint32, int32:
-			opStrings = append(opStrings, fmt.Sprintf("#%d", op))
-		case RegisterShift:
-			if !op.IsEmpty() {
-				opStrings = append(opStrings, op.String())
-			}
-		default:
-			panic("invalid operand type")
-		}
-	}
-
-	return fmt.Sprintf("%s %s", name, strings.Join(opStrings, ", "))
 }
 
-type Generator func(r RandASM) string
+type Generator func(r RandASM) Instruction
 
 var Instructions = []Generator{
 	// ADC (immediate)
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("adc", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
 	},
 	// ADC (register) T1
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("adc", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister())
 	},
 	// ADC (register) T2
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("adc", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
 	},
 
 	// ADD (immediate) T1
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(3))
 	},
 	// ADD (immediate) T2
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(8))
 	},
 	// ADD (immediate) T3
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
 	},
 	// ADD (immediate) T4
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(12))
 	},
 
 	// ADD (register) T1
-	func(r RandASM) string {
-		return r.inst("add", FlagNone, r.RandRegisterN(8), r.RandRegisterN(8), r.RandRegisterN(8))
+	func(r RandASM) Instruction {
+		return r.inst("add", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3), r.RandRegisterBits(3))
 	},
 	// ADD (register) T2
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagNone, r.RandLowRegister(), r.RandLowRegister())
 	},
 	// ADD (register) T3
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
 	},
 
 	// ADD (SP plus immediate) T1
-	func(r RandASM) string {
-		return r.inst("add", FlagNone, r.RandRegisterN(8), RegisterSP, r.RandIntBits(8))
+	func(r RandASM) Instruction {
+		return r.inst("add", FlagNone, r.RandRegisterBits(3), RegisterSP, r.RandIntBits(8))
 	},
 	// ADD (SP plus immediate) T2
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagNone, RegisterSP, RegisterSP, r.RandIntBits(7)<<2)
 	},
 	// ADD (SP plus immediate) T3
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), RegisterSP, r.RandThumbImm())
 	},
 	// ADD (SP plus immediate) T4
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagWide, r.RandLowRegister(), RegisterSP, r.RandIntBits(12))
 	},
 
 	// ADD (SP plus register) T1
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		reg := r.RandLowRegister()
 		return r.inst("add", FlagNone, reg, RegisterSP, reg)
 	},
 	// ADD (SP plus register) T2
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagNone, RegisterSP, r.RandLowRegister())
 	},
 	// ADD (SP plus register) T3
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("add", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), RegisterSP, r.RandLowRegister(), r.RandShift())
 	},
 
 	// These seem to emit SUB instructions instead of ADR
 	// ADR T1
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("adr", FlagNone, r.RandLowRegister(), r.RandIntBits(8)<<2)
 	},
 	// ADR T2, T3
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("adr", FlagWide, r.RandLowRegister(), r.MaybeNegative(r.RandIntBits(12)))
 	},
 
 	// AND (immediate) T1
-	func(r RandASM) string {
+	func(r RandASM) Instruction {
 		return r.inst("and", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// AND (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("and", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister())
+	},
+	// AND (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("and", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// ASR (immediate) T1
+	func(r RandASM) Instruction {
+		return r.inst("asr", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3), r.RandIntBits(5))
+	},
+	// ASR (immediate) T2
+	func(r RandASM) Instruction {
+		return r.inst("asr", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(5))
+	},
+
+	// ASR (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("asr", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3))
+	},
+	// ASR (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("asr", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
 	},
 }

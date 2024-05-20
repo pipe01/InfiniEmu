@@ -9,6 +9,8 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/url"
+	"strings"
 )
 
 const RegisterCount = 17
@@ -17,22 +19,41 @@ var RegisterNames = []string{"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8
 
 const logMessages = false
 
+const defaultResetCommand = "reset halt"
+
 type GDBClient struct {
 	conn io.ReadWriteCloser
 
 	regs [RegisterCount]uint32
 
+	resetCmd  string
 	noAckMode bool
 }
 
 func DialGDB(addr string) (*GDBClient, error) {
-	conn, err := net.Dial("tcp", addr)
+	log.Printf("connecting to gdb at %s", addr)
+
+	if !strings.HasPrefix(addr, "tcp://") {
+		addr = "tcp://" + addr
+	}
+
+	uri, err := url.Parse(addr)
+	if err != nil {
+		return nil, fmt.Errorf("parse url: %w", err)
+	}
+
+	conn, err := net.Dial("tcp", uri.Host)
 	if err != nil {
 		return nil, fmt.Errorf("dial tcp: %w", err)
 	}
 
 	gdb := &GDBClient{
-		conn: conn,
+		conn:     conn,
+		resetCmd: defaultResetCommand,
+	}
+
+	if uri.Query().Has("resetcmd") {
+		gdb.resetCmd = uri.Query().Get("resetcmd")
 	}
 
 	if err = gdb.startNoAck(); err != nil {
@@ -205,7 +226,8 @@ func (g *GDBClient) startNoAck() error {
 		return err
 	}
 	if string(resp) != "OK" {
-		return fmt.Errorf("invalid ack response: %v", resp)
+		log.Print("remote doesn't support no-ack mode")
+		return nil
 	}
 
 	g.noAckMode = true
@@ -246,7 +268,7 @@ func (g *GDBClient) WriteRegisters() error {
 }
 
 func (g *GDBClient) Reset() error {
-	return g.runCommand("reset halt")
+	return g.runCommand(g.resetCmd)
 }
 
 func (g *GDBClient) Step() error {
