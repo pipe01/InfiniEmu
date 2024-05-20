@@ -93,16 +93,16 @@ func checkRegisterMismatches(regs1, regs2 *[RegisterCount]uint32) bool {
 			xpsr2 := asm.XPSR(regs2[asm.RegisterXPSR])
 
 			if xpsr1.N() != xpsr2.N() {
-				log.Printf("  N flag: %v %v", xpsr1.N(), xpsr2.N())
+				log.Printf("    N flag: %v %v", xpsr1.N(), xpsr2.N())
 			}
 			if xpsr1.Z() != xpsr2.Z() {
-				log.Printf("  Z flag: %v %v", xpsr1.Z(), xpsr2.Z())
+				log.Printf("    Z flag: %v %v", xpsr1.Z(), xpsr2.Z())
 			}
 			if xpsr1.C() != xpsr2.C() {
-				log.Printf("  C flag: %v %v", xpsr1.C(), xpsr2.C())
+				log.Printf("    C flag: %v %v", xpsr1.C(), xpsr2.C())
 			}
 			if xpsr1.V() != xpsr2.V() {
-				log.Printf("  V flag: %v %v", xpsr1.V(), xpsr2.V())
+				log.Printf("    V flag: %v %v", xpsr1.V(), xpsr2.V())
 			}
 		}
 

@@ -1184,34 +1184,40 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_AND:
-        assert(detail->op_count == 3);
+        assert(detail->op_count == 2 || detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
-
+        op0 = OPERAND_REG(1);
         carry = cpu->xpsr.apsr_c;
 
-        if (detail->operands[2].type == ARM_OP_IMM)
+        if (detail->op_count == 2)
         {
-            op1 = detail->operands[2].imm;
-
-            // Capstone doesn't provide the carry bit so we must calculate it ourselves
-            if (i->size == 4)
-            {
-                bool bit1 = (i->bytes[1] & (1 << 2)) != 0;
-                bool bit2 = (i->bytes[3] & (1 << 6)) != 0;
-
-                if (bit1 || bit2)
-                {
-                    carry = (detail->operands[2].imm & (1 << 31)) != 0;
-                }
-            }
+            op1 = OPERAND_REG(0);
         }
         else
         {
-            op1 = cpu_reg_read(cpu, detail->operands[2].reg);
-            op1 = Shift_C(op1, detail->operands[2].shift.type, detail->operands[2].shift.value, &carry);
+            if (detail->operands[2].type == ARM_OP_IMM)
+            {
+                op1 = detail->operands[2].imm;
+
+                // Capstone doesn't provide the carry bit so we must calculate it ourselves
+                if (i->size == 4)
+                {
+                    bool bit1 = (i->bytes[1] & (1 << 2)) != 0;
+                    bool bit2 = (i->bytes[3] & (1 << 6)) != 0;
+
+                    if (bit1 || bit2)
+                    {
+                        carry = (detail->operands[2].imm & (1 << 31)) != 0;
+                    }
+                }
+            }
+            else
+            {
+                op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+                op1 = Shift_C(op1, detail->operands[2].shift.type, detail->operands[2].shift.value, &carry);
+            }
         }
 
         value = op0 & op1;
@@ -1221,12 +1227,13 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ASR:
-        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
+        op0 = OPERAND_REG(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
-        value = Shift_C(op0, ARM_SFT_ASR, op1, &carry);
+        carry = cpu->xpsr.apsr_c;
+        value = Shift_C(op0, ARM_SFT_ASR, op1 & 0xFF, &carry);
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZC;
         break;

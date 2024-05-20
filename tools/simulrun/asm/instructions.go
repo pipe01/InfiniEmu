@@ -45,6 +45,19 @@ func (r Register) String() string {
 	}
 }
 
+func (r Register) withMax(max uint32) FuzzedRegister {
+	return FuzzedRegister{
+		Register: r,
+		Maximum:  max,
+	}
+}
+
+type FuzzedRegister struct {
+	Register Register
+	Minimum  uint32
+	Maximum  uint32
+}
+
 type XPSR uint32
 
 func (x XPSR) N() bool {
@@ -132,6 +145,8 @@ func (i Instruction) String() string {
 		switch op := op.(type) {
 		case Register:
 			opStrings = append(opStrings, op.String())
+		case FuzzedRegister:
+			opStrings = append(opStrings, op.Register.String())
 		case uint32, int32:
 			opStrings = append(opStrings, fmt.Sprintf("#%d", op))
 		case RegisterShift:
