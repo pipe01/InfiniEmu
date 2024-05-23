@@ -38,10 +38,8 @@
 #define SIGNEXTEND8_32(value) ((uint32_t)(int8_t)((value) & 0xFF))
 #define SIGNEXTEND16_32(value) ((uint32_t)(int16_t)((value) & 0xFFFF))
 
-#define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address, NULL)
-#define OPERAND_OFF_C(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address, &carry)
-#define OPERAND(n) OPERAND_OFF(n, 0)
-#define OPERAND_C(n) OPERAND_OFF_C(n, 0)
+#define OPERAND(n) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], NULL)
+#define OPERAND_C(n) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], &carry)
 #define OPERAND_REG(n) (assert(i->detail->arm.operands[(n)].type == ARM_OP_REG), cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg))
 
 #define UPDATE_N(cpu, value) (cpu)->xpsr.apsr_n = ((value) >> 31) == 1
@@ -254,7 +252,7 @@ static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
     return base + op->mem.disp;
 }
 
-static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address, bool *carry_out)
+static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, bool *carry_out)
 {
     if (op->type == ARM_OP_IMM)
     {
@@ -962,6 +960,30 @@ static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op
     }
 }
 
+static inline void cpu_decode_arithmetic(cpu_t *cpu, cs_insn *i, uint32_t *op0, uint32_t *op1, bool *carry)
+{
+    cs_arm *detail = &i->detail->arm;
+
+    assert(detail->op_count == 3);
+    assert(detail->operands[0].type == ARM_OP_REG);
+
+    *op0 = OPERAND_REG(1);
+
+    *carry = cpu->xpsr.apsr_c;
+
+    if (detail->operands[2].type == ARM_OP_IMM)
+    {
+        // (immediate)
+        *op1 = detail->operands[2].imm;
+        *carry = CalculateThumbExpandCarry(i->bytes, detail->operands[2].imm, *carry);
+    }
+    else
+    {
+        // (register)
+        *op1 = cpu_load_operand(cpu, &i->detail->arm.operands[2], carry);
+    }
+}
+
 cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts, size_t priority_bits)
 {
     cpu_t *cpu = calloc(1, sizeof(cpu_t));
@@ -1270,25 +1292,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_BIC:
-        assert(detail->op_count == 3);
-        assert(detail->operands[0].type == ARM_OP_REG);
-        op0 = OPERAND_REG(1);
-
-        carry = cpu->xpsr.apsr_c;
-
-        if (detail->operands[2].type == ARM_OP_IMM)
-        {
-            // BIC (immediate)
-
-            op1 = detail->operands[2].imm;
-            carry = CalculateThumbExpandCarry(i->bytes, detail->operands[2].imm, carry);
-        }
-        else
-        {
-            // BIC (register)
-
-            op1 = OPERAND_C(2);
-        }
+        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 & ~op1;
         cpu_reg_write(cpu, detail->operands[0].reg, value);
@@ -1384,15 +1388,12 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_EOR:
-        assert(detail->op_count == 2 || detail->op_count == 3);
-
-        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
+        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 ^ op1;
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
-        UPDATE_NZC
+        UPDATE_NZC;
         break;
 
     case ARM_INS_IT:
