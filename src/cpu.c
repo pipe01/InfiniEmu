@@ -1669,6 +1669,60 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
+    case ARM_INS_REV16:
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+
+        value = ((op0 & 0xFF) << 8) | ((op0 & 0xFF00) >> 8) | ((op0 & 0xFF0000) << 8) | ((op0 & 0xFF000000) >> 8);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+        break;
+
+    case ARM_INS_REVSH:
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+
+        value = ((op0 & 0xFF) << 8) | ((op0 & 0xFF00) >> 8);
+
+        if (value & 0x8000)
+            value |= 0xFFFF0000;
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+        break;
+
+    case ARM_INS_ROR:
+        op0 = OPERAND_REG(detail->op_count == 3 ? 1 : 0);
+        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
+
+        carry = cpu->xpsr.apsr_c;
+        value = Shift_C(op0, ARM_SFT_ROR, op1 & 0xFF, &carry);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+
+        UPDATE_NZC;
+        break;
+
+    case ARM_INS_RRX:
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+
+        carry = cpu->xpsr.apsr_c;
+        value = Shift_C(op0, ARM_SFT_RRX, 1, &carry);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+
+        UPDATE_NZC;
+        break;
+
     case ARM_INS_RSB:
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
