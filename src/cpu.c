@@ -1739,6 +1739,67 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         UPDATE_NZCV
         break;
 
+    case ARM_INS_SADD16:
+    {
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND_REG(2);
+
+        int32_t sum1 = (int16_t)(op0 & 0xFFFF) + (int16_t)(op1 & 0xFFFF);
+        int32_t sum2 = (int16_t)(op0 >> 16) + (int16_t)(op1 >> 16);
+
+        value = (sum2 << 16) | (sum1 & 0xFFFF);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+
+        cpu->xpsr.apsr_ge0 = cpu->xpsr.apsr_ge1 = sum1 >= 0;
+        cpu->xpsr.apsr_ge2 = cpu->xpsr.apsr_ge3 = sum2 >= 0;
+        break;
+    }
+
+    case ARM_INS_SADD8:
+    {
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND_REG(2);
+
+        int16_t sum1 = (int8_t)(op0 & 0xFF) + (int8_t)(op1 & 0xFF);
+        int16_t sum2 = (int8_t)(op0 >> 8) + (int8_t)(op1 >> 8);
+        int16_t sum3 = (int8_t)(op0 >> 16) + (int8_t)(op1 >> 16);
+        int16_t sum4 = (int8_t)(op0 >> 24) + (int8_t)(op1 >> 24);
+
+        value = (sum4 << 24) | ((sum3 & 0xFF) << 16) | ((sum2 & 0xFF) << 8) | (sum1 & 0xFF);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+
+        cpu->xpsr.apsr_ge0 = sum1 >= 0;
+        cpu->xpsr.apsr_ge1 = sum2 >= 0;
+        cpu->xpsr.apsr_ge2 = sum3 >= 0;
+        cpu->xpsr.apsr_ge3 = sum4 >= 0;
+        break;
+    }
+
+    case ARM_INS_SASX:
+    {
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND_REG(2);
+
+        int32_t diff = (int16_t)(op0 & 0xFFFF) - (int16_t)(op1 >> 16);
+        int32_t sum = (int16_t)(op0 >> 16) + (int16_t)(op1 & 0xFFFF);
+
+        value = ((sum & 0xFFFF) << 16) | (diff & 0xFFFF);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+
+        cpu->xpsr.apsr_ge0 = cpu->xpsr.apsr_ge1 = diff >= 0;
+        cpu->xpsr.apsr_ge2 = cpu->xpsr.apsr_ge3 = sum >= 0;
+        break;
+    }
+
     case ARM_INS_SBC:
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
