@@ -1603,6 +1603,24 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         UPDATE_NZC;
         break;
 
+    case ARM_INS_PKHBT:
+    case ARM_INS_PKHTB:
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[2].type == ARM_OP_REG);
+
+        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
+        op1 = OPERAND(2);
+
+        if (i->id == ARM_INS_PKHTB)
+            value = (op0 & x(FFFF, 0000)) | (op1 & 0xFFFF);
+        else
+            value = (op1 & x(FFFF, 0000)) | (op0 & 0xFFFF);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+        break;
+
     case ARM_INS_POP:
         op0 = cpu_reg_read(cpu, ARM_REG_SP);
 
