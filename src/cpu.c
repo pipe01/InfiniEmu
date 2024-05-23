@@ -41,6 +41,7 @@
 #define OPERAND(n) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], NULL)
 #define OPERAND_C(n) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], &carry)
 #define OPERAND_REG(n) (assert(i->detail->arm.operands[(n)].type == ARM_OP_REG), cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg))
+#define OPERAND_IMM(n) (assert(i->detail->arm.operands[(n)].type == ARM_OP_IMM), i->detail->arm.operands[(n)].imm)
 
 #define UPDATE_N(cpu, value) (cpu)->xpsr.apsr_n = ((value) >> 31) == 1
 #define UPDATE_Z(cpu, value) (cpu)->xpsr.apsr_z = (value) == 0
@@ -1880,7 +1881,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         uint64_t result = (int64_t)(int32_t)OPERAND_REG(2) * (int64_t)(int32_t)OPERAND_REG(3);
 
         cpu_reg_write(cpu, detail->operands[0].reg, result & x(FFFF, FFFF));
-        cpu_reg_write(cpu, detail->operands[1].reg, result >> 32);
+        cpu_reg_write(cpu, detail->operands[1].reg, (result >> 32) & x(FFFF, FFFF));
         break;
     }
 
@@ -1952,13 +1953,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_SXTAB:
-        assert(detail->op_count == 3); // TODO: Handle rotation case
+        assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[2].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
-        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND(2);
 
         value = op0 + SIGNEXTEND8_32(op1);
 
@@ -1966,13 +1965,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_SXTAH:
-        assert(detail->op_count == 3); // TODO: Handle rotation case
+        assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[2].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
-        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND(2);
 
         value = op0 + SIGNEXTEND16_32(op1);
 
@@ -1980,23 +1977,19 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_SXTB:
-        assert(detail->op_count == 2); // TODO: Handle rotation case
+        assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
-        value = SIGNEXTEND8_32(op1);
+        value = SIGNEXTEND8_32(OPERAND(1));
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_SXTH:
-        assert(detail->op_count == 2); // TODO: Handle rotation case
+        assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
-        value = SIGNEXTEND16_32(op1);
+        value = SIGNEXTEND16_32(OPERAND(1));
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
@@ -2013,38 +2006,33 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_TEQ:
+    case ARM_INS_TST:
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail->operands[0].reg);
-        op1 = OPERAND(1);
+        carry = cpu->xpsr.apsr_c;
 
-        value = op0 ^ op1;
+        if (detail->operands[1].type == ARM_OP_IMM)
+            carry = CalculateThumbExpandCarry(i->bytes, detail->operands[1].imm, carry);
+
+        op0 = cpu_reg_read(cpu, detail->operands[0].reg);
+        op1 = OPERAND_C(1);
+
+        if (i->id == ARM_INS_TEQ)
+            value = op0 ^ op1;
+        else
+            value = op0 & op1;
 
         UPDATE_NZC
         break;
 
-    case ARM_INS_TST:
-        assert(detail->op_count == 2);
-        assert(detail->operands[1].shift.value == 0);
-
-        op0 = OPERAND(0);
-        op1 = OPERAND(1);
-
-        value = op0 & op1;
-
-        UPDATE_NZ
-        break;
-
     case ARM_INS_UADD8:
     {
-        assert(detail->op_count == 3); // TODO: Implement 2-register case
+        assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[2].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
-        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND_REG(2);
 
         uint16_t sum1 = (op0 & 0xFF) + (op1 & 0xFF);
         uint16_t sum2 = ((op0 >> 8) & 0xFF) + ((op1 >> 8) & 0xFF);
@@ -2057,52 +2045,41 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
                           ((sum2 & 0xFF) << 8) |
                           (sum1 & 0xFF));
 
-        cpu->xpsr.apsr_ge0 = sum1 > 0x100;
-        cpu->xpsr.apsr_ge1 = sum2 > 0x100;
-        cpu->xpsr.apsr_ge2 = sum3 > 0x100;
-        cpu->xpsr.apsr_ge3 = sum4 > 0x100;
+        cpu->xpsr.apsr_ge0 = sum1 >= 0x100;
+        cpu->xpsr.apsr_ge1 = sum2 >= 0x100;
+        cpu->xpsr.apsr_ge2 = sum3 >= 0x100;
+        cpu->xpsr.apsr_ge3 = sum4 >= 0x100;
         break;
     }
 
     case ARM_INS_UBFX:
     {
-        op1 = OPERAND(1);
-        uint32_t lsb = OPERAND(2);
-        uint32_t width = OPERAND(3);
+        assert(detail->op_count == 4);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        op1 = OPERAND_REG(1);
+        uint32_t lsb = OPERAND_IMM(2);
+        uint32_t width = OPERAND_IMM(3);
 
         assert(lsb + width <= 32);
 
         value = (op1 >> lsb) & ((1 << width) - 1);
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
     }
 
     case ARM_INS_UMLAL:
-    {
-        assert(detail->op_count == 4);
-        assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[2].type == ARM_OP_REG);
-        assert(detail->operands[3].type == ARM_OP_REG);
-
-        uint64_t result = (uint64_t)cpu_reg_read(cpu, detail->operands[2].reg) * (uint64_t)cpu_reg_read(cpu, detail->operands[3].reg);
-        result += ((uint64_t)cpu_reg_read(cpu, detail->operands[1].reg) << 32) | (uint64_t)cpu_reg_read(cpu, detail->operands[0].reg);
-
-        cpu_reg_write(cpu, detail->operands[0].reg, result & x(FFFF, FFFF));
-        cpu_reg_write(cpu, detail->operands[1].reg, result >> 32);
-        break;
-    }
-
     case ARM_INS_UMULL:
     {
         assert(detail->op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[2].type == ARM_OP_REG);
-        assert(detail->operands[3].type == ARM_OP_REG);
 
-        uint64_t result = (uint64_t)cpu_reg_read(cpu, detail->operands[2].reg) * (uint64_t)cpu_reg_read(cpu, detail->operands[3].reg);
+        uint64_t result = (uint64_t)OPERAND_REG(2) * (uint64_t)OPERAND_REG(3);
+
+        if (i->id == ARM_INS_UMLAL)
+            result += ((uint64_t)OPERAND_REG(1) << 32) | (uint64_t)OPERAND_REG(0);
 
         cpu_reg_write(cpu, detail->operands[0].reg, result & x(FFFF, FFFF));
         cpu_reg_write(cpu, detail->operands[1].reg, result >> 32);
@@ -2112,10 +2089,9 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_USAT:
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_IMM);
         assert(detail->operands[2].type == ARM_OP_REG);
 
-        op0 = detail->operands[1].imm;
+        op0 = OPERAND_IMM(1);
         op1 = OPERAND(2);
 
         bool saturated = UnsignedSatQ(op1, op0, &value);
