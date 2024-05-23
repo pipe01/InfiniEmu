@@ -1640,6 +1640,23 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_do_stmdb(cpu, ARM_REG_SP, true, &detail->operands[0], detail->op_count);
         break;
 
+    case ARM_INS_RBIT:
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+
+        value = cpu_reg_read(cpu, detail->operands[1].reg);
+
+        // From http://graphics.stanford.edu/~seander/bithacks.html#ReverseParallel
+        value = ((value >> 1) & 0x55555555) | ((value & 0x55555555) << 1);
+        value = ((value >> 2) & 0x33333333) | ((value & 0x33333333) << 2);
+        value = ((value >> 4) & 0x0F0F0F0F) | ((value & 0x0F0F0F0F) << 4);
+        value = ((value >> 8) & 0x00FF00FF) | ((value & 0x00FF00FF) << 8);
+        value = (value >> 16) | (value << 16);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+        break;
+
     case ARM_INS_REV:
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
