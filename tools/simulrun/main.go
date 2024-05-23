@@ -114,17 +114,28 @@ func checkRegisterMismatches(regs1, regs2 *[RegisterCount]uint32) bool {
 
 func main() {
 	fuzzCount := flag.Int("fuzz", 0, "run fuzzer for this amount of instructions, -1 to run indefinitely")
+	runExchange := flag.String("run", "", "run instruction in exchange format")
 	flag.BoolVar(&randomInstructions, "random", false, "choose random instructions when fuzzing instead of round-robin")
 	flag.Parse()
-
-	if flag.NArg() != 2 {
-		log.Fatalf("expected 2 arguments: <gdb1> <gdb2>")
-	}
 
 	gdb1, err := DialGDB(flag.Arg(0))
 	if err != nil {
 		log.Fatalf("failed to dial gdb1: %v", err)
 	}
+
+	if *runExchange != "" {
+		if flag.NArg() != 1 {
+			log.Fatalf("expected 1 arguments: <gdb>")
+		}
+
+		doRunExchange(gdb1, *runExchange)
+		return
+	}
+
+	if flag.NArg() != 2 {
+		log.Fatalf("expected 2 arguments: <gdb1> <gdb2>")
+	}
+
 	gdb2, err := DialGDB(flag.Arg(1))
 	if err != nil {
 		log.Fatalf("failed to dial gdb2: %v", err)
@@ -221,8 +232,14 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 		must(gdb2.ReadRegisters())
 
 		// Seed registers with random values
-		for i := 0; i < 12; i++ {
+		for i := 0; i <= 12; i++ {
 			val := r.Uint32()
+
+			for _, op := range inst.Instruction.Operands {
+				if reg, ok := op.(asm.FuzzedRegister); ok && reg.Register == asm.Register(i) {
+					val = uint32(r.Intn(int(reg.Maximum-reg.Minimum))) + reg.Minimum
+				}
+			}
 
 			gdb1.Registers()[i] = val
 			gdb2.Registers()[i] = val
@@ -230,6 +247,8 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 
 		gdb1.Registers()[asm.RegisterPC] = 0x2000_0000
 		gdb2.Registers()[asm.RegisterPC] = 0x2000_0000
+
+		beforeRegs := *gdb1.Registers()
 
 		must(gdb1.WriteRegisters())
 		must(gdb2.WriteRegisters())
@@ -246,7 +265,46 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 		if checkRegisterMismatches(regs1, regs2) {
 			log.Printf("when running instruction %s (%s)", inst.Instruction, hex.EncodeToString(inst.Data))
 
+			ex := ExchangeInstruction{
+				ExpectedRegisters: *regs1,
+				BeforeRegisters:   beforeRegs,
+				Instruction:       inst.Data,
+				Mnemonic:          inst.Instruction.String(),
+			}
+			log.Printf("exchange instruction: %s", ex.String())
+
 			break
 		}
 	}
+}
+
+func doRunExchange(gdb *GDBClient, instString string) {
+	inst, err := ParseExchangeInstruction(instString)
+	if err != nil {
+		log.Fatalf("failed to parse exchange instruction: %v", err)
+	}
+
+	log.Printf("running instruction %s (%s)", inst.Mnemonic, hex.EncodeToString(inst.Instruction))
+
+	must(gdb.Reset())
+
+	must(gdb.WriteMemory(0x2000_0000, inst.Instruction))
+
+	must(gdb.ReadRegisters())
+
+	for i, reg := range inst.BeforeRegisters {
+		gdb.Registers()[i] = reg
+	}
+
+	gdb.Registers()[asm.RegisterPC] = 0x2000_0000
+
+	must(gdb.WriteRegisters())
+
+	must(gdb.Step())
+
+	must(gdb.ReadRegisters())
+
+	regs := gdb.Registers()
+
+	checkRegisterMismatches(&inst.ExpectedRegisters, regs)
 }

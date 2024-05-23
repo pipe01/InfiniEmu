@@ -419,4 +419,140 @@ var Instructions = []Generator{
 	func(r RandASM) Instruction {
 		return r.inst("bic", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
 	},
+
+	// CLZ
+	func(r RandASM) Instruction {
+		return r.inst("clz", FlagNone, r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// CMN (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("cmn", FlagNone, r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// CMN (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("cmn", FlagNone, r.RandLowRegister(), r.RandLowRegister())
+	},
+	// CMN (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("cmn", FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// CMP (immediate) T1
+	func(r RandASM) Instruction {
+		return r.inst("cmp", FlagNone, r.RandLowRegister(), r.RandIntBits(8))
+	},
+	// CMP (immediate) T2
+	func(r RandASM) Instruction {
+		return r.inst("cmp", FlagWide, r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// CMP (register) T1, T2
+	func(r RandASM) Instruction {
+		return r.inst("cmp", FlagNone, r.RandLowRegister(), r.RandLowRegister())
+	},
+	// CMP (register) T3
+	func(r RandASM) Instruction {
+		return r.inst("cmp", FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// EOR (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("eor", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// EOR (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("eor", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3))
+	},
+	// EOR (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("eor", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// LSL (immediate) T1
+	func(r RandASM) Instruction {
+		return r.inst("lsl", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3), r.RandIntBits(5))
+	},
+	// LSL (immediate) T2
+	func(r RandASM) Instruction {
+		return r.inst("lsl", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(5))
+	},
+
+	// LSL (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("lsl", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3).withMax(32))
+	},
+	// LSL (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("lsl", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister().withMax(32))
+	},
+
+	// LSR (immediate) T1
+	func(r RandASM) Instruction {
+		return r.inst("lsr", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3), r.RandIntBits(5))
+	},
+	// LSR (immediate) T2
+	func(r RandASM) Instruction {
+		return r.inst("lsr", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(5))
+	},
+
+	// LSR (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("lsr", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3).withMax(32))
+	},
+	// LSR (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("lsr", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister().withMax(32))
+	},
+
+	// MLA
+	func(r RandASM) Instruction {
+		return r.inst("mla", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// MLS
+	func(r RandASM) Instruction {
+		return r.inst("mls", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// MUL
+	func(r RandASM) Instruction {
+		return r.inst("mul", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// MVN (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("mvn", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// MVN (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("mvn", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3))
+	},
+	// MVN (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("mvn", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// ORN (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("orn", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// ORN (register)
+	func(r RandASM) Instruction {
+		return r.inst("orn", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// ORR (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("orr", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// ORR (register)
+	func(r RandASM) Instruction {
+		return r.inst("orr", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
 }
