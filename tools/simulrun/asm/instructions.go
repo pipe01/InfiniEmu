@@ -383,4 +383,40 @@ var Instructions = []Generator{
 	func(r RandASM) Instruction {
 		return r.inst("asr", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
 	},
+
+	// BFC
+	func(r RandASM) Instruction {
+		lsb := r.RandIntBits(5)
+		width := uint32(1)
+		if lsb < 31 {
+			width = uint32(r.Rand.Intn(31-int(lsb)) + 1)
+		}
+
+		return r.inst("bfc", FlagNone, r.RandLowRegister(), lsb, width)
+	},
+
+	// BFI
+	func(r RandASM) Instruction {
+		lsb := r.RandIntBits(5)
+		width := uint32(1)
+		if lsb < 31 {
+			width = uint32(r.Rand.Intn(31-int(lsb)) + 1)
+		}
+
+		return r.inst("bfi", FlagNone, r.RandLowRegister(), r.RandLowRegister(), lsb, width)
+	},
+
+	// BIC (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("bic", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// BIC (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("bic", FlagNone, r.RandLowRegister(), r.RandLowRegister())
+	},
+	// BIC (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("bic", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
 }
