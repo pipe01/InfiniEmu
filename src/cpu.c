@@ -1801,8 +1801,13 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_SBC:
-        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
+        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
+
+        if (i->size == 4)
+        {
+            // FIXME: Capstone bug, update_flags is always true on SBC (immediate) and SBC (register) T2
+            update_flags = i->bytes[0] & (1 << 4);
+        }
 
         carry = cpu->xpsr.apsr_c;
         value = AddWithCarry(op0, ~op1, &carry, &overflow);
