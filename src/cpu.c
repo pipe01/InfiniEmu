@@ -960,27 +960,32 @@ static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op
     }
 }
 
-static inline void cpu_decode_arithmetic(cpu_t *cpu, cs_insn *i, uint32_t *op0, uint32_t *op1, bool *carry)
+static inline void cpu_decode_arithmetic(cpu_t *cpu, cs_insn *i, uint32_t *op0_val, uint32_t *op1_val, bool *carry)
 {
     cs_arm *detail = &i->detail->arm;
 
-    assert(detail->op_count == 3);
+    assert(detail->op_count == 2 || detail->op_count == 3);
     assert(detail->operands[0].type == ARM_OP_REG);
 
-    *op0 = OPERAND_REG(1);
+    cs_arm_op *op1 = &detail->operands[detail->op_count == 2 ? 0 : 1];
+    cs_arm_op *op2 = &detail->operands[detail->op_count == 2 ? 1 : 2];
+
+    assert(op1->type == ARM_OP_REG);
+    *op0_val = cpu_reg_read(cpu, op1->reg);
 
     *carry = cpu->xpsr.apsr_c;
 
-    if (detail->operands[2].type == ARM_OP_IMM)
+    if (op2->type == ARM_OP_IMM)
     {
         // (immediate)
-        *op1 = detail->operands[2].imm;
-        *carry = CalculateThumbExpandCarry(i->bytes, detail->operands[2].imm, *carry);
+        *op1_val = op2->imm;
+        *carry = CalculateThumbExpandCarry(i->bytes, op2->imm, *carry);
     }
     else
     {
         // (register)
-        *op1 = cpu_load_operand(cpu, &i->detail->arm.operands[2], carry);
+        assert(op2->type == ARM_OP_REG);
+        *op1_val = cpu_load_operand(cpu, op2, carry);
     }
 }
 
@@ -1476,6 +1481,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
+        carry = cpu->xpsr.apsr_c;
         value = Shift_C(op0, ARM_SFT_LSL, op1, &carry);
 
         cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
@@ -1487,7 +1493,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
-        value = Shift_C(op0, ARM_SFT_LSR, op1, &carry);
+        carry = cpu->xpsr.apsr_c;
+        value = Shift_C(op0, ARM_SFT_LSR, op1 & 0xFF, &carry);
 
         cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
@@ -1495,6 +1502,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_MLA:
+    case ARM_INS_MLS:
         assert(detail->op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -1504,30 +1512,14 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op0 = cpu_reg_read(cpu, detail->operands[1].reg);
         op1 = cpu_reg_read(cpu, detail->operands[2].reg);
         value = cpu_reg_read(cpu, detail->operands[3].reg);
-        value += op0 * op1;
 
-        cpu_reg_write(cpu, detail->operands[0].reg, value);
-
-        UPDATE_NZ
-        break;
-
-    case ARM_INS_MLS:
-    {
-        assert(detail->op_count == 4);
-        assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[2].type == ARM_OP_REG);
-        assert(detail->operands[3].type == ARM_OP_REG);
-
-        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
-        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
-        uint32_t addend = cpu_reg_read(cpu, detail->operands[3].reg);
-
-        value = addend - op0 * op1;
+        if (i->id == ARM_INS_MLA)
+            value += op0 * op1;
+        else
+            value -= op0 * op1;
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
-    }
 
     case ARM_INS_MOV:
     case ARM_INS_MOVS:
@@ -1562,34 +1554,37 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_MUL:
-        op0 = OPERAND(1);
-        op1 = OPERAND(2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND_REG(2);
 
         value = op0 * op1;
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZ
         break;
 
     case ARM_INS_MVN:
-        op1 = OPERAND(1);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        carry = cpu->xpsr.apsr_c;
+
+        if (detail->op_count == 2 && detail->operands[1].type == ARM_OP_IMM)
+            carry = CalculateThumbExpandCarry(i->bytes, detail->operands[1].imm, carry);
+
+        op1 = OPERAND_C(1);
 
         value = ~op1;
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZC;
         break;
 
     case ARM_INS_ORN:
-        assert(detail->op_count == 3); // TODO: Implement other cases
-        assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[2].type == ARM_OP_REG);
-
-        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
-        op1 = OPERAND(2); // Use OPERAND here since the value may be shifted
+        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 | ~op1;
 
@@ -1599,12 +1594,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ORR:
-        op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
-        op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
+        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 | op1;
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZC;
         break;
