@@ -1859,16 +1859,14 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_SEL:
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[2].type == ARM_OP_REG);
 
-        op0 = cpu_reg_read(cpu, detail->operands[1].reg);
-        op1 = cpu_reg_read(cpu, detail->operands[2].reg);
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND_REG(2);
 
-        value = (cpu->xpsr.apsr_ge0 ? (op0 & 0xFF) : (op1 & 0xFF)) |
-                (cpu->xpsr.apsr_ge1 ? ((op0 >> 8) & 0xFF) : ((op1 >> 8) & 0xFF)) |
-                (cpu->xpsr.apsr_ge2 ? ((op0 >> 16) & 0xFF) : ((op1 >> 16) & 0xFF)) |
-                (cpu->xpsr.apsr_ge3 ? ((op0 >> 24) & 0xFF) : ((op1 >> 24) & 0xFF));
+        value = (cpu->xpsr.apsr_ge0 ? op0 & 0xFF : op1 & 0xFF) |
+                (cpu->xpsr.apsr_ge1 ? op0 & 0xFF00 : op1 & 0xFF00) |
+                (cpu->xpsr.apsr_ge2 ? op0 & 0xFF0000 : op1 & 0xFF0000) |
+                (cpu->xpsr.apsr_ge3 ? op0 & 0xFF000000 : op1 & 0xFF000000);
 
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
@@ -1878,10 +1876,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[2].type == ARM_OP_REG);
-        assert(detail->operands[3].type == ARM_OP_REG);
 
-        uint64_t result = (int64_t)(int32_t)cpu_reg_read(cpu, detail->operands[2].reg) * (int64_t)(int32_t)cpu_reg_read(cpu, detail->operands[3].reg);
+        uint64_t result = (int64_t)(int32_t)OPERAND_REG(2) * (int64_t)(int32_t)OPERAND_REG(3);
 
         cpu_reg_write(cpu, detail->operands[0].reg, result & x(FFFF, FFFF));
         cpu_reg_write(cpu, detail->operands[1].reg, result >> 32);
