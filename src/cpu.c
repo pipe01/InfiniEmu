@@ -39,8 +39,10 @@
 #define SIGNEXTEND16_32(value) ((uint32_t)(int16_t)((value) & 0xFFFF))
 
 #define OPERAND_OFF(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address, NULL)
+#define OPERAND_OFF_C(n, offset) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], (offset), &address, &carry)
 #define OPERAND(n) OPERAND_OFF(n, 0)
-#define OPERAND_REG(n) cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg)
+#define OPERAND_C(n) OPERAND_OFF_C(n, 0)
+#define OPERAND_REG(n) (assert(i->detail->arm.operands[(n)].type == ARM_OP_REG), cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg))
 
 #define UPDATE_N(cpu, value) (cpu)->xpsr.apsr_n = ((value) >> 31) == 1
 #define UPDATE_Z(cpu, value) (cpu)->xpsr.apsr_z = (value) == 0
@@ -254,20 +256,15 @@ static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
 
 static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, uint32_t offset, uint32_t *address, bool *carry_out)
 {
-    uint32_t value;
-
-    switch (op->type)
+    if (op->type == ARM_OP_IMM)
     {
-    case ARM_OP_REG:
-        value = cpu_reg_read(cpu, op->reg);
-        break;
-    case ARM_OP_IMM:
-        value = op->imm;
-        break;
-    default:
-        fprintf(stderr, "Unhandled operand type %d\n", op->type);
-        abort();
+        assert(op->shift.type == ARM_SFT_INVALID);
+        return op->imm;
     }
+
+    assert(op->type == ARM_OP_REG);
+
+    uint32_t value = cpu_reg_read(cpu, op->reg);
 
     if (op->shift.type != ARM_SFT_INVALID)
     {
@@ -1201,28 +1198,18 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             {
                 op1 = detail->operands[2].imm;
 
-                // Capstone doesn't provide the carry bit so we must calculate it ourselves
                 if (i->size == 4)
-                {
-                    bool bit1 = (i->bytes[1] & (1 << 2)) != 0;
-                    bool bit2 = (i->bytes[3] & (1 << 6)) != 0;
-
-                    if (bit1 || bit2)
-                    {
-                        carry = (detail->operands[2].imm & (1 << 31)) != 0;
-                    }
-                }
+                    carry = CalculateThumbExpandCarry(i->bytes, detail->operands[2].imm, carry);
             }
             else
             {
-                op1 = cpu_reg_read(cpu, detail->operands[2].reg);
-                op1 = Shift_C(op1, detail->operands[2].shift.type, detail->operands[2].shift.value, &carry);
+                op1 = OPERAND_C(2);
             }
         }
 
         value = op0 & op1;
-
         cpu_reg_write(cpu, detail->operands[0].reg, value);
+
         UPDATE_NZC;
         break;
 
@@ -1272,39 +1259,41 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op0 = cpu_reg_read(cpu, detail->operands[0].reg);
         op1 = cpu_reg_read(cpu, detail->operands[1].reg);
 
-        uint32_t mask = ((1 << detail->operands[3].imm) - 1) << detail->operands[2].imm;
+        uint32_t shift = detail->operands[2].imm;
+        uint32_t mask = (1 << detail->operands[3].imm) - 1;
 
-        op0 &= ~mask;
-        op0 |= op1 & mask;
+        op0 &= ~(mask << shift);
+        op0 |= (op1 & mask) << shift;
 
         cpu_reg_write(cpu, detail->operands[0].reg, op0);
         break;
     }
 
     case ARM_INS_BIC:
+        assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
+        op0 = OPERAND_REG(1);
 
-        if (detail->op_count == 3)
+        carry = cpu->xpsr.apsr_c;
+
+        if (detail->operands[2].type == ARM_OP_IMM)
         {
-            assert(detail->operands[1].type == ARM_OP_REG);
-            op0 = OPERAND_REG(1);
-            op1 = OPERAND(2);
+            // BIC (immediate)
+
+            op1 = detail->operands[2].imm;
+            carry = CalculateThumbExpandCarry(i->bytes, detail->operands[2].imm, carry);
         }
         else
         {
-            assert(detail->op_count == 4);
-            assert(detail->operands[1].type == ARM_OP_REG);
-            assert(detail->operands[2].type == ARM_OP_REG);
-            assert(detail->operands[3].type == ARM_OP_IMM);
-            op0 = OPERAND_REG(1);
-            op1 = OPERAND_REG(2);
+            // BIC (register)
+
+            op1 = OPERAND_C(2);
         }
 
         value = op0 & ~op1;
         cpu_reg_write(cpu, detail->operands[0].reg, value);
 
-        // TODO: Update carry
-        UPDATE_NZ;
+        UPDATE_NZC;
         break;
 
     case ARM_INS_BL:
@@ -1327,8 +1316,6 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_CLZ:
         assert(detail->op_count == 2);
-        assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
 
         op0 = OPERAND_REG(0);
         op1 = OPERAND_REG(1);
