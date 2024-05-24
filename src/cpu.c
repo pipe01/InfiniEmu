@@ -2,6 +2,7 @@
 #include "byte_util.h"
 #include "config.h"
 #include "cpu.h"
+#include "fault.h"
 #include "pseudocode.h"
 
 #include "peripherals/peripheral.h"
@@ -12,7 +13,6 @@
 #include "peripherals/scb_fp.h"
 
 #include <assert.h>
-#include <setjmp.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -677,7 +677,7 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
     cpu->branched = true;
 
     if ((tmp & 1) != 1)
-        abort();
+        fault_take(FAULT_CPU_PC_ALIGNMENT);
 
     cpu->mode = ARM_MODE_HANDLER;
 
@@ -769,25 +769,6 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
     {
         cpu_exception_entry(cpu, pending, false);
     }
-}
-
-void cpu_set_fault_jmp(cpu_t *cpu, jmp_buf *buf)
-{
-    cpu->fault_jmp_buf = buf;
-    cpu->has_fault_jmp = true;
-}
-
-void cpu_clear_fault_jmp(cpu_t *cpu)
-{
-    cpu->has_fault_jmp = false;
-}
-
-static void cpu_do_fault_jmp(cpu_t *cpu)
-{
-    if (cpu->has_fault_jmp)
-        longjmp(*cpu->fault_jmp_buf, 1);
-    else
-        abort();
 }
 
 void cpu_set_runlog(cpu_t *cpu, runlog_t *runlog)
@@ -2094,7 +2075,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         carry = cpu->xpsr.apsr_c;
 
         op0 = OPERAND_IMM(1);
-        op1 = OPERAND(2);
+        op1 = OPERAND_C(2);
 
         bool saturated = UnsignedSatQ(op1, op0, &value);
         cpu_reg_write(cpu, detail->operands[0].reg, value);
@@ -2175,8 +2156,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     default:
         fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, cpu->core_regs[ARM_REG_PC]);
-        cpu_do_fault_jmp(cpu);
-        abort();
+        fault_take(FAULT_CPU_INVALID_INSTRUCTION);
     }
 }
 
@@ -2284,8 +2264,7 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
         {
             // TODO: Handle better
             fprintf(stderr, "PC is not aligned\n");
-            cpu_do_fault_jmp(cpu);
-            abort();
+            fault_take(FAULT_CPU_PC_ALIGNMENT);
         }
 
         cpu->core_regs[ARM_REG_PC] = value & ~1;

@@ -15,9 +15,6 @@ void cpu_free(cpu_t *cpu);
 void cpu_reset(cpu_t *cpu);
 void cpu_step(cpu_t *cpu);
 
-void cpu_set_fault_jmp(cpu_t *cpu, jmp_buf *buf);
-void cpu_clear_fault_jmp(cpu_t *cpu);
-
 void cpu_set_runlog(cpu_t *cpu, runlog_t *runlog);
 
 memreg_t *cpu_mem(cpu_t *cpu);

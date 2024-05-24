@@ -1,5 +1,6 @@
 #include "byte_util.h"
 #include "config.h"
+#include "fault.h"
 #include "gdb.h"
 
 #include <math.h>
@@ -689,7 +690,7 @@ void *gdb_run_cpu(void *userdata)
     }
     else
     {
-        cpu_set_fault_jmp(cpu, &fault_jmp);
+        fault_set_jmp(&fault_jmp);
 
         while (!stub->gdb->want_break)
         {
@@ -702,7 +703,7 @@ void *gdb_run_cpu(void *userdata)
         }
     }
 
-    cpu_clear_fault_jmp(cpu);
+    fault_clear_jmp();
 
     stub->gdb->want_break = false;
     stub->gdb->is_running = false;
@@ -819,6 +820,8 @@ void gdbstub_run(gdbstub *gdb)
 
             case 's':
                 ret = msg + 1;
+
+                // TODO: Catch faults
                 nrf52832_step(gdb->gdb->nrf);
                 gdb_send_signal(gdb, SIGTRAP);
                 break;

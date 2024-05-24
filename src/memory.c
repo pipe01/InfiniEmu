@@ -1,5 +1,7 @@
 #include "memory.h"
+
 #include "byte_util.h"
+#include "fault.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -175,22 +177,24 @@ void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32
     {
     case MEMREG_RESULT_INVALID_ACCESS:
         printf("Invalid memory access at 0x%08X\n", addr);
+        fault_take(FAULT_MEMORY_INVALID_ACCESS);
         break;
 
     case MEMREG_RESULT_INVALID_SIZE:
         printf("Invalid memory access size at 0x%08X\n", addr);
+        fault_take(FAULT_MEMORY_INVALID_SIZE);
         break;
 
     case MEMREG_RESULT_UNHANDLED:
         printf("Tried to access unmapped memory at 0x%08X\n", addr);
+        fault_take(FAULT_MEMORY_UNHANDLED);
         break;
 
     default:
         printf("Unknown error on memory operation at 0x%08X\n", addr);
+        abort();
         break;
     }
-
-    abort(); // TODO: Handle this better
 }
 
 uint32_t memreg_read(memreg_t *region, uint32_t addr)
