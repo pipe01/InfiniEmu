@@ -79,7 +79,8 @@ func (x XPSR) V() bool {
 type ShiftType uint8
 
 const (
-	ShiftLSL ShiftType = iota
+	ShiftNone ShiftType = iota
+	ShiftLSL
 	ShiftLSR
 	ShiftASR
 	ShiftROR
@@ -109,7 +110,7 @@ type RegisterShift struct {
 }
 
 func (r RegisterShift) IsEmpty() bool {
-	return r.Type != ShiftRRX && r.Amount == 0
+	return r.Type == ShiftNone || (r.Type != ShiftRRX && r.Amount == 0)
 }
 
 func (r RegisterShift) String() string {
@@ -242,15 +243,31 @@ func (r RandASM) RandUpdateFlags(insName string, ops string, a ...any) string {
 	return fmt.Sprintf("%s "+ops, append([]any{insName}, a...)...)
 }
 
-func (r RandASM) RandShift() RegisterShift {
+func (r RandASM) RandShift(shiftType ...ShiftType) RegisterShift {
 	if r.maybe() {
+		var t ShiftType
+		if len(shiftType) == 0 {
+			t = ShiftType(r.Intn(5))
+		} else {
+			t = shiftType[r.Intn(len(shiftType))]
+		}
+
 		return RegisterShift{
-			Type:   ShiftType(r.Intn(5)),
+			Type:   t,
 			Amount: uint(r.Intn(32)),
 		}
 	}
 
 	return RegisterShift{}
+}
+
+func (r *RandASM) RandROR8() RegisterShift {
+	shift := r.RandShift(ShiftROR)
+	if shift.Type != ShiftNone {
+		shift.Amount = uint(r.Intn(4) * 8)
+	}
+
+	return shift
 }
 
 func (r RandASM) inst(name string, flags InstructionFlags, ops ...any) Instruction {
@@ -554,5 +571,247 @@ var Instructions = []Generator{
 	// ORR (register)
 	func(r RandASM) Instruction {
 		return r.inst("orr", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// PKHBT
+	func(r RandASM) Instruction {
+		return r.inst("pkhbt", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift(ShiftLSL))
+	},
+
+	// PKHTB
+	func(r RandASM) Instruction {
+		return r.inst("pkhtb", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift(ShiftASR))
+	},
+
+	// RBIT
+	func(r RandASM) Instruction {
+		return r.inst("rbit", FlagNone, r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// REV
+	func(r RandASM) Instruction {
+		return r.inst("rev", FlagNone, r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// REV16
+	func(r RandASM) Instruction {
+		return r.inst("rev16", FlagNone, r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// REVSH
+	func(r RandASM) Instruction {
+		return r.inst("revsh", FlagNone, r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// ROR (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("ror", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(5))
+	},
+
+	// ROR (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("ror", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3))
+	},
+	// ROR (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("ror", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// RRX
+	func(r RandASM) Instruction {
+		return r.inst("rrx", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// RSB (immediate) T1
+	func(r RandASM) Instruction {
+		return r.inst("rsb", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3), uint32(0))
+	},
+	// RSB (immediate) T2
+	func(r RandASM) Instruction {
+		return r.inst("rsb", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// RSB (register)
+	func(r RandASM) Instruction {
+		return r.inst("rsb", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// SADD16
+	func(r RandASM) Instruction {
+		return r.inst("sadd16", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SADD8
+	func(r RandASM) Instruction {
+		return r.inst("sadd8", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SASX
+	func(r RandASM) Instruction {
+		return r.inst("sasx", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SBC (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("sbc", FlagMaybeUpdateFlags, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// SBC (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("sbc", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3))
+	},
+	// SBC (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("sbc", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// SBFX
+	func(r RandASM) Instruction {
+		lsb := r.RandIntBits(5)
+		width := uint32(1)
+		if lsb < 31 {
+			width = uint32(r.Rand.Intn(31-int(lsb)) + 1)
+		}
+
+		return r.inst("sbfx", FlagNone, r.RandLowRegister(), r.RandLowRegister(), lsb, width)
+	},
+
+	// SDIV
+	func(r RandASM) Instruction {
+		return r.inst("sdiv", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SEL
+	func(r RandASM) Instruction {
+		return r.inst("sel", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SMULL
+	func(r RandASM) Instruction {
+		rdlo := r.RandLowRegister()
+
+		rdhi := r.RandLowRegister()
+		for rdlo == rdhi {
+			rdlo = r.RandLowRegister()
+		}
+
+		return r.inst("smull", FlagNone, rdlo, rdhi, r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SUB (immediate) T1
+	func(r RandASM) Instruction {
+		return r.inst("sub", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(3))
+	},
+	// SUB (immediate) T2
+	func(r RandASM) Instruction {
+		return r.inst("sub", FlagNone, r.RandLowRegister(), r.RandIntBits(8))
+	},
+	// SUB (immediate) T3
+	func(r RandASM) Instruction {
+		return r.inst("sub", FlagMaybeUpdateFlags|FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandThumbImm())
+	},
+	// SUB (immediate) T4
+	func(r RandASM) Instruction {
+		return r.inst("sub", FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandIntBits(12))
+	},
+
+	// SXTAB
+	func(r RandASM) Instruction {
+		return r.inst("sxtab", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
+	},
+
+	// SXTAH
+	func(r RandASM) Instruction {
+		return r.inst("sxtah", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
+	},
+
+	// SXTB
+	func(r RandASM) Instruction {
+		return r.inst("sxtb", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
+	},
+
+	// SXTH
+	func(r RandASM) Instruction {
+		return r.inst("sxth", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
+	},
+
+	// TEQ (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("teq", FlagNone, r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// TEQ (register)
+	func(r RandASM) Instruction {
+		return r.inst("teq", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// TST (immediate)
+	func(r RandASM) Instruction {
+		return r.inst("tst", FlagNone, r.RandLowRegister(), r.RandThumbImm())
+	},
+
+	// TST (register) T1
+	func(r RandASM) Instruction {
+		return r.inst("tst", FlagNone, r.RandRegisterBits(3), r.RandRegisterBits(3))
+	},
+
+	// TST (register) T2
+	func(r RandASM) Instruction {
+		return r.inst("tst", FlagWide, r.RandLowRegister(), r.RandLowRegister(), r.RandShift())
+	},
+
+	// UADD8
+	func(r RandASM) Instruction {
+		return r.inst("uadd8", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// UBFX
+	func(r RandASM) Instruction {
+		lsb := r.RandIntBits(5)
+		width := uint32(1)
+		if lsb < 31 {
+			width = uint32(r.Rand.Intn(31-int(lsb)) + 1)
+		}
+
+		return r.inst("ubfx", FlagNone, r.RandLowRegister(), r.RandLowRegister(), lsb, width)
+	},
+
+	// UMLAL
+	func(r RandASM) Instruction {
+		rdlo := r.RandLowRegister()
+
+		rdhi := r.RandLowRegister()
+		for rdlo == rdhi {
+			rdlo = r.RandLowRegister()
+		}
+
+		return r.inst("umlal", FlagNone, rdlo, rdhi, r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// UMULL
+	func(r RandASM) Instruction {
+		rdlo := r.RandLowRegister()
+
+		rdhi := r.RandLowRegister()
+		for rdlo == rdhi {
+			rdlo = r.RandLowRegister()
+		}
+
+		return r.inst("umull", FlagNone, rdlo, rdhi, r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// USAT
+	func(r RandASM) Instruction {
+		return r.inst("usat", FlagNone, r.RandLowRegister(), r.RandIntBits(5), r.RandLowRegister(), r.RandShift(ShiftLSL, ShiftASR))
+	},
+
+	// UXTB
+	func(r RandASM) Instruction {
+		return r.inst("uxtb", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
+	},
+
+	// UXTH
+	func(r RandASM) Instruction {
+		return r.inst("uxth", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
 	},
 }

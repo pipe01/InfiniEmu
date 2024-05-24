@@ -205,6 +205,8 @@ func doSimulrun(gdb1, gdb2 *GDBClient) {
 func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 	r := rand.New(rand.NewSource(time.Now().UnixMicro()))
 
+	log.Printf("fuzzing set contains %d instructions", len(asm.Instructions))
+
 	ch := make(chan Instruction)
 	generateInstructions(ch, 1)
 
