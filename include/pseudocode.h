@@ -69,12 +69,14 @@ uint32_t Shift_C(uint32_t value, arm_shifter type, uint32_t amount, bool *carry)
 
 bool UnsignedSatQ(int32_t i, uint32_t n, uint32_t *result)
 {
-    if (i > (1 << n) - 1)
+    int64_t i64 = (int64_t)i;
+
+    if (i64 > (1 << n) - 1)
     {
         *result = (1 << n) - 1;
         return true;
     }
-    else if (i < 0)
+    else if (i64 < 0)
     {
         *result = 0;
         return true;

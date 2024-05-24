@@ -2091,6 +2091,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[2].type == ARM_OP_REG);
 
+        carry = cpu->xpsr.apsr_c;
+
         op0 = OPERAND_IMM(1);
         op1 = OPERAND(2);
 
