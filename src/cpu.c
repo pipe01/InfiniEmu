@@ -2102,23 +2102,14 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_UXTB:
-        assert(detail->op_count == 2);
-        assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[1].type == ARM_OP_REG);
-
-        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
-
-        cpu_reg_write(cpu, detail->operands[0].reg, op1 & 0xFF);
-        break;
-
     case ARM_INS_UXTH:
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
 
-        op1 = cpu_reg_read(cpu, detail->operands[1].reg);
+        value = OPERAND(1) & (i->id == ARM_INS_UXTB ? 0xFF : 0xFFFF);
 
-        cpu_reg_write(cpu, detail->operands[0].reg, op1 & 0xFFFF);
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
     case ARM_INS_VLDR:
