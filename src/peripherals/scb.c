@@ -85,9 +85,7 @@ OPERATION(scb)
 
         if (OP_IS_READ(op))
         {
-            *value = 0xFA050000;
-
-            abort(); // TODO: Implement
+            *value = 0xFA050000 | (scb->prigroup & 0x7) << 8;
         }
         else if (OP_IS_WRITE(op))
         {
@@ -97,7 +95,7 @@ OPERATION(scb)
             abort(); // TODO: Implement
         }
 
-        break;
+        return MEMREG_RESULT_OK;
 
     case 0x10: // SCR
         OP_RETURN_REG(scb->scr, WORD);
