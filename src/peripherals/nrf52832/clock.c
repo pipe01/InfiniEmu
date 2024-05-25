@@ -7,8 +7,6 @@
 
 struct CLOCK_inst_t
 {
-    bool events_lfclkstarted;
-
     uint32_t lfclk_source;
     bool lfclk_running;
 
@@ -29,19 +27,8 @@ OPERATION(clock)
 
     switch (offset)
     {
-    case 0x008: // TASKS_LFCLKSTART
-        OP_ASSERT_WRITE(op);
-
-        clock->lfclk_running = true;
-        return MEMREG_RESULT_OK;
-
-    case 0x104: // EVENTS_LFCLKSTARTED
-        if (OP_IS_READ(op))
-            *value = clock->events_lfclkstarted ? 1 : 0;
-        else if (OP_IS_WRITE(op))
-            clock->events_lfclkstarted = *value;
-
-        return MEMREG_RESULT_OK;
+        OP_TASK(0x008, PPI_TASK_CLOCK_LFCLKSTART)
+        OP_EVENT(0x104, PPI_EVENT_CLOCK_LFCLKSTARTED)
 
     case 0x10C: // EVENTS_DONE
     case 0x110: // EVENTS_CTTO
@@ -87,7 +74,18 @@ OPERATION(clock)
     return MEMREG_RESULT_UNHANDLED;
 }
 
+void clock_lfclkstart(ppi_tasks_t task, void *userdata)
+{
+    ((CLOCK_t *)userdata)->lfclk_running = true;
+
+    ppi_fire_event(current_ppi, PPI_EVENT_CLOCK_LFCLKSTARTED);
+}
+
 CLOCK_t *clock_new()
 {
-    return (CLOCK_t *)malloc(sizeof(CLOCK_t));
+    CLOCK_t *clock = (CLOCK_t *)malloc(sizeof(CLOCK_t));
+
+    ppi_on_task(current_ppi, PPI_TASK_CLOCK_LFCLKSTART, (ppi_task_cb_t)clock_lfclkstart, clock);
+
+    return clock;
 }

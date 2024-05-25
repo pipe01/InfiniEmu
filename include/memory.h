@@ -21,7 +21,7 @@ static inline uint32_t size_mask(byte_size_t size)
 }
 
 typedef enum {
-    OP_RESET            = -100,
+    OP_RESET            = 0,
     OP_READ_BYTE        = SIZE_BYTE,
     OP_READ_HALFWORD    = SIZE_HALFWORD,
     OP_READ_WORD        = SIZE_WORD,

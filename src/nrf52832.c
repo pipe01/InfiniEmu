@@ -77,6 +77,10 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
 
     last = memreg_set_next(last, memreg_new_simple(x(2000, 0000), sram, sram_size));
 
+    // PPI must be created first to allow for other peripherals to subscribe to it
+    NEW_PERIPH(chip, PPI, ppi, ppi, x(4001, F000), 0x1000);
+    current_ppi = chip->ppi;
+
     NEW_PERIPH(chip, CLOCK, clock, clock, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, POWER, power, power, x(4000, 0000), 0x1000);
     NEW_PERIPH(chip, RADIO, radio, radio, x(4000, 1000), 0x1000);
@@ -97,7 +101,6 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     NEW_PERIPH(chip, COMP, comp, comp, x(4001, 3000), 0x1000);
     NEW_PERIPH(chip, TIMER, timer, timer[3], x(4001, A000), 0x1000, 6);
     NEW_PERIPH(chip, TIMER, timer, timer[4], x(4001, B000), 0x1000, 6);
-    NEW_PERIPH(chip, PPI, ppi, ppi, x(4001, F000), 0x1000);
     NEW_PERIPH(chip, SPIM, spim, spim[2], x(4002, 3000), 0x1000, chip->spi);
     NEW_PERIPH(chip, RTC, rtc, rtc[2], x(4002, 4000), 0x1000, 4, &chip->cpu, 0x24);
     NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000, chip->pins);
@@ -124,6 +127,8 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 
 void nrf52832_step(NRF52832_t *nrf52832)
 {
+    current_ppi = nrf52832->ppi;
+
     // TODO: Properly measure time
     if ((++nrf52832->cycle_counter % 50) == 0)
     {
