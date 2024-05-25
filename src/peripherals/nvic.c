@@ -45,11 +45,12 @@ OPERATION(nvic)
         return MEMREG_RESULT_OK;
     }
 
-    // NVIC_ISER[n]
-    if (offset <= 0x40)
+    // NVIC_ISER[n] and NVIC_ICER[n]
+    if (offset <= 0x40 || (offset >= 0x80 && offset <= 0xBC))
     {
         OP_ASSERT_SIZE(op, WORD);
 
+        bool is_set = offset <= 0x40;
         uint32_t iser_num = offset / 4;
 
         if (OP_IS_READ(op))
@@ -62,7 +63,7 @@ OPERATION(nvic)
             if (OP_IS_WRITE(op))
             {
                 if ((*value & (1 << i)) != 0)
-                    cpu_exception_set_enabled(nvic->cpu, ex_num, true);
+                    cpu_exception_set_enabled(nvic->cpu, ex_num, is_set);
             }
             else if (cpu_exception_get_enabled(nvic->cpu, ex_num))
             {
