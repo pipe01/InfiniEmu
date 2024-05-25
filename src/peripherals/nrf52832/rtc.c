@@ -34,7 +34,7 @@ struct RTC_inst_t
     uint32_t cc[RTC_MAX_CC];
     uint32_t event_cc[RTC_MAX_CC];
 
-    bool started;
+    bool running;
 
     inten_t inten;
     uint32_t prescaler, counter, prescaler_counter;
@@ -48,7 +48,7 @@ OPERATION(rtc)
 
     if (op == OP_RESET)
     {
-        rtc->started = false;
+        rtc->running = false;
         memset(rtc->cc, 0, sizeof(rtc->cc));
         memset(rtc->event_cc, 0, sizeof(rtc->event_cc));
         rtc->inten.value = 0;
@@ -66,14 +66,14 @@ OPERATION(rtc)
         OP_ASSERT_WRITE(op);
 
         if (*value)
-            rtc->started = true;
+            rtc->running = true;
         return MEMREG_RESULT_OK;
 
     case 0x004: // TASKS_STOP
         OP_ASSERT_WRITE(op);
 
         if (*value)
-            rtc->started = false;
+            rtc->running = false;
         return MEMREG_RESULT_OK;
 
     case 0x008: // TASKS_CLEAR
@@ -155,7 +155,7 @@ RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint32_t id)
 
 void rtc_tick(RTC_t *rtc)
 {
-    if (!rtc->started)
+    if (!rtc->running)
         return;
 
     rtc->prescaler_counter++;
