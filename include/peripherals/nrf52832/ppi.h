@@ -54,7 +54,7 @@ _Thread_local extern PPI_t *current_ppi; // TODO: Remove this and pass PPI insta
 typedef void (*ppi_task_cb_t)(ppi_tasks_t task, void *userdata);
 
 #define TASK_HANDLER(periph, name) void periph##_##name##_handler(ppi_tasks_t task, void *userdata)
-#define TASK_HANDLER_SHORT(periph, name, type, fn) TASK_HANDLER(periph, name) { type *p = ((type *)userdata); fn; }
+#define TASK_HANDLER_SHORT(periph, name, type, fn) TASK_HANDLER(periph, name) { type *p = ((type *)userdata); (void)p; fn; }
 
 PPI_t *ppi_new();
 
