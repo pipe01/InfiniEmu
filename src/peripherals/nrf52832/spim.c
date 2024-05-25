@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "util.h"
 #include "peripherals/nrf52832/easydma.h"
 
 typedef struct
@@ -36,8 +37,9 @@ typedef struct
 
 struct SPIM_inst_t
 {
-    bool enabled;
+    uint8_t id;
     bus_spi_t *bus;
+    bool enabled;
 
     uint32_t psel_sck, psel_mosi, psel_miso;
     uint32_t frequency;
@@ -54,9 +56,7 @@ OPERATION(spim)
 
     if (op == OP_RESET)
     {
-        bus_spi_t *bus = spim->bus;
-        memset(spim, 0, sizeof(SPIM_t));
-        spim->bus = bus;
+        CLEAR_AFTER(SPIM_t, spim, enabled);
         return MEMREG_RESULT_OK;
     }
 
@@ -149,9 +149,10 @@ TASK_HANDLER(spim, start)
     ppi_fire_event(current_ppi, PPI_EVENT_SPIM_END);
 }
 
-SPIM_t *spim_new(bus_spi_t *spi)
+SPIM_t *spim_new(uint8_t id, bus_spi_t *spi)
 {
     SPIM_t *spim = (SPIM_t *)malloc(sizeof(SPIM_t));
     spim->bus = spi;
+    spim->id = id;
     return spim;
 }

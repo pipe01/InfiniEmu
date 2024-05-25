@@ -3,12 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "util.h"
 #include "peripherals/nrf52832/easydma.h"
 
 struct TWIM_inst_t
 {
     bus_i2c_t *i2c;
-
+    uint8_t id;
     bool enabled;
 
     uint32_t address;
@@ -22,9 +23,7 @@ OPERATION(twim)
 
     if (op == OP_RESET)
     {
-        bus_i2c_t *i2c = twim->i2c;
-        memset(twim, 0, sizeof(TWIM_t));
-        twim->i2c = i2c;
+        CLEAR_AFTER(TWIM_t, twim, enabled);
         return MEMREG_RESULT_OK;
     }
 
@@ -105,10 +104,11 @@ TASK_HANDLER(twim, starttx)
 TASK_HANDLER_SHORT(twim, stop, TWIM_t, ppi_fire_event(current_ppi, PPI_EVENT_TWIM_STOPPED))
 TASK_HANDLER_SHORT(twim, suspend, TWIM_t, ppi_fire_event(current_ppi, PPI_EVENT_TWIM_SUSPENDED))
 
-TWIM_t *twim_new(bus_i2c_t *i2c)
+TWIM_t *twim_new(uint8_t id, bus_i2c_t *i2c)
 {
     TWIM_t *twim = (TWIM_t *)calloc(1, sizeof(TWIM_t));
     twim->i2c = i2c;
+    twim->id = id;
 
     ppi_on_task(current_ppi, PPI_TASK_TWIM_STARTRX, twim_startrx_handler, twim);
     ppi_on_task(current_ppi, PPI_TASK_TWIM_STARTTX, twim_starttx_handler, twim);

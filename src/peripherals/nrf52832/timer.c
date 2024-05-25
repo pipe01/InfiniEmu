@@ -7,6 +7,7 @@
 struct TIMER_inst_t
 {
     size_t cc_num;
+    uint8_t id;
 
     uint32_t cc[TIMER_MAX_CC];
 };
@@ -34,12 +35,13 @@ OPERATION(timer)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-TIMER_t *timer_new(size_t cc_num)
+TIMER_t *timer_new(uint8_t id, size_t cc_num)
 {
     assert(cc_num <= TIMER_MAX_CC);
 
     TIMER_t *timer = (TIMER_t *)malloc(sizeof(TIMER_t));
     timer->cc_num = cc_num;
+    timer->id = id;
 
     return timer;
 }

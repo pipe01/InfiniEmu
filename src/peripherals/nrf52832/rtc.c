@@ -28,7 +28,7 @@ static_assert(sizeof(inten_t) == 4);
 struct RTC_inst_t
 {
     cpu_t **cpu;
-    uint32_t id;
+    uint8_t id;
     size_t cc_num;
 
     uint32_t cc[RTC_MAX_CC];
@@ -107,7 +107,7 @@ TASK_HANDLER_SHORT(rtc, start, RTC_t, p->running = true)
 TASK_HANDLER_SHORT(rtc, stop, RTC_t, p->running = false)
 TASK_HANDLER_SHORT(rtc, clear, RTC_t, p->counter = 0; p->prescaler_counter = 0)
 
-RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint32_t id)
+RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint8_t id)
 {
     assert(cc_num <= RTC_MAX_CC);
 
