@@ -2241,23 +2241,23 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_VMRS:
-        cpu_execute_fp_check(cpu);
-
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
         assert(detail->operands[1].reg == ARM_REG_FPSCR);
 
+        cpu_execute_fp_check(cpu);
+
         cpu_reg_write(cpu, detail->operands[0].reg, scb_fp_get_fpscr(cpu->scb_fp));
         break;
         
     case ARM_INS_VMSR:
-        cpu_execute_fp_check(cpu);
-
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[0].reg == ARM_REG_FPSCR);
         assert(detail->operands[1].type == ARM_OP_REG);
+
+        cpu_execute_fp_check(cpu);
 
         scb_fp_set_fpscr(cpu->scb_fp, cpu_reg_read(cpu, detail->operands[1].reg));
         break;
@@ -2266,6 +2266,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     {
         assert(detail->op_count >= 2);
         assert(detail->operands[0].type == ARM_OP_REG);
+
+        cpu_execute_fp_check(cpu);
 
         uint8_t reg_count = detail->op_count - 1;
 
