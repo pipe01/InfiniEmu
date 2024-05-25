@@ -32,14 +32,11 @@ struct RTC_inst_t
     size_t cc_num;
 
     uint32_t cc[RTC_MAX_CC];
-    uint32_t event_cc[RTC_MAX_CC];
 
     bool running;
 
     inten_t inten;
     uint32_t prescaler, counter, prescaler_counter;
-
-    uint32_t event_tick, event_overflow;
 };
 
 OPERATION(rtc)
@@ -50,59 +47,24 @@ OPERATION(rtc)
     {
         rtc->running = false;
         memset(rtc->cc, 0, sizeof(rtc->cc));
-        memset(rtc->event_cc, 0, sizeof(rtc->event_cc));
         rtc->inten.value = 0;
         rtc->prescaler = 0;
         rtc->counter = 0;
         rtc->prescaler_counter = 0;
-        rtc->event_tick = 0;
-        rtc->event_overflow = 0;
         return MEMREG_RESULT_OK;
     }
 
     switch (offset)
     {
-    case 0x000: // TASKS_START
-        OP_ASSERT_WRITE(op);
-
-        if (*value)
-            rtc->running = true;
-        return MEMREG_RESULT_OK;
-
-    case 0x004: // TASKS_STOP
-        OP_ASSERT_WRITE(op);
-
-        if (*value)
-            rtc->running = false;
-        return MEMREG_RESULT_OK;
-
-    case 0x008: // TASKS_CLEAR
-        OP_ASSERT_WRITE(op);
-
-        if (*value)
-        {
-            rtc->counter = 0;
-            rtc->prescaler_counter = 0;
-        }
-        return MEMREG_RESULT_OK;
-
-    case 0x100: // EVENTS_TICK
-        OP_RETURN_REG(rtc->event_tick, WORD);
-
-    case 0x104: // EVENTS_OVRFLW
-        OP_RETURN_REG(rtc->event_overflow, WORD);
-
-    case 0x140: // EVENTS_COMPARE[0]
-        OP_RETURN_REG(rtc->event_cc[0], WORD);
-
-    case 0x144: // EVENTS_COMPARE[1]
-        OP_RETURN_REG(rtc->event_cc[1], WORD);
-
-    case 0x148: // EVENTS_COMPARE[2]
-        OP_RETURN_REG(rtc->event_cc[2], WORD);
-
-    case 0x14C: // EVENTS_COMPARE[3]
-        OP_RETURN_REG(rtc->event_cc[3], WORD);
+        OP_TASK(0x000, PPI_TASK_RTC_START)
+        OP_TASK(0x004, PPI_TASK_RTC_STOP)
+        OP_TASK(0x008, PPI_TASK_RTC_CLEAR)
+        OP_EVENT(0x100, PPI_EVENT_RTC_TICK)
+        OP_EVENT(0x104, PPI_EVENT_RTC_OVRFLW)
+        OP_EVENT(0x140, PPI_EVENT_RTC_COMPARE0)
+        OP_EVENT(0x144, PPI_EVENT_RTC_COMPARE1)
+        OP_EVENT(0x148, PPI_EVENT_RTC_COMPARE2)
+        OP_EVENT(0x14C, PPI_EVENT_RTC_COMPARE3)
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
@@ -141,6 +103,10 @@ OPERATION(rtc)
     return MEMREG_RESULT_UNHANDLED;
 }
 
+TASK_HANDLER_SHORT(rtc, start, RTC_t, p->running = true)
+TASK_HANDLER_SHORT(rtc, stop, RTC_t, p->running = false)
+TASK_HANDLER_SHORT(rtc, clear, RTC_t, p->counter = 0; p->prescaler_counter = 0)
+
 RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint32_t id)
 {
     assert(cc_num <= RTC_MAX_CC);
@@ -149,6 +115,10 @@ RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint32_t id)
     rtc->cc_num = cc_num;
     rtc->cpu = cpu;
     rtc->id = id;
+
+    ppi_on_task(current_ppi, PPI_TASK_RTC_START, rtc_start_handler, rtc);
+    ppi_on_task(current_ppi, PPI_TASK_RTC_STOP, rtc_stop_handler, rtc);
+    ppi_on_task(current_ppi, PPI_TASK_RTC_CLEAR, rtc_clear_handler, rtc);
 
     return rtc;
 }
@@ -167,7 +137,7 @@ void rtc_tick(RTC_t *rtc)
 
         if (rtc->inten.TICK)
         {
-            rtc->event_tick = true;
+            ppi_fire_event(current_ppi, PPI_EVENT_RTC_TICK);
             cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
         }
 
@@ -177,7 +147,7 @@ void rtc_tick(RTC_t *rtc)
 
             if (rtc->inten.OVRFLW)
             {
-                rtc->event_overflow = true;
+                ppi_fire_event(current_ppi, PPI_EVENT_RTC_OVRFLW);
                 cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
             }
         }
@@ -186,7 +156,7 @@ void rtc_tick(RTC_t *rtc)
         {
             if (rtc->counter == rtc->cc[i] && (rtc->inten.COMPARE & (1 << i)) != 0)
             {
-                rtc->event_cc[i] = true;
+                ppi_fire_event(current_ppi, PPI_EVENT_RTC_COMPARE0 + i);
                 cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
             }
         }

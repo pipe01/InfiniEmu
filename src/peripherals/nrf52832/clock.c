@@ -74,7 +74,7 @@ OPERATION(clock)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-void clock_lfclkstart(ppi_tasks_t task, void *userdata)
+TASK_HANDLER(clock, lfclkstart)
 {
     ((CLOCK_t *)userdata)->lfclk_running = true;
 
@@ -85,7 +85,7 @@ CLOCK_t *clock_new()
 {
     CLOCK_t *clock = (CLOCK_t *)malloc(sizeof(CLOCK_t));
 
-    ppi_on_task(current_ppi, PPI_TASK_CLOCK_LFCLKSTART, (ppi_task_cb_t)clock_lfclkstart, clock);
+    ppi_on_task(current_ppi, PPI_TASK_CLOCK_LFCLKSTART, clock_lfclkstart_handler, clock);
 
     return clock;
 }

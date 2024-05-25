@@ -44,8 +44,6 @@ struct SPIM_inst_t
 
     easydma_reg_t tx, rx;
 
-    uint32_t event_stopped, event_endrx, event_end, event_endtx, event_started;
-
     config_t config;
     inten_t inten;
 };
@@ -66,45 +64,12 @@ OPERATION(spim)
 
     switch (offset)
     {
-    case 0x010: // TASKS_START
-        OP_ASSERT_WRITE(op);
-
-        if (*value)
-        {
-            if (spim->tx.ptr)
-            {
-                spi_result_t result = spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
-                if (result == SPI_RESULT_OK)
-                    spim->event_endtx = 1;
-                else
-                    abort(); // TODO: Handle better
-            }
-            else if (spim->rx.ptr)
-            {
-                size_t read = spi_read(spim->bus, spim->rx.ptr, spim->rx.maxcnt);
-                spim->rx.amount = read;
-                spim->event_endrx = 1;
-            }
-    
-            spim->event_end = 1;
-        }
-
-        return MEMREG_RESULT_OK;
-
-    case 0x104: // EVENTS_STOPPED
-        OP_RETURN_REG_RESULT(spim->event_stopped, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x110: // EVENTS_ENDRX
-        OP_RETURN_REG_RESULT(spim->event_endrx, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x118: // EVENTS_END
-        OP_RETURN_REG_RESULT(spim->event_end, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x120: // EVENTS_ENDTX
-        OP_RETURN_REG_RESULT(spim->event_endtx, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x14C: // EVENTS_STARTED
-        OP_RETURN_REG_RESULT(spim->event_started, WORD, MEMREG_RESULT_OK_CONTINUE);
+        OP_TASK(0x010, PPI_TASK_SPIM_START)
+        OP_EVENT(0x104, PPI_EVENT_SPIM_STOPPED)
+        OP_EVENT(0x110, PPI_EVENT_SPIM_ENDRX)
+        OP_EVENT(0x118, PPI_EVENT_SPIM_END)
+        OP_EVENT(0x120, PPI_EVENT_SPIM_ENDTX)
+        OP_EVENT(0x14C, PPI_EVENT_SPIM_STARTED)
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
@@ -149,13 +114,39 @@ OPERATION(spim)
     case 0x524: // FREQUENCY
         OP_RETURN_REG_RESULT(spim->frequency, WORD, MEMREG_RESULT_OK_CONTINUE);
 
-    EASYDMA_CASES(spim)
+        EASYDMA_CASES(spim)
 
     case 0x554: // CONFIG
         OP_RETURN_REG_RESULT(spim->config.value, WORD, MEMREG_RESULT_OK_CONTINUE);
     }
 
     return MEMREG_RESULT_UNHANDLED;
+}
+
+TASK_HANDLER(spim, start)
+{
+    SPIM_t *spim = (SPIM_t *)userdata;
+
+    if (spim->tx.ptr)
+    {
+        spi_result_t result = spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
+        if (result == SPI_RESULT_OK)
+            ppi_fire_event(current_ppi, PPI_EVENT_SPIM_ENDTX);
+        else
+            abort(); // TODO: Handle better
+    }
+    else if (spim->rx.ptr)
+    {
+        size_t read = spi_read(spim->bus, spim->rx.ptr, spim->rx.maxcnt);
+        spim->rx.amount = read;
+        ppi_fire_event(current_ppi, PPI_EVENT_SPIM_ENDRX);
+    }
+    else
+    {
+        return;
+    }
+
+    ppi_fire_event(current_ppi, PPI_EVENT_SPIM_END);
 }
 
 SPIM_t *spim_new(bus_spi_t *spi)

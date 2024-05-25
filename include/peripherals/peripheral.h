@@ -18,18 +18,22 @@
     (chip)->field = name##_new(__VA_ARGS__);                 \
     last = memreg_set_next(last, memreg_new_operation(addr, size, name##_operation, (chip)->field));
 
-#define OP_TASK(offset, task)                 \
+#define OP_TASK_RESULT(offset, task, result)  \
     case offset:                              \
         if (OP_IS_READ(op))                   \
             *value = 0;                       \
         else if (OP_IS_WRITE(op) && *value)   \
             ppi_fire_task(current_ppi, task); \
-        return MEMREG_RESULT_OK;
+        return result;
 
-#define OP_EVENT(offset, event)                                    \
+#define OP_TASK(offset, task) OP_TASK_RESULT(offset, task, MEMREG_RESULT_OK)
+
+#define OP_EVENT_RESULT(offset, event, result)                     \
     case offset:                                                   \
         if (OP_IS_READ(op))                                        \
             *value = ppi_event_is_set(current_ppi, event) ? 1 : 0; \
         else if (OP_IS_WRITE(op) && *value == 0)                   \
             ppi_clear_event(current_ppi, event);                   \
-        return MEMREG_RESULT_OK;
+        return result;
+
+#define OP_EVENT(offset, event) OP_EVENT_RESULT(offset, event, MEMREG_RESULT_OK)

@@ -8,7 +8,6 @@ struct RNG_inst_t
     uint32_t config;
 
     uint32_t inten;
-    bool event_valrdy;
 };
 
 OPERATION(rng)
@@ -23,12 +22,8 @@ OPERATION(rng)
 
     switch (offset)
     {
-    case 0x000: // TASKS_START
-        // Do nothing
-        return MEMREG_RESULT_OK;
-        
-    case 0x100: // EVENTS_VALRDY
-        OP_RETURN_REG(rng->event_valrdy, WORD);
+        OP_TASK(0x000, PPI_TASK_RNG_START)
+        OP_EVENT(0x100, PPI_EVENT_RNG_VALRDY)
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))

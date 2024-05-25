@@ -14,9 +14,6 @@ struct TWIM_inst_t
     uint32_t address;
 
     easydma_reg_t tx, rx;
-
-    uint32_t task_stop, task_resume;
-    uint32_t event_stopped, event_error, event_suspended, event_rxstarted, event_txstarted, event_lastrx, event_lasttx;
 };
 
 OPERATION(twim)
@@ -33,96 +30,18 @@ OPERATION(twim)
 
     switch (offset)
     {
-    case 0x000: // TASKS_STARTRX
-        if (OP_IS_READ(op))
-        {
-            *value = 0;
-            return MEMREG_RESULT_OK_CONTINUE;
-        }
-
-        if (twim->enabled && *value)
-        {
-            size_t read = i2c_read(twim->i2c, twim->address, twim->rx.ptr, twim->rx.maxcnt);
-            twim->rx.amount = read;
-            twim->event_rxstarted = 1;
-            twim->event_lastrx = 1;
-            return MEMREG_RESULT_OK;
-        }
-
-        return MEMREG_RESULT_OK_CONTINUE;
-
-    case 0x008: // TASKS_STARTTX
-        if (OP_IS_READ(op))
-        {
-            *value = 0;
-            return MEMREG_RESULT_OK_CONTINUE;
-        }
-
-        if (twim->enabled && *value)
-        {
-            // TODO: Handle invalid I2C address
-            i2c_write(twim->i2c, twim->address, twim->tx.ptr, twim->tx.maxcnt);
-
-            twim->event_txstarted = 1;
-            twim->event_lasttx = 1;
-            return MEMREG_RESULT_OK;
-        }
-
-        return MEMREG_RESULT_OK_CONTINUE;
-
-    case 0x014: // TASKS_STOP
-        if (OP_IS_READ(op))
-        {
-            *value = 0;
-            return MEMREG_RESULT_OK_CONTINUE;
-        }
-
-        if (twim->enabled && *value)
-        {
-            twim->event_stopped = 1;
-            return MEMREG_RESULT_OK;
-        }
-
-        return MEMREG_RESULT_OK_CONTINUE;
-
-    case 0x01C: // TASKS_SUSPEND
-        if (OP_IS_READ(op))
-        {
-            *value = 0;
-            return MEMREG_RESULT_OK_CONTINUE;
-        }
-
-        if (twim->enabled && *value)
-        {
-            twim->event_suspended = 1;
-            return MEMREG_RESULT_OK;
-        }
-
-        return MEMREG_RESULT_OK_CONTINUE;
-
-    case 0x020: // TASKS_RESUME
-        OP_RETURN_REG_RESULT(twim->task_resume, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x104: // EVENTS_STOPPED
-        OP_RETURN_REG_RESULT(twim->event_stopped, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x124: // EVENTS_ERROR
-        OP_RETURN_REG_RESULT(twim->event_error, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x148: // EVENTS_SUSPENDED
-        OP_RETURN_REG_RESULT(twim->event_suspended, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x14C: // EVENTS_RXSTARTED
-        OP_RETURN_REG_RESULT(twim->event_rxstarted, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x150: // EVENTS_TXSTARTED
-        OP_RETURN_REG_RESULT(twim->event_txstarted, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x15C: // EVENTS_LASTRX
-        OP_RETURN_REG_RESULT(twim->event_lastrx, WORD, MEMREG_RESULT_OK_CONTINUE);
-
-    case 0x160: // EVENTS_LASTTX
-        OP_RETURN_REG_RESULT(twim->event_lasttx, WORD, MEMREG_RESULT_OK_CONTINUE);
+        OP_TASK_RESULT(0x000, PPI_TASK_TWIM_STARTRX, MEMREG_RESULT_OK_CONTINUE)
+        OP_TASK_RESULT(0x008, PPI_TASK_TWIM_STARTTX, MEMREG_RESULT_OK_CONTINUE)
+        OP_TASK_RESULT(0x014, PPI_TASK_TWIM_STOP, MEMREG_RESULT_OK_CONTINUE)
+        OP_TASK_RESULT(0x01C, PPI_TASK_TWIM_SUSPEND, MEMREG_RESULT_OK_CONTINUE)
+        OP_TASK_RESULT(0x020, PPI_TASK_TWIM_RESUME, MEMREG_RESULT_OK_CONTINUE)
+        OP_EVENT_RESULT(0x104, PPI_EVENT_TWIM_STOPPED, MEMREG_RESULT_OK_CONTINUE)
+        OP_EVENT_RESULT(0x124, PPI_EVENT_TWIM_ERROR, MEMREG_RESULT_OK_CONTINUE)
+        OP_EVENT_RESULT(0x148, PPI_EVENT_TWIM_SUSPENDED, MEMREG_RESULT_OK_CONTINUE)
+        OP_EVENT_RESULT(0x14C, PPI_EVENT_TWIM_RXSTARTED, MEMREG_RESULT_OK_CONTINUE)
+        OP_EVENT_RESULT(0x150, PPI_EVENT_TWIM_TXSTARTED, MEMREG_RESULT_OK_CONTINUE)
+        OP_EVENT_RESULT(0x15C, PPI_EVENT_TWIM_LASTRX, MEMREG_RESULT_OK_CONTINUE)
+        OP_EVENT_RESULT(0x160, PPI_EVENT_TWIM_LASTTX, MEMREG_RESULT_OK_CONTINUE)
 
     case 0x500: // ENABLE
         if (OP_IS_READ(op))
@@ -155,9 +74,46 @@ OPERATION(twim)
     return MEMREG_RESULT_UNHANDLED;
 }
 
+TASK_HANDLER(twim, startrx)
+{
+    TWIM_t *twim = (TWIM_t *)userdata;
+
+    if (twim->enabled)
+    {
+        size_t read = i2c_read(twim->i2c, twim->address, twim->rx.ptr, twim->rx.maxcnt);
+        twim->rx.amount = read;
+
+        ppi_fire_event(current_ppi, PPI_EVENT_TWIM_RXSTARTED);
+        ppi_fire_event(current_ppi, PPI_EVENT_TWIM_LASTRX); // TODO: Delay LASTRX
+    }
+}
+
+TASK_HANDLER(twim, starttx)
+{
+    TWIM_t *twim = (TWIM_t *)userdata;
+
+    if (twim->enabled)
+    {
+        // TODO: Handle invalid I2C address
+        i2c_write(twim->i2c, twim->address, twim->tx.ptr, twim->tx.maxcnt);
+
+        ppi_fire_event(current_ppi, PPI_EVENT_TWIM_TXSTARTED);
+        ppi_fire_event(current_ppi, PPI_EVENT_TWIM_LASTTX); // TODO: Delay LASTTX
+    }
+}
+
+TASK_HANDLER_SHORT(twim, stop, TWIM_t, ppi_fire_event(current_ppi, PPI_EVENT_TWIM_STOPPED))
+TASK_HANDLER_SHORT(twim, suspend, TWIM_t, ppi_fire_event(current_ppi, PPI_EVENT_TWIM_SUSPENDED))
+
 TWIM_t *twim_new(bus_i2c_t *i2c)
 {
     TWIM_t *twim = (TWIM_t *)calloc(1, sizeof(TWIM_t));
     twim->i2c = i2c;
+
+    ppi_on_task(current_ppi, PPI_TASK_TWIM_STARTRX, twim_startrx_handler, twim);
+    ppi_on_task(current_ppi, PPI_TASK_TWIM_STARTTX, twim_starttx_handler, twim);
+    ppi_on_task(current_ppi, PPI_TASK_TWIM_STOP, twim_stop_handler, twim);
+    ppi_on_task(current_ppi, PPI_TASK_TWIM_SUSPEND, twim_suspend_handler, twim);
+
     return twim;
 }
