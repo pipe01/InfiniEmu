@@ -11,13 +11,13 @@
 
 struct memreg_inst_t
 {
+    memreg_t *next;
+
     void *userdata;
     bool free_userdata;
 
     uint32_t start, end;
     memreg_operation_t operation;
-
-    memreg_t *next;
 };
 
 memreg_op_result_t simple_operation(uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
@@ -216,7 +216,7 @@ uint16_t memreg_read_halfword(memreg_t *region, uint32_t addr) {
     return (uint16_t)value;
 }
 
-void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, byte_size_t size)
+inline void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, byte_size_t size)
 {
     memreg_do_operation(region, addr, -size, &value);
 }
