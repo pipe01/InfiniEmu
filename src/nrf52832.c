@@ -17,6 +17,7 @@
 #include "peripherals/nrf52832/gpiote.h"
 #include "peripherals/nrf52832/power.h"
 #include "peripherals/nrf52832/ppi.h"
+#include "peripherals/nrf52832/rng.h"
 #include "peripherals/nrf52832/rtc.h"
 #include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/saadc.h"
@@ -55,6 +56,7 @@ struct NRF52832_inst_t
     PPI_t *ppi;
     TWIM_t *twim[2];
     SAADC_t *saadc;
+    RNG_t *rng;
 };
 
 NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sram_size)
@@ -89,6 +91,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     NEW_PERIPH(chip, TIMER, timer, timer[2], x(4000, A000), 0x1000, 4);
     NEW_PERIPH(chip, RTC, rtc, rtc[0], x(4000, B000), 0x1000, 3, &chip->cpu, 0x0B);
     NEW_PERIPH(chip, TEMP, temp, temp, x(4000, C000), 0x1000);
+    NEW_PERIPH(chip, RNG, rng, rng, x(4000, D000), 0x1000);
     NEW_PERIPH(chip, WDT, wdt, wdt, x(4001, 0000), 0x1000);
     NEW_PERIPH(chip, RTC, rtc, rtc[1], x(4001, 1000), 0x1000, 4, &chip->cpu, 0x11);
     NEW_PERIPH(chip, COMP, comp, comp, x(4001, 3000), 0x1000);
