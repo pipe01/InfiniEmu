@@ -10,6 +10,7 @@ typedef enum
 
     FAULT_CPU_INVALID_INSTRUCTION,
     FAULT_CPU_PC_ALIGNMENT,
+    FAULT_CPU_FP_DISABLED,
 } fault_type_t;
 
 void fault_set_jmp(jmp_buf *buf);

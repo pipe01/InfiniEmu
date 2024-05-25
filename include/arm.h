@@ -52,6 +52,41 @@ static_assert(sizeof(xPSR_t) == 4, "xPSR register size has invalid size");
 
 #define xPSR_IT(xpsr) ((xpsr).epsr_iciit_l | ((xpsr).epsr_iciit_h) << 6)
 
+typedef union
+{
+    struct
+    {
+        unsigned int nPRIV : 1;
+        unsigned int SPSEL : 1;
+        unsigned int FPCA : 1;
+    };
+    uint32_t value;
+} CONTROL_t;
+
+static_assert(sizeof(CONTROL_t) == 4, "CONTROL register size has invalid size");
+
+typedef union
+{
+    struct
+    {
+        unsigned int LSPACT : 1;
+        unsigned int USER : 1;
+        unsigned int : 1;
+        unsigned int THREAD : 1;
+        unsigned int HFRDY : 1;
+        unsigned int MMRDY : 1;
+        unsigned int BFRDY : 1;
+        unsigned int : 1;
+        unsigned int MONRDY : 1;
+        unsigned int : 21;
+        unsigned int LSPEN : 1;
+        unsigned int ASPEN : 1;
+    };
+    uint32_t value;
+} FPCCR_t;
+
+static_assert(sizeof(FPCCR_t) == 4, "FPCCR register size has invalid size");
+
 typedef enum
 {
     ARM_MODE_THREAD = 0,
@@ -61,7 +96,7 @@ typedef enum
 typedef enum
 {
     ARM_EXC_NONE = 0,
-    
+
     ARM_EXC_RESET = 1,
     ARM_EXC_NMI = 2,
     ARM_EXC_HARDFAULT = 3,

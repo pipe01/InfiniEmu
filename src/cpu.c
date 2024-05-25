@@ -120,6 +120,27 @@ typedef union
 
 static_assert(sizeof(vreg_t) == 8);
 
+#if ASSERT_EXCEPTION_REGISTERS
+arm_reg check_exc_registers[] = {
+    ARM_REG_R0,
+    ARM_REG_R1,
+    ARM_REG_R2,
+    ARM_REG_R3,
+    ARM_REG_R4,
+    ARM_REG_R5,
+    ARM_REG_R6,
+    ARM_REG_R7,
+    ARM_REG_R8,
+    ARM_REG_R9,
+    ARM_REG_R10,
+    ARM_REG_R11,
+    ARM_REG_R12,
+    ARM_REG_SP,
+    ARM_REG_LR,
+    ARM_REG_PC,
+};
+#endif
+
 struct cpu_inst_t
 {
     jmp_buf *fault_jmp_buf;
@@ -131,7 +152,8 @@ struct cpu_inst_t
     uint32_t sp_main, sp_process;
     vreg_t d[32];
 
-    uint32_t control, faultmask, basepri, primask;
+    uint32_t faultmask, basepri, primask;
+    CONTROL_t control;
     xPSR_t xpsr;
 
     itstate_t itstate;
@@ -151,6 +173,11 @@ struct cpu_inst_t
     exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
     arm_exception active_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
     size_t active_exception_count;
+
+#if ASSERT_EXCEPTION_REGISTERS
+    uint32_t exception_regs[sizeof(check_exc_registers) / sizeof(arm_reg)][MAX_EXECUTING_EXCEPTIONS];
+    size_t exception_regs_count;
+#endif
 
     bool branched;
 
@@ -411,7 +438,7 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 
 static bool cpu_is_privileged(cpu_t *cpu)
 {
-    return cpu->mode == ARM_MODE_HANDLER || !IS_SET(cpu->control, CONTROL_nPRIV);
+    return cpu->mode == ARM_MODE_HANDLER || !cpu->control.nPRIV;
 }
 
 static int cpu_execution_priority(cpu_t *cpu)
@@ -565,6 +592,28 @@ bool cpu_exception_get_enabled(cpu_t *cpu, arm_exception ex)
     return cpu->exceptions[ex].enabled;
 }
 
+static inline void cpu_check_vfp_enabled(cpu_t *cpu)
+{
+    uint32_t cpacr = scb_get_cpacr(cpu->scb);
+
+    if ((cpacr & 0x300000) == 0)
+        fault_take(FAULT_CPU_FP_DISABLED);
+}
+
+static void cpu_execute_fp_check(cpu_t *cpu)
+{
+    cpu_check_vfp_enabled(cpu);
+
+    FPCCR_t fpccr = scb_fp_get_fpccr(cpu->scb_fp);
+
+    // We ignore FPCCR.LSPEN because we never use lazy stacking
+
+    if (fpccr.ASPEN && !cpu->control.FPCA)
+    {
+        // cpu->control.FPCA = 1;
+    }
+}
+
 static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
 {
     // Copied as closely as possible from the ARMv7-M Architecture Reference Manual's pseudocode at B1.5.6
@@ -572,9 +621,10 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
     uint32_t framesize;
     uint32_t forcealign;
 
-    if (HAS_FP)
+    if (cpu->control.FPCA)
     {
-        abort();
+        framesize = 0x68;
+        forcealign = 1;
     }
     else
     {
@@ -586,7 +636,7 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
 
     uint32_t frameptralign, frameptr;
 
-    if (IS_SET(cpu->control, CONTROL_SPSEL) && cpu->mode == ARM_MODE_THREAD)
+    if (cpu->control.SPSEL && cpu->mode == ARM_MODE_THREAD)
     {
         frameptralign = ((cpu->sp_process >> 2) & 1) & forcealign;
         cpu->sp_process = (cpu->sp_process - framesize) & spmask;
@@ -610,15 +660,28 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
     memreg_write(cpu->mem, frameptr + 0x18, cpu_exception_return_address(cpu, ex, sync), SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x1C, (xpsr & ~(1 << 9)) | (frameptralign << 9), SIZE_WORD);
 
-    if (HAS_FP)
+    if (cpu->control.FPCA)
     {
-        abort();
+        // Ignore FPCCR.LSPEN and always save stack
+
+        cpu_check_vfp_enabled(cpu);
+        uint32_t ptr = frameptr + 0x20;
+
+        for (size_t i = 0; i < 8; i++)
+        {
+            memreg_write(cpu->mem, ptr, cpu->d[i].lower, SIZE_WORD);
+            memreg_write(cpu->mem, ptr + 4, cpu->d[i].upper, SIZE_WORD);
+
+            ptr += 8;
+        }
+
+        memreg_write(cpu->mem, ptr, cpu_reg_read(cpu, ARM_REG_FPSCR), SIZE_WORD);
     }
 
     if (cpu->mode == ARM_MODE_HANDLER)
-        cpu_reg_write(cpu, ARM_REG_LR, x(FFFF, FFF1));
+        cpu_reg_write(cpu, ARM_REG_LR, x(FFFF, FFE1) | (~cpu->control.FPCA << 4));
     else
-        cpu_reg_write(cpu, ARM_REG_LR, x(FFFF, FFF9) | (IS_SET(cpu->control, CONTROL_SPSEL) << 2));
+        cpu_reg_write(cpu, ARM_REG_LR, x(FFFF, FFE9) | (~cpu->control.FPCA << 4) | (cpu->control.SPSEL << 2));
 }
 
 static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
@@ -626,9 +689,12 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     uint32_t framesize;
     uint32_t forcealign;
 
-    if (HAS_FP)
+    uint32_t frametype = exc_return & (1 << 4);
+
+    if (frametype == 0)
     {
-        abort();
+        framesize = 0x68;
+        forcealign = 1;
     }
     else
     {
@@ -647,6 +713,28 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
 
     LOG_CPU_EX("Returning from exception to 0x%08X", cpu->core_regs[ARM_REG_PC]);
 
+    if (frametype == 0)
+    {
+        // Ignore LSPACT
+
+        cpu_check_vfp_enabled(cpu);
+
+        uint32_t ptr = sp + 0x20;
+
+        for (size_t i = 0; i < 8; i++)
+        {
+            cpu->d[i].lower = memreg_read(cpu->mem, ptr);
+            cpu->d[i].upper = memreg_read(cpu->mem, ptr + 4);
+
+            ptr += 8;
+        }
+
+        cpu_reg_write(cpu, ARM_REG_FPSCR, memreg_read(cpu->mem, ptr));
+
+    }
+
+    cpu->control.FPCA = frametype == 0;
+
     uint32_t spmask = (((psr >> 9) & 1) & forcealign) << 2;
 
     switch (exc_return & 0xF)
@@ -661,15 +749,20 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
         break;
     }
 
-    uint32_t new_psr = 0;
-    new_psr |= (psr >> 27) << 27;
-    new_psr |= psr & IPSR_MASK;
-    new_psr |= psr & 0x700FC00;
-    cpu_sysreg_write(cpu, ARM_SYSREG_XPSR, new_psr, true);
+    cpu_sysreg_write(cpu, ARM_SYSREG_XPSR, psr & 0xFF0FFDFF, true);
 }
 
 static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
 {
+#if ASSERT_EXCEPTION_REGISTERS
+    for (size_t i = 0; i < sizeof(check_exc_registers) / sizeof(arm_reg); i++)
+    {
+        arm_reg reg = check_exc_registers[i];
+        cpu->exception_regs[i][cpu->exception_regs_count] = cpu->core_regs[reg];
+    }
+    cpu->exception_regs_count++;
+#endif
+
     uint32_t tmp;
 
     tmp = memreg_read(cpu->mem, 4 * ex);
@@ -681,12 +774,11 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
 
     cpu->mode = ARM_MODE_HANDLER;
 
-    cpu->xpsr.value &= ~IPSR_MASK;
-    cpu->xpsr.value |= ex & IPSR_MASK;
+    cpu->xpsr.ipsr = ex;
     cpu->itstate.value = 0;
 
-    cpu->control &= ~(1 << CONTROL_FPCA);
-    cpu->control &= ~(1 << CONTROL_SPSEL);
+    cpu->control.FPCA = 0;
+    cpu->control.SPSEL = 0;
 
     cpu->exceptions[ex].active = true;
     cpu->active_exceptions[cpu->active_exception_count++] = ex;
@@ -732,7 +824,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
     case 1:
         frameptr = cpu->sp_main;
         cpu->mode = ARM_MODE_HANDLER;
-        cpu->control &= ~(1 << CONTROL_SPSEL);
+        cpu->control.SPSEL = 0;
         break;
 
     case 9:
@@ -740,7 +832,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 
         frameptr = cpu->sp_main;
         cpu->mode = ARM_MODE_THREAD;
-        cpu->control &= ~(1 << CONTROL_SPSEL);
+        cpu->control.SPSEL = 0;
         break;
 
     case 13:
@@ -748,7 +840,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 
         frameptr = cpu->sp_process;
         cpu->mode = ARM_MODE_THREAD;
-        cpu->control |= 1 << CONTROL_SPSEL;
+        cpu->control.SPSEL = 1;
         break;
 
     default:
@@ -763,6 +855,29 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
         cpu->faultmask = 0;
 
     cpu_pop_stack(cpu, frameptr, exc_return);
+
+#if ASSERT_EXCEPTION_REGISTERS
+    if (returning_exception_number != ARM_EXC_SVC && returning_exception_number != ARM_EXC_PENDSV)
+    {
+        uint32_t *before_regs = cpu->exception_regs[--cpu->exception_regs_count];
+
+        bool mismatched = false;
+
+        for (size_t i = 0; i < sizeof(check_exc_registers) / sizeof(arm_reg); i++)
+        {
+            arm_reg reg = check_exc_registers[i];
+
+            if (cpu->core_regs[reg] != before_regs[i])
+            {
+                fprintf(stderr, "Register %d mismatch: 0x%08X != 0x%08X\n", reg, cpu->core_regs[reg], before_regs[i]);
+                mismatched = true;
+            }
+        }
+
+        if (mismatched)
+            abort();
+    }
+#endif
 
     arm_exception pending = cpu_exception_get_pending(cpu);
     if (pending != 0)
@@ -1022,7 +1137,7 @@ void cpu_reset(cpu_t *cpu)
     cpu->primask = 0;
     cpu->faultmask = 0;
     cpu->basepri = 0;
-    cpu->control = 0;
+    cpu->control.value = 0;
 
     cpu->sp_main = READ_UINT32(cpu->program, 0) & x(FFFF, FFFC);
     cpu->sp_process = 0;
@@ -2101,6 +2216,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_MEM);
 
+        cpu_execute_fp_check(cpu);
+
         uint32_t base = cpu_reg_read(cpu, detail->operands[1].mem.base);
         if (detail->operands[1].mem.base == ARM_REG_PC)
             base = ALIGN4(base);
@@ -2123,19 +2240,62 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
     }
 
-    // case ARM_INS_VLDMIA:
     case ARM_INS_VMRS:
-    case ARM_INS_VMSR:
-        // case ARM_INS_VSTMDB:
-        LOG_CPU_INST("Implement instruction %d\n", i->id);
-        // TODO: Implement
+        cpu_execute_fp_check(cpu);
+
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[1].reg == ARM_REG_FPSCR);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, scb_fp_get_fpscr(cpu->scb_fp));
         break;
+        
+    case ARM_INS_VMSR:
+        cpu_execute_fp_check(cpu);
+
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[0].reg == ARM_REG_FPSCR);
+        assert(detail->operands[1].type == ARM_OP_REG);
+
+        scb_fp_set_fpscr(cpu->scb_fp, cpu_reg_read(cpu, detail->operands[1].reg));
+        break;
+
+    case ARM_INS_VSTMDB:
+    {
+        assert(detail->op_count >= 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        uint8_t reg_count = detail->op_count - 1;
+
+        uint32_t address = OPERAND_REG(0) - 4 * reg_count;
+
+        if (detail->writeback)
+            cpu_reg_write(cpu, detail->operands[0].reg, address);
+
+        bool single_regs = detail->operands[1].reg >= ARM_REG_S0 && detail->operands[1].reg <= ARM_REG_S31;
+
+        for (size_t n = 0; n < reg_count; n++)
+        {
+            if (single_regs)
+                memreg_write(cpu->mem, address, cpu_reg_read(cpu, detail->operands[n + 1].reg), SIZE_WORD);
+            else
+                abort(); // TODO: Implement
+
+            address += 4;
+        }
+
+        break;
+    }
 
     case ARM_INS_VSTR:
     {
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_MEM);
+
+        cpu_execute_fp_check(cpu);
 
         uint32_t base = cpu_reg_read(cpu, detail->operands[1].mem.base);
         uint32_t address = detail->operands[1].subtracted ? base - detail->operands[1].mem.disp : base + detail->operands[1].mem.disp;
@@ -2203,7 +2363,7 @@ void cpu_step(cpu_t *cpu)
 
 uint32_t *cpu_get_sp(cpu_t *cpu)
 {
-    if (IS_SET(cpu->control, CONTROL_SPSEL))
+    if (cpu->control.SPSEL)
     {
         if (cpu->mode == ARM_MODE_THREAD)
         {
@@ -2230,6 +2390,9 @@ uint32_t cpu_reg_read(cpu_t *cpu, arm_reg reg)
 
     case ARM_REG_SP:
         return *cpu_get_sp(cpu);
+
+    case ARM_REG_FPSCR:
+        return scb_fp_get_fpscr(cpu->scb_fp);
 
     default:
         if (reg >= ARM_REG_S0 && reg <= ARM_REG_S31)
@@ -2277,6 +2440,10 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
         *cpu_get_sp(cpu) = value & x(FFFF, FFFC); // Lowest 2 bits are always zero
         break;
 
+    case ARM_REG_FPSCR:
+        scb_fp_set_fpscr(cpu->scb_fp, value);
+        break;
+
     default:
         if (reg >= ARM_REG_S0 && reg <= ARM_REG_S31)
         {
@@ -2319,7 +2486,7 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
         return cpu->sp_process;
 
     case ARM_SYSREG_CONTROL:
-        return cpu->control;
+        return cpu->control.value;
 
     case ARM_SYSREG_FAULTMASK:
         return cpu->faultmask;
@@ -2360,7 +2527,7 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
         break;
 
     case ARM_SYSREG_CONTROL:
-        cpu->control = value;
+        cpu->control.value = value;
         break;
 
     case ARM_SYSREG_FAULTMASK:

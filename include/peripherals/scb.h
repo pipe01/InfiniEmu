@@ -31,3 +31,4 @@ PERIPHERAL(SCB, scb, cpu_t *cpu)
 
 uint32_t scb_get_prigroup(SCB_t *scb);
 SCB_CCR_t scb_get_ccr(SCB_t *scb);
+uint32_t scb_get_cpacr(SCB_t *scb);
