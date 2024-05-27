@@ -1,6 +1,20 @@
 {
     "files.associations": {
-        "*.h": "c"
+        "*.h": "c",
+        "*.tcc": "c",
+        "charconv": "c",
+        "chrono": "c",
+        "expected": "c",
+        "optional": "c",
+        "format": "c",
+        "ratio": "c",
+        "system_error": "c",
+        "array": "c",
+        "functional": "c",
+        "regex": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c"
     },
     "lldb.showDisassembly": "never",
     "lldb.dereferencePointers": true,

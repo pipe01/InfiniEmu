@@ -24,7 +24,7 @@ RUN cd /tmp && \
     wget -q -O capstone.tar.gz https://github.com/capstone-engine/capstone/archive/5.0.1.tar.gz && \
     tar xf capstone.tar.gz && \
     cd capstone* && \
-    ./make.sh install && \
+    CAPSTONE_ARCHS=arm ./make.sh install && \
     rm -r capstone*
 
 RUN nproc

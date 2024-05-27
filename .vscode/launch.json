@@ -9,7 +9,7 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/infiniemu",
-            "args": ["-df", "${workspaceFolder}/infinitime.bin"], //, "-lrunlog.bin"
+            "args": ["-bf", "${workspaceFolder}/infinitime.bin"], //, "-lrunlog.bin"
             "preLaunchTask": "make"
         },
         {
