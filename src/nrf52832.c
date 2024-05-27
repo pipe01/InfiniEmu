@@ -15,6 +15,7 @@
 #include "peripherals/nrf52832/ccm.h"
 #include "peripherals/nrf52832/clock.h"
 #include "peripherals/nrf52832/comp.h"
+#include "peripherals/nrf52832/ecb.h"
 #include "peripherals/nrf52832/gpio.h"
 #include "peripherals/nrf52832/gpiote.h"
 #include "peripherals/nrf52832/power.h"
@@ -44,6 +45,7 @@ struct NRF52832_inst_t
     bus_i2c_t *i2c;
     pins_t *pins;
     ticker_t *ticker;
+    dma_t *dma;
 
     CLOCK_t *clock;
     COMP_t *comp;
@@ -61,6 +63,7 @@ struct NRF52832_inst_t
     SAADC_t *saadc;
     RNG_t *rng;
     CCM_t *ccm;
+    ECB_t *ecb;
 };
 
 #define NEW_NRF52_PERIPH(chip, type, name, field, idn, ...)                                                                               \
@@ -80,6 +83,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     chip->spi = spi_new(chip->pins, sram, sram_size);
     chip->i2c = i2c_new(sram, sram_size);
     chip->ticker = ticker_new();
+    chip->dma = dma_new(ARM_SRAM_START, sram, sram_size);
 
     uint8_t *flash = malloc(NRF52832_FLASH_SIZE);
     memcpy(flash, program, program_size);
@@ -101,6 +105,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
         .ticker = chip->ticker,
         .i2c = chip->i2c,
         .spi = chip->spi,
+        .dma = chip->dma,
     };
 
     NEW_NRF52_PERIPH(chip, CLOCK, clock, clock, INSTANCE_CLOCK);
@@ -118,6 +123,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[0], INSTANCE_RTC0, 3);
     NEW_NRF52_PERIPH(chip, TEMP, temp, temp, INSTANCE_TEMP);
     NEW_NRF52_PERIPH(chip, RNG, rng, rng, INSTANCE_RNG);
+    NEW_NRF52_PERIPH(chip, ECB, ecb, ecb, INSTANCE_ECB);
     NEW_NRF52_PERIPH(chip, CCM, ccm, ccm, INSTANCE_CCM);
     NEW_NRF52_PERIPH(chip, WDT, wdt, wdt, INSTANCE_WDT);
     NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[1], INSTANCE_RTC1, 4);

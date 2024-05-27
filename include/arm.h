@@ -22,6 +22,7 @@
 #define ARM_MAX_PRIORITY 255
 #define ARM_EXTERNAL_INTERRUPT_NUMBER(n) (16 + (n))
 
+// TODO: Move this to nrf52832.h
 #define ARM_SRAM_START 0x20000000
 #define ARM_SRAM_END 0x20010000
 

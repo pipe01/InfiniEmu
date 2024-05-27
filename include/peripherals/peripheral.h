@@ -6,6 +6,7 @@
 #include "bus_i2c.h"
 #include "bus_spi.h"
 #include "cpu.h"
+#include "dma.h"
 #include "memory.h"
 #include "pins.h"
 #include "ticker.h"
@@ -19,6 +20,7 @@ typedef struct
     ticker_t *ticker;
     bus_i2c_t *i2c;
     bus_spi_t *spi;
+    dma_t *dma;
 } nrf52_peripheral_context_t;
 
 #define OPERATION(name) memreg_op_result_t name##_operation(uint32_t base, uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
