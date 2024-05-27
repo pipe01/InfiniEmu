@@ -7,10 +7,12 @@
 #include "bus_spi.h"
 #include "nrf52832.h"
 #include "pins.h"
+#include "ticker.h"
 
 #include "components/spi/spinorflash.h"
 
 #include "peripherals/peripheral.h"
+#include "peripherals/nrf52832/ccm.h"
 #include "peripherals/nrf52832/clock.h"
 #include "peripherals/nrf52832/comp.h"
 #include "peripherals/nrf52832/gpio.h"
@@ -41,6 +43,7 @@ struct NRF52832_inst_t
     bus_spi_t *spi;
     bus_i2c_t *i2c;
     pins_t *pins;
+    ticker_t *ticker;
 
     CLOCK_t *clock;
     COMP_t *comp;
@@ -57,6 +60,7 @@ struct NRF52832_inst_t
     TWIM_t *twim[2];
     SAADC_t *saadc;
     RNG_t *rng;
+    CCM_t *ccm;
 };
 
 NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sram_size)
@@ -67,6 +71,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     chip->pins = pins_new();
     chip->spi = spi_new(chip->pins, sram, sram_size);
     chip->i2c = i2c_new(sram, sram_size);
+    chip->ticker = ticker_new();
 
     uint8_t *flash = malloc(NRF52832_FLASH_SIZE);
     memcpy(flash, program, program_size);
@@ -96,6 +101,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     NEW_PERIPH(chip, RTC, rtc, rtc[0], x(4000, B000), 0x1000, 3, &chip->cpu, INSTANCE_RTC0);
     NEW_PERIPH(chip, TEMP, temp, temp, x(4000, C000), 0x1000);
     NEW_PERIPH(chip, RNG, rng, rng, x(4000, D000), 0x1000);
+    NEW_PERIPH(chip, CCM, ccm, ccm, x(4000, F000), 0x1000);
     NEW_PERIPH(chip, WDT, wdt, wdt, x(4001, 0000), 0x1000);
     NEW_PERIPH(chip, RTC, rtc, rtc[1], x(4001, 1000), 0x1000, 4, &chip->cpu, INSTANCE_RTC1);
     NEW_PERIPH(chip, COMP, comp, comp, x(4001, 3000), 0x1000);
@@ -122,12 +128,15 @@ void nrf52832_reset(NRF52832_t *nrf52832)
     pins_reset(nrf52832->pins);
     spi_reset(nrf52832->spi);
     i2c_reset(nrf52832->i2c);
+    ticker_reset(nrf52832->ticker);
     cpu_reset(nrf52832->cpu);
 }
 
 void nrf52832_step(NRF52832_t *nrf52832)
 {
     current_ppi = nrf52832->ppi;
+
+    ticker_tick(nrf52832->ticker);
 
     // TODO: Properly measure time
     if ((++nrf52832->cycle_counter % 50) == 0)
