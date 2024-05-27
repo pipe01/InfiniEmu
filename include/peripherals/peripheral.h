@@ -23,7 +23,7 @@
         if (OP_IS_READ(op))                                                     \
             *value = 0;                                                         \
         else if (*value)                                                        \
-            ppi_fire_task(current_ppi, (base & 0xFF000) >> 4, TASK_ID(offset)); \
+            ppi_fire_task(current_ppi, (base & 0xFF000) >> 12, TASK_ID(offset)); \
         return result;
 
 #define OP_TASK(offset) OP_TASK_RESULT(offset, MEMREG_RESULT_OK)
@@ -31,9 +31,9 @@
 #define OP_EVENT_RESULT(offset, result)                                                              \
     case offset:                                                                                     \
         if (OP_IS_READ(op))                                                                          \
-            *value = ppi_event_is_set(current_ppi, (base & 0xFF000) >> 4, EVENT_ID(offset)) ? 1 : 0; \
+            *value = ppi_event_is_set(current_ppi, (base & 0xFF000) >> 12, EVENT_ID(offset)) ? 1 : 0; \
         else if (*value == 0)                                                                        \
-            ppi_clear_event(current_ppi, (base & 0xFF000) >> 4, EVENT_ID(offset));                   \
+            ppi_clear_event(current_ppi, (base & 0xFF000) >> 12, EVENT_ID(offset));                   \
         return result;
 
 #define OP_EVENT(offset) OP_EVENT_RESULT(offset, MEMREG_RESULT_OK)
