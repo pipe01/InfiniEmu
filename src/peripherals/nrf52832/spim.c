@@ -97,6 +97,7 @@ OPERATION(spim)
             .id = spim->id,
             .bus = spim->bus,
         };
+        ppi_remove_peripheral(current_ppi, spim->id);
 
         return MEMREG_RESULT_OK;
     }

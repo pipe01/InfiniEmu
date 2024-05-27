@@ -83,6 +83,7 @@ OPERATION(twim)
             .id = twim->id,
             .i2c = twim->i2c,
         };
+        ppi_remove_peripheral(current_ppi, twim->id);
 
         return MEMREG_RESULT_OK;
     }

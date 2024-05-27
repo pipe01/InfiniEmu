@@ -79,10 +79,12 @@ void ppi_remove_peripheral(PPI_t *ppi, uint8_t id)
     assert(id < PERIPHERALS_COUNT);
 
     peripheral_t *peripheral = ppi->peripherals[id];
-    assert(peripheral != NULL);
 
-    free(peripheral);
-    ppi->peripherals[id] = NULL;
+    if (peripheral)
+    {
+        free(peripheral);
+        ppi->peripherals[id] = NULL;
+    }
 }
 
 void ppi_fire_task(PPI_t *ppi, uint8_t peripheral_id, uint8_t task_id)
