@@ -247,6 +247,8 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 			gdb2.Registers()[i] = val
 		}
 
+		gdb1.Registers()[asm.RegisterSP] = 0x2001_0000
+		gdb2.Registers()[asm.RegisterSP] = 0x2001_0000
 		gdb1.Registers()[asm.RegisterPC] = 0x2000_0000
 		gdb2.Registers()[asm.RegisterPC] = 0x2000_0000
 

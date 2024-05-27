@@ -2199,6 +2199,19 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             cpu->xpsr.apsr_q = 1;
         break;
 
+    case ARM_INS_UXTAH:
+    case ARM_INS_UXTAB:
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND(2);
+
+        value = op0 + (op1 & (i->id == ARM_INS_UXTAB ? 0xFF : 0xFFFF));
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+        break;
+
     case ARM_INS_UXTB:
     case ARM_INS_UXTH:
         assert(detail->op_count == 2);

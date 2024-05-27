@@ -814,4 +814,14 @@ var Instructions = []Generator{
 	func(r RandASM) Instruction {
 		return r.inst("uxth", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
 	},
+
+	// UXTAH
+	func(r RandASM) Instruction {
+		return r.inst("uxtah", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
+	},
+
+	// UXTAB
+	func(r RandASM) Instruction {
+		return r.inst("uxtab", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
+	},
 }
