@@ -110,6 +110,8 @@ struct RADIO_inst_t
     inten_t inten;
 
     uint32_t mode;
+    uint32_t txpower;
+    uint32_t packetptr;
 
     pcnf0_t pcnf0;
     pcnf1_t pcnf1;
@@ -155,6 +157,12 @@ OPERATION(radio)
         else
             radio->inten.value &= ~*value;
         return MEMREG_RESULT_OK;
+
+    case 0x504: // PACKETPTR
+        OP_RETURN_REG(radio->packetptr, WORD);
+
+    case 0x50C: // TXPOWER
+        OP_RETURN_REG(radio->txpower, WORD);
 
     case 0x510: // MODE
         OP_RETURN_REG(radio->mode, WORD);

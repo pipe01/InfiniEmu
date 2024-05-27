@@ -114,9 +114,9 @@ void ppi_clear_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
     assert(event_id < EVENTS_COUNT);
 
     peripheral_t *periph = ppi->peripherals[peripheral_id];
-    assert(periph != NULL);
 
-    periph->events &= ~(1 << event_id);
+    if (periph)
+        periph->events &= ~(1 << event_id);
 }
 
 bool ppi_event_is_set(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
@@ -125,7 +125,9 @@ bool ppi_event_is_set(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
     assert(event_id < EVENTS_COUNT);
 
     peripheral_t *periph = ppi->peripherals[peripheral_id];
-    assert(periph != NULL);
+
+    if (!periph)
+        return false;
 
     return (periph->events & (1 << event_id)) != 0;
 }
