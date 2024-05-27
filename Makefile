@@ -32,6 +32,7 @@ LIBS = -lm -lcapstone
 DEPS = $(shell find $(IDIR) -type f -name '*.h')
 
 _OBJ = $(patsubst %.c,%.o,$(shell find $(SDIR) -type f -name '*.c'))
+_OBJ += $(LDIR)/tiny-AES-c/aes.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 TEST_BIN = ./tests.out
