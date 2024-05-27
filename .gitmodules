@@ -1,3 +1,6 @@
 [submodule "lib/RTT"]
 	path = lib/RTT
 	url = https://github.com/SEGGERMicro/RTT
+[submodule "lib/tiny-AES-c"]
+	path = lib/tiny-AES-c
+	url = git@github.com:kokke/tiny-AES-c.git
