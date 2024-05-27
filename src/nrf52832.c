@@ -155,14 +155,6 @@ void nrf52832_step(NRF52832_t *nrf52832)
 
     ticker_tick(nrf52832->ticker);
 
-    // TODO: Properly measure time
-    if ((++nrf52832->cycle_counter % 50) == 0)
-    {
-        rtc_tick(nrf52832->rtc[0]);
-        rtc_tick(nrf52832->rtc[1]);
-        rtc_tick(nrf52832->rtc[2]);
-    }
-
     spi_step(nrf52832->spi);
 
     cpu_step(nrf52832->cpu);

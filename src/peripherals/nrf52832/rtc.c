@@ -44,6 +44,7 @@ enum
 struct RTC_inst_t
 {
     cpu_t **cpu;
+    ticker_t *ticker;
     uint8_t id;
     size_t cc_num;
 
@@ -54,6 +55,45 @@ struct RTC_inst_t
     inten_t inten;
     uint32_t prescaler, counter, prescaler_counter;
 };
+
+void rtc_tick(void *userdata)
+{
+    RTC_t *rtc = userdata;
+
+    rtc->prescaler_counter++;
+
+    if (rtc->prescaler_counter == rtc->prescaler)
+    {
+        rtc->prescaler_counter = 0;
+        rtc->counter++;
+
+        if (rtc->inten.TICK)
+        {
+            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_TICK));
+            cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
+        }
+
+        if (rtc->counter == (1 << 24))
+        {
+            rtc->counter = 0;
+
+            if (rtc->inten.OVRFLW)
+            {
+                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_OVRFLW));
+                cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
+            }
+        }
+
+        for (size_t i = 0; i < rtc->cc_num; i++)
+        {
+            if (rtc->counter == rtc->cc[i] && (rtc->inten.COMPARE & (1 << i)) != 0)
+            {
+                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_COMPARE0) + i);
+                cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
+            }
+        }
+    }
+}
 
 OPERATION(rtc)
 {
@@ -126,10 +166,16 @@ PPI_TASK_HANDLER(rtc_task_handler)
     switch (task)
     {
     case TASK_ID(TASKS_START):
+        if (!rtc->running)
+            ticker_add(rtc->ticker, rtc_tick, rtc, 1 << rtc->prescaler);
+
         rtc->running = true;
         break;
 
     case TASK_ID(TASKS_STOP):
+        if (rtc->running)
+            ticker_remove(rtc->ticker, rtc_tick);
+
         rtc->running = false;
         break;
 
@@ -148,48 +194,9 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RTC, rtc, size_t cc_num)
     rtc->cc_num = cc_num;
     rtc->cpu = ctx.cpu;
     rtc->id = ctx.id;
+    rtc->ticker = ctx.ticker;
 
     ppi_add_peripheral(ctx.ppi, ctx.id, rtc_task_handler, rtc);
 
     return rtc;
-}
-
-void rtc_tick(RTC_t *rtc)
-{
-    if (!rtc->running)
-        return;
-
-    rtc->prescaler_counter++;
-
-    if (rtc->prescaler_counter == rtc->prescaler)
-    {
-        rtc->prescaler_counter = 0;
-        rtc->counter++;
-
-        if (rtc->inten.TICK)
-        {
-            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_TICK));
-            cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
-        }
-
-        if (rtc->counter == (1 << 24))
-        {
-            rtc->counter = 0;
-
-            if (rtc->inten.OVRFLW)
-            {
-                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_OVRFLW));
-                cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
-            }
-        }
-
-        for (size_t i = 0; i < rtc->cc_num; i++)
-        {
-            if (rtc->counter == rtc->cc[i] && (rtc->inten.COMPARE & (1 << i)) != 0)
-            {
-                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_COMPARE0) + i);
-                cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
-            }
-        }
-    }
 }

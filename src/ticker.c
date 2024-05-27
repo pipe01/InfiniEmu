@@ -61,6 +61,7 @@ void ticker_remove(ticker_t *ticker, ticker_cb_t cb)
 
             // Move last entry to the removed entry
             memcpy(&ticker->entries[i], &ticker->entries[ticker->count - 1], sizeof(ticker_entry_t));
+
             ticker->count--;
             break;
         }
