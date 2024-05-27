@@ -67,6 +67,8 @@ PPI_TASK_HANDLER(spim_task_handler)
 {
     SPIM_t *spim = (SPIM_t *)userdata;
 
+    assert(task == TASK_ID(TASKS_START));
+
     if (spim->tx.ptr)
     {
         spi_result_t result = spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
@@ -80,10 +82,6 @@ PPI_TASK_HANDLER(spim_task_handler)
         size_t read = spi_read(spim->bus, spim->rx.ptr, spim->rx.maxcnt);
         spim->rx.amount = read;
         ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDRX));
-    }
-    else
-    {
-        return;
     }
 
     ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_END));
