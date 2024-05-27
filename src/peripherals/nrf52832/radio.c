@@ -3,6 +3,30 @@
 #include <assert.h>
 #include <stdlib.h>
 
+enum
+{
+    TASKS_TXEN = 0x000,
+    TASKS_RXEN = 0x004,
+    TASKS_START = 0x008,
+    TASKS_STOP = 0x00C,
+    TASKS_DISABLE = 0x010,
+    TASKS_RSSISTART = 0x014,
+    TASKS_RSSISTOP = 0x018,
+    TASKS_BCSTART = 0x01C,
+    TASKS_BCSTOP = 0x020,
+    EVENTS_READY = 0x100,
+    EVENTS_ADDRESS = 0x104,
+    EVENTS_PAYLOAD = 0x108,
+    EVENTS_END = 0x10C,
+    EVENTS_DISABLED = 0x110,
+    EVENTS_DEVMATCH = 0x114,
+    EVENTS_DEVMISS = 0x118,
+    EVENTS_RSSIEND = 0x11C,
+    EVENTS_BCMATCH = 0x128,
+    EVENTS_CRCOK = 0x130,
+    EVENTS_CRCERROR = 0x134,
+};
+
 typedef union
 {
     struct

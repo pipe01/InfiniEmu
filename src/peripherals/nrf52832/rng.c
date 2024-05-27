@@ -1,7 +1,16 @@
 #include "peripherals/nrf52832/rng.h"
 
+#include "nrf52832.h"
+
 #include <stdlib.h>
 #include <string.h>
+
+enum
+{
+    TASKS_START = 0x000,
+    TASKS_STOP = 0x004,
+    EVENTS_VALRDY = 0x100,
+};
 
 struct RNG_inst_t
 {
@@ -22,8 +31,8 @@ OPERATION(rng)
 
     switch (offset)
     {
-        OP_TASK(0x000, PPI_TASK_RNG_START)
-        OP_EVENT(0x100, PPI_EVENT_RNG_VALRDY)
+        OP_TASK(TASKS_START)
+        OP_EVENT(EVENTS_VALRDY)
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
@@ -45,8 +54,16 @@ OPERATION(rng)
     return MEMREG_RESULT_UNHANDLED;
 }
 
+PPI_TASK_HANDLER(rng_task_cb)
+{
+    // TODO: Implement
+}
+
 RNG_t *rng_new()
 {
     RNG_t *rng = (RNG_t *)malloc(sizeof(RNG_t));
+
+    ppi_add_peripheral(current_ppi, INSTANCE_RNG, rng_task_cb, rng);
+
     return rng;
 }

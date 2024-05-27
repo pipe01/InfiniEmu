@@ -6,6 +6,19 @@
 #include "util.h"
 #include "peripherals/nrf52832/easydma.h"
 
+enum
+{
+    TASKS_START = 0x010,
+    TASKS_STOP = 0x014,
+    TASKS_SUSPEND = 0x01C,
+    TASKS_RESUME = 0x020,
+    EVENTS_STOPPED = 0x104,
+    EVENTS_ENDRX = 0x110,
+    EVENTS_END = 0x118,
+    EVENTS_ENDTX = 0x120,
+    EVENTS_STARTED = 0x14C,
+};
+
 typedef struct
 {
     union
@@ -50,6 +63,32 @@ struct SPIM_inst_t
     inten_t inten;
 };
 
+PPI_TASK_HANDLER(spim_task_handler)
+{
+    SPIM_t *spim = (SPIM_t *)userdata;
+
+    if (spim->tx.ptr)
+    {
+        spi_result_t result = spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
+        if (result == SPI_RESULT_OK)
+            ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDTX));
+        else
+            abort(); // TODO: Handle better
+    }
+    else if (spim->rx.ptr)
+    {
+        size_t read = spi_read(spim->bus, spim->rx.ptr, spim->rx.maxcnt);
+        spim->rx.amount = read;
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDRX));
+    }
+    else
+    {
+        return;
+    }
+
+    ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_END));
+}
+
 OPERATION(spim)
 {
     SPIM_t *spim = (SPIM_t *)userdata;
@@ -64,12 +103,12 @@ OPERATION(spim)
 
     switch (offset)
     {
-        OP_TASK(0x010, PPI_TASK_SPIM_START)
-        OP_EVENT(0x104, PPI_EVENT_SPIM_STOPPED)
-        OP_EVENT(0x110, PPI_EVENT_SPIM_ENDRX)
-        OP_EVENT(0x118, PPI_EVENT_SPIM_END)
-        OP_EVENT(0x120, PPI_EVENT_SPIM_ENDTX)
-        OP_EVENT(0x14C, PPI_EVENT_SPIM_STARTED)
+        OP_TASK(TASKS_START)
+        OP_EVENT(EVENTS_STOPPED)
+        OP_EVENT(EVENTS_ENDRX)
+        OP_EVENT(EVENTS_END)
+        OP_EVENT(EVENTS_ENDTX)
+        OP_EVENT(EVENTS_STARTED)
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
@@ -96,7 +135,18 @@ OPERATION(spim)
         }
         else if (*value == SPIM_ENABLE_VALUE)
         {
+            if (!spim->enabled)
+                ppi_add_peripheral(current_ppi, spim->id, spim_task_handler, spim);
+
             spim->enabled = true;
+            return MEMREG_RESULT_OK;
+        }
+        else if (*value == 0)
+        {
+            if (spim->enabled)
+                ppi_remove_peripheral(current_ppi, spim->id);
+
+            spim->enabled = false;
             return MEMREG_RESULT_OK;
         }
 
@@ -123,39 +173,11 @@ OPERATION(spim)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-TASK_HANDLER(spim, start)
-{
-    SPIM_t *spim = (SPIM_t *)userdata;
-
-    if (spim->tx.ptr)
-    {
-        spi_result_t result = spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
-        if (result == SPI_RESULT_OK)
-            ppi_fire_event(current_ppi, PPI_EVENT_SPIM_ENDTX);
-        else
-            abort(); // TODO: Handle better
-    }
-    else if (spim->rx.ptr)
-    {
-        size_t read = spi_read(spim->bus, spim->rx.ptr, spim->rx.maxcnt);
-        spim->rx.amount = read;
-        ppi_fire_event(current_ppi, PPI_EVENT_SPIM_ENDRX);
-    }
-    else
-    {
-        return;
-    }
-
-    ppi_fire_event(current_ppi, PPI_EVENT_SPIM_END);
-}
-
 SPIM_t *spim_new(uint8_t id, bus_spi_t *spi)
 {
     SPIM_t *spim = (SPIM_t *)malloc(sizeof(SPIM_t));
     spim->bus = spi;
     spim->id = id;
-
-    ppi_on_task(current_ppi, PPI_TASK_SPIM_START, spim_start_handler, spim);
 
     return spim;
 }

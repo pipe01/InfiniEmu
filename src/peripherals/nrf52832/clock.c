@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "memory.h"
+#include "nrf52832.h"
 
 struct CLOCK_inst_t
 {
@@ -11,6 +12,21 @@ struct CLOCK_inst_t
     bool lfclk_running;
 
     uint32_t inten;
+};
+
+enum
+{
+    TASKS_HFCLKSTART = 0x000,
+    TASKS_HFCLKSTOP = 0x004,
+    TASKS_LFCLKSTART = 0x008,
+    TASKS_LFCLKSTOP = 0x00C,
+    TASKS_CAL = 0x010,
+    TASKS_CTSTART = 0x014,
+    TASKS_CTSTOP = 0x018,
+    EVENTS_HFCLKSTARTED = 0x100,
+    EVENTS_LFCLKSTARTED = 0x104,
+    EVENTS_DONE = 0x10C,
+    EVENTS_CTTO = 0x110,
 };
 
 OPERATION(clock)
@@ -27,8 +43,8 @@ OPERATION(clock)
 
     switch (offset)
     {
-        OP_TASK(0x008, PPI_TASK_CLOCK_LFCLKSTART)
-        OP_EVENT(0x104, PPI_EVENT_CLOCK_LFCLKSTARTED)
+        OP_TASK(TASKS_LFCLKSTART)
+        OP_EVENT(EVENTS_LFCLKSTARTED)
 
     case 0x10C: // EVENTS_DONE
     case 0x110: // EVENTS_CTTO
@@ -74,18 +90,20 @@ OPERATION(clock)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-TASK_HANDLER(clock, lfclkstart)
+PPI_TASK_HANDLER(clock_task_handler)
 {
+    assert(task == TASK_ID(TASKS_LFCLKSTART));
+
     ((CLOCK_t *)userdata)->lfclk_running = true;
 
-    ppi_fire_event(current_ppi, PPI_EVENT_CLOCK_LFCLKSTARTED);
+    ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LFCLKSTARTED));
 }
 
 CLOCK_t *clock_new()
 {
     CLOCK_t *clock = (CLOCK_t *)malloc(sizeof(CLOCK_t));
 
-    ppi_on_task(current_ppi, PPI_TASK_CLOCK_LFCLKSTART, clock_lfclkstart_handler, clock);
+    ppi_add_peripheral(current_ppi, INSTANCE_CLOCK, clock_task_handler, clock);
 
     return clock;
 }

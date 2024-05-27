@@ -1,14 +1,15 @@
 #include "peripherals/nrf52832/ppi.h"
 #include "peripherals/peripheral.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define MAX_CHANNELS 32
 #define MAX_SUBSCRIBERS 10
 
-#define TASKS_COUNT ((1 << 16) - 1)
-#define EVENTS_COUNT ((1 << 16) - 1)
+#define PERIPHERALS_COUNT 0x26
+#define EVENTS_COUNT 64
 
 _Thread_local PPI_t *current_ppi;
 
@@ -21,19 +22,15 @@ typedef struct
 
 typedef struct
 {
-    bool is_fired;
-} event_t;
-
-typedef struct
-{
     ppi_task_cb_t cb;
     void *userdata;
-} task_t;
+
+    uint64_t events;
+} peripheral_t;
 
 struct PPI_t
 {
-    task_t *tasks[TASKS_COUNT];
-    event_t *events[EVENTS_COUNT];
+    peripheral_t *peripherals[PERIPHERALS_COUNT];
 };
 
 OPERATION(ppi)
@@ -42,7 +39,12 @@ OPERATION(ppi)
 
     if (op == OP_RESET)
     {
-        memset(ppi->events, 0, sizeof(ppi->events));
+        for (size_t i = 0; i < PERIPHERALS_COUNT; i++)
+        {
+            if (ppi->peripherals[i])
+                ppi->peripherals[i]->events = 0;
+        }
+
         return MEMREG_RESULT_OK;
     }
 
@@ -56,53 +58,74 @@ PPI_t *ppi_new()
     return (PPI_t *)calloc(1, sizeof(PPI_t));
 }
 
-void ppi_fire_task(PPI_t *ppi, uint16_t task_id)
+void ppi_add_peripheral(PPI_t *ppi, uint8_t id, ppi_task_cb_t cb, void *userdata)
 {
-    task_t *task_inst = ppi->tasks[task_id];
+    assert(id <= PERIPHERALS_COUNT - 1);
 
-    if (task_inst)
-        task_inst->cb(task_id, task_inst->userdata);
-    else
-        abort();
-}
+    peripheral_t *peripheral = ppi->peripherals[id];
 
-void ppi_on_task(PPI_t *ppi, uint16_t task_id, ppi_task_cb_t cb, void *userdata)
-{
-    task_t **task_inst = &ppi->tasks[task_id];
-
-    if (task_inst)
+    if (peripheral)
         abort();
 
-    *task_inst = malloc(sizeof(task_t));
-    (*task_inst)->cb = cb;
-    (*task_inst)->userdata = userdata;
+    peripheral = malloc(sizeof(peripheral_t));
+    peripheral->cb = cb;
+    peripheral->userdata = userdata;
+
+    ppi->peripherals[id] = peripheral;
 }
 
-static void ppi_ensure_event(PPI_t *ppi, uint16_t event_id)
+void ppi_remove_peripheral(PPI_t *ppi, uint8_t id)
 {
-    if (!ppi->events[event_id])
-        ppi->events[event_id] = calloc(1, sizeof(event_t));
+    assert(id < PERIPHERALS_COUNT);
+
+    peripheral_t *peripheral = ppi->peripherals[id];
+    assert(peripheral != NULL);
+
+    free(peripheral);
+    ppi->peripherals[id] = NULL;
 }
 
-void ppi_fire_event(PPI_t *ppi, uint16_t event_id)
+void ppi_fire_task(PPI_t *ppi, uint8_t peripheral_id, uint8_t task_id)
 {
-    ppi_ensure_event(ppi, event_id);
+    assert(peripheral_id < PERIPHERALS_COUNT);
 
-    ppi->events[event_id]->is_fired = true;
+    peripheral_t *periph = ppi->peripherals[peripheral_id];
+    assert(periph != NULL);
+
+    periph->cb(ppi, peripheral_id, task_id, periph->userdata);
+}
+
+void ppi_fire_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
+{
+    assert(peripheral_id < PERIPHERALS_COUNT);
+    assert(event_id < EVENTS_COUNT);
+
+    peripheral_t *periph = ppi->peripherals[peripheral_id];
+    assert(periph != NULL);
+
+    periph->events |= (1 << event_id);
 
     // TODO: Implement
 }
 
-void ppi_clear_event(PPI_t *ppi, uint16_t event_id)
+void ppi_clear_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
 {
-    ppi_ensure_event(ppi, event_id);
+    assert(peripheral_id < PERIPHERALS_COUNT);
+    assert(event_id < EVENTS_COUNT);
 
-    ppi->events[event_id]->is_fired = false;
+    peripheral_t *periph = ppi->peripherals[peripheral_id];
+    assert(periph != NULL);
+
+    periph->events &= ~(1 << event_id);
 }
 
-bool ppi_event_is_set(PPI_t *ppi, uint16_t event_id)
+bool ppi_event_is_set(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
 {
-    ppi_ensure_event(ppi, event_id);
+    assert(peripheral_id < PERIPHERALS_COUNT);
+    assert(event_id < EVENTS_COUNT);
 
-    return ppi->events[event_id]->is_fired;
+    peripheral_t *periph = ppi->peripherals[peripheral_id];
+    assert(periph != NULL);
+
+    return (periph->events & (1 << event_id)) != 0;
 }

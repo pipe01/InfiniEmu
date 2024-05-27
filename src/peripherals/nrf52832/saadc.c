@@ -25,6 +25,8 @@ OPERATION(saadc)
 
     OP_ASSERT_SIZE(op, WORD);
 
+    // TODO: Implement
+
     return MEMREG_RESULT_OK;
 }
 

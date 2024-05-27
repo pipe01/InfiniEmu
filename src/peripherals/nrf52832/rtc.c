@@ -25,6 +25,20 @@ typedef union
 
 static_assert(sizeof(inten_t) == 4);
 
+enum
+{
+    TASKS_START = 0x000,
+    TASKS_STOP = 0x004,
+    TASKS_CLEAR = 0x008,
+    TASKS_TRIGOVRFLW = 0x00C,
+    EVENTS_TICK = 0x100,
+    EVENTS_OVRFLW = 0x104,
+    EVENTS_COMPARE0 = 0x140,
+    EVENTS_COMPARE1 = 0x144,
+    EVENTS_COMPARE2 = 0x148,
+    EVENTS_COMPARE3 = 0x14C,
+};
+
 struct RTC_inst_t
 {
     cpu_t **cpu;
@@ -56,15 +70,15 @@ OPERATION(rtc)
 
     switch (offset)
     {
-        OP_TASK(0x000) // TASKS_START
-        OP_TASK(0x004) // TASKS_STOP
-        OP_TASK(0x008) // TASKS_CLEAR
-        OP_EVENT(0x100) // EVENTS_TICK
-        OP_EVENT(0x104) // EVENTS_OVRFLW
-        OP_EVENT(0x140) // EVENTS_COMPARE0
-        OP_EVENT(0x144) // EVENTS_COMPARE1
-        OP_EVENT(0x148) // EVENTS_COMPARE2
-        OP_EVENT(0x14C) // EVENTS_COMPARE3
+        OP_TASK(TASKS_START)
+        OP_TASK(TASKS_STOP)
+        OP_TASK(TASKS_CLEAR)
+        OP_EVENT(EVENTS_TICK)
+        OP_EVENT(EVENTS_OVRFLW)
+        OP_EVENT(EVENTS_COMPARE0)
+        OP_EVENT(EVENTS_COMPARE1)
+        OP_EVENT(EVENTS_COMPARE2)
+        OP_EVENT(EVENTS_COMPARE3)
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
@@ -103,9 +117,26 @@ OPERATION(rtc)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-TASK_HANDLER_SHORT(rtc, start, RTC_t, p->running = true)
-TASK_HANDLER_SHORT(rtc, stop, RTC_t, p->running = false)
-TASK_HANDLER_SHORT(rtc, clear, RTC_t, p->counter = 0; p->prescaler_counter = 0)
+PPI_TASK_HANDLER(rtc_task_handler)
+{
+    RTC_t *rtc = (RTC_t *)userdata;
+
+    switch (task)
+    {
+    case TASK_ID(TASKS_START):
+        rtc->running = true;
+        break;
+
+    case TASK_ID(TASKS_STOP):
+        rtc->running = false;
+        break;
+
+    case TASK_ID(TASKS_CLEAR):
+        rtc->counter = 0;
+        rtc->prescaler_counter = 0;
+        break;
+    }
+}
 
 RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint8_t id)
 {
@@ -116,9 +147,7 @@ RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint8_t id)
     rtc->cpu = cpu;
     rtc->id = id;
 
-    ppi_on_task(current_ppi, PPI_TASK_RTC_START, rtc_start_handler, rtc);
-    ppi_on_task(current_ppi, PPI_TASK_RTC_STOP, rtc_stop_handler, rtc);
-    ppi_on_task(current_ppi, PPI_TASK_RTC_CLEAR, rtc_clear_handler, rtc);
+    ppi_add_peripheral(current_ppi, id, rtc_task_handler, rtc);
 
     return rtc;
 }
@@ -137,7 +166,7 @@ void rtc_tick(RTC_t *rtc)
 
         if (rtc->inten.TICK)
         {
-            ppi_fire_event(current_ppi, PPI_EVENT_RTC_TICK);
+            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_TICK));
             cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
         }
 
@@ -147,7 +176,7 @@ void rtc_tick(RTC_t *rtc)
 
             if (rtc->inten.OVRFLW)
             {
-                ppi_fire_event(current_ppi, PPI_EVENT_RTC_OVRFLW);
+                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_OVRFLW));
                 cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
             }
         }
@@ -156,7 +185,7 @@ void rtc_tick(RTC_t *rtc)
         {
             if (rtc->counter == rtc->cc[i] && (rtc->inten.COMPARE & (1 << i)) != 0)
             {
-                ppi_fire_event(current_ppi, PPI_EVENT_RTC_COMPARE0 + i);
+                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_COMPARE0) + i);
                 cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
             }
         }
