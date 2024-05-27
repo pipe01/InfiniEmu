@@ -2,4 +2,4 @@
 
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(RADIO, radio)
+NRF52_PERIPHERAL(RADIO, radio)

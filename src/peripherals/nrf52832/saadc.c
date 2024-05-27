@@ -30,10 +30,10 @@ OPERATION(saadc)
     return MEMREG_RESULT_OK;
 }
 
-SAADC_t *saadc_new(pins_t *pins)
+NRF52_PERIPHERAL_CONSTRUCTOR(SAADC, saadc)
 {
     SAADC_t *saadc = calloc(1, sizeof(SAADC_t));
-    saadc->pins = pins;
+    saadc->pins = ctx.pins;
 
     return saadc;
 }

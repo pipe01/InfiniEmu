@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "peripherals/nrf52832/ppi.h"
+
 enum
 {
     TASKS_START = 0x000,
@@ -161,15 +163,15 @@ PPI_TASK_HANDLER(timer_task_handler)
     }
 }
 
-TIMER_t *timer_new(uint8_t id, size_t cc_num)
+NRF52_PERIPHERAL_CONSTRUCTOR(TIMER, timer, size_t cc_num)
 {
     assert(cc_num <= TIMER_MAX_CC);
 
     TIMER_t *timer = (TIMER_t *)malloc(sizeof(TIMER_t));
     timer->cc_num = cc_num;
-    timer->id = id;
+    timer->id = ctx.id;
 
-    ppi_add_peripheral(current_ppi, id, timer_task_handler, timer);
+    ppi_add_peripheral(ctx.ppi, ctx.id, timer_task_handler, timer);
 
     return timer;
 }

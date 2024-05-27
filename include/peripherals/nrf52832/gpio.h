@@ -4,4 +4,4 @@
 
 #include "pins.h"
 
-PERIPHERAL(GPIO, gpio, pins_t *pins)
+NRF52_PERIPHERAL(GPIO, gpio)

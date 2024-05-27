@@ -5,6 +5,7 @@
 
 #include "memory.h"
 #include "nrf52832.h"
+#include "peripherals/nrf52832/ppi.h"
 
 struct CLOCK_inst_t
 {
@@ -99,11 +100,11 @@ PPI_TASK_HANDLER(clock_task_handler)
     ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LFCLKSTARTED));
 }
 
-CLOCK_t *clock_new()
+NRF52_PERIPHERAL_CONSTRUCTOR(CLOCK, clock)
 {
     CLOCK_t *clock = (CLOCK_t *)malloc(sizeof(CLOCK_t));
 
-    ppi_add_peripheral(current_ppi, INSTANCE_CLOCK, clock_task_handler, clock);
+    ppi_add_peripheral(ctx.ppi, ctx.id, clock_task_handler, clock);
 
     return clock;
 }

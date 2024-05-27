@@ -1,3 +1,3 @@
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(GPIOTE, gpiote)
+NRF52_PERIPHERAL(GPIOTE, gpiote)

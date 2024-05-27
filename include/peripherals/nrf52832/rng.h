@@ -2,4 +2,4 @@
 
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(RNG, rng)
+NRF52_PERIPHERAL(RNG, rng)

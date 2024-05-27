@@ -1,6 +1,7 @@
 #include "peripherals/nrf52832/rng.h"
 
 #include "nrf52832.h"
+#include "peripherals/nrf52832/ppi.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -59,11 +60,11 @@ PPI_TASK_HANDLER(rng_task_cb)
     // TODO: Implement
 }
 
-RNG_t *rng_new()
+NRF52_PERIPHERAL_CONSTRUCTOR(RNG, rng)
 {
     RNG_t *rng = (RNG_t *)malloc(sizeof(RNG_t));
 
-    ppi_add_peripheral(current_ppi, INSTANCE_RNG, rng_task_cb, rng);
+    ppi_add_peripheral(ctx.ppi, ctx.id, rng_task_cb, rng);
 
     return rng;
 }

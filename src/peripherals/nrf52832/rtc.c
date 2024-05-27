@@ -4,6 +4,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "peripherals/nrf52832/ppi.h"
+
 #define INT_TICK 0
 #define INT_OVRFLW 1
 #define INT_COMPARE0 16
@@ -138,16 +140,16 @@ PPI_TASK_HANDLER(rtc_task_handler)
     }
 }
 
-RTC_t *rtc_new(size_t cc_num, cpu_t **cpu, uint8_t id)
+NRF52_PERIPHERAL_CONSTRUCTOR(RTC, rtc, size_t cc_num)
 {
     assert(cc_num <= RTC_MAX_CC);
 
     RTC_t *rtc = (RTC_t *)malloc(sizeof(RTC_t));
     rtc->cc_num = cc_num;
-    rtc->cpu = cpu;
-    rtc->id = id;
+    rtc->cpu = ctx.cpu;
+    rtc->id = ctx.id;
 
-    ppi_add_peripheral(current_ppi, id, rtc_task_handler, rtc);
+    ppi_add_peripheral(ctx.ppi, ctx.id, rtc_task_handler, rtc);
 
     return rtc;
 }

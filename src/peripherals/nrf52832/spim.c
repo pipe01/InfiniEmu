@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "peripherals/nrf52832/easydma.h"
+#include "peripherals/nrf52832/ppi.h"
 
 enum
 {
@@ -176,12 +177,11 @@ OPERATION(spim)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-SPIM_t *spim_new(uint8_t id, bus_spi_t *spi)
+NRF52_PERIPHERAL_CONSTRUCTOR(SPIM, spim)
 {
     SPIM_t *spim = (SPIM_t *)malloc(sizeof(SPIM_t));
-    spim->bus = spi;
-    spim->id = id;
-    spim->frequency = 123123;
+    spim->bus = ctx.spi;
+    spim->id = ctx.id;
 
     return spim;
 }

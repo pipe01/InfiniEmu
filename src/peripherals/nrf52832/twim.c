@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "peripherals/nrf52832/easydma.h"
+#include "peripherals/nrf52832/ppi.h"
 
 enum
 {
@@ -138,11 +139,11 @@ OPERATION(twim)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-TWIM_t *twim_new(uint8_t id, bus_i2c_t *i2c)
+NRF52_PERIPHERAL_CONSTRUCTOR(TWIM, twim)
 {
     TWIM_t *twim = (TWIM_t *)calloc(1, sizeof(TWIM_t));
-    twim->i2c = i2c;
-    twim->id = id;
+    twim->i2c = ctx.i2c;
+    twim->id = ctx.id;
 
     return twim;
 }

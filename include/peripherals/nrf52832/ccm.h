@@ -2,4 +2,4 @@
 
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(CCM, ccm)
+NRF52_PERIPHERAL(CCM, ccm)

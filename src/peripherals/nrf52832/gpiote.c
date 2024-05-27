@@ -23,7 +23,7 @@ OPERATION(gpiote)
     return MEMREG_RESULT_OK;
 }
 
-GPIOTE_t *gpiote_new()
+NRF52_PERIPHERAL_CONSTRUCTOR(GPIOTE, gpiote)
 {
     return (GPIOTE_t *)malloc(sizeof(GPIOTE_t));
 }

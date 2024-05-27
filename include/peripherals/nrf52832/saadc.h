@@ -2,4 +2,4 @@
 
 #include "pins.h"
 
-PERIPHERAL(SAADC, saadc, pins_t *pins)
+NRF52_PERIPHERAL(SAADC, saadc)

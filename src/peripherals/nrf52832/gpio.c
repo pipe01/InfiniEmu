@@ -139,9 +139,9 @@ OPERATION(gpio)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-GPIO_t *gpio_new(pins_t *pins)
+NRF52_PERIPHERAL_CONSTRUCTOR(GPIO, gpio)
 {
     GPIO_t *gpio = (GPIO_t *)malloc(sizeof(GPIO_t));
-    gpio->pins = pins;
+    gpio->pins = ctx.pins;
     return gpio;
 }

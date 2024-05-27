@@ -19,7 +19,7 @@ OPERATION(ccm)
     return MEMREG_RESULT_OK;
 }
 
-CCM_t *ccm_new()
+NRF52_PERIPHERAL_CONSTRUCTOR(CCM, ccm)
 {
     return malloc(sizeof(CCM_t));
 }

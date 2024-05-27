@@ -14,4 +14,4 @@ typedef enum
     RESETREASON_NFC = 1 << 19,     // Reset due to wake up from System OFF mode by NFC field detect
 } nrf_resetreason;
 
-PERIPHERAL(POWER, power)
+NRF52_PERIPHERAL(POWER, power)

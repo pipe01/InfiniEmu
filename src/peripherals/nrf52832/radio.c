@@ -207,7 +207,7 @@ OPERATION(radio)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-RADIO_t *radio_new()
+NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
 {
     return (RADIO_t *)malloc(sizeof(RADIO_t));
 }

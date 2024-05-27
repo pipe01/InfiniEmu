@@ -1,3 +1,3 @@
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(WDT, wdt)
+NRF52_PERIPHERAL(WDT, wdt)

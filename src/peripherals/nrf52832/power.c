@@ -38,7 +38,7 @@ OPERATION(power)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-POWER_t *power_new()
+NRF52_PERIPHERAL_CONSTRUCTOR(POWER, power)
 {
-    return (POWER_t *)malloc(sizeof(POWER_t));
+    return malloc(sizeof(POWER_t));
 }

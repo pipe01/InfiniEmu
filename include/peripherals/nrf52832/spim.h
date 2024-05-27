@@ -4,4 +4,4 @@
 
 #define SPIM_ENABLE_VALUE 7
 
-PERIPHERAL(SPIM, spim, uint8_t id, bus_spi_t *spi)
+NRF52_PERIPHERAL(SPIM, spim)

@@ -53,7 +53,7 @@ OPERATION(wdt)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-WDT_t *wdt_new()
+NRF52_PERIPHERAL_CONSTRUCTOR(WDT, wdt)
 {
     return (WDT_t *)malloc(sizeof(WDT_t));
 }

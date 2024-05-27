@@ -2,4 +2,4 @@
 
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(CLOCK, clock)
+NRF52_PERIPHERAL(CLOCK, clock)
