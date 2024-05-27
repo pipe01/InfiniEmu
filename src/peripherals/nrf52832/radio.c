@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include "peripherals/nrf52832/ppi.h"
+
 enum
 {
     TASKS_TXEN = 0x000,
@@ -104,9 +106,41 @@ typedef union
     uint32_t value;
 } crccnf_t;
 
+typedef union
+{
+    struct
+    {
+        unsigned int READY_START : 1;
+        unsigned int END_DISABLE : 1;
+        unsigned int DISABLED_TXEN : 1;
+        unsigned int DISABLED_RXEN : 1;
+        unsigned int ADDRESS_RSSISTART : 1;
+        unsigned int END_START : 1;
+        unsigned int ADDRESS_BCSTART : 1;
+        unsigned int : 1;
+        unsigned int DISABLED_RSSISTOP : 1;
+    };
+    uint32_t value;
+} shorts_t;
+static_assert(sizeof(shorts_t) == 4, "shorts_t size is not 4 bytes");
+
+typedef enum
+{
+    STATE_DISABLED,  // No operations are going on inside the radio and the power consumption is at a minimum
+    STATE_RXRU,      // The radio is ramping up and preparing for reception
+    STATE_RXIDLE,    // The radio is ready for reception to start
+    STATE_RX,        // Reception has been started and the addresses enabled in the RXADDRESSES register are being monitored
+    STATE_TXRU,      // The radio is ramping up and preparing for transmission
+    STATE_TXIDLE,    // The radio is ready for transmission to start
+    STATE_TX,        // The radio is transmitting a packet
+    STATE_RXDISABLE, // The radio is disabling the receiver
+    STATE_TXDISABLE, // The radio is disabling the transmitter
+} radio_state_t;
+
 struct RADIO_inst_t
 {
     bool powered_on;
+    radio_state_t state;
     inten_t inten;
 
     uint32_t mode;
@@ -116,6 +150,7 @@ struct RADIO_inst_t
     pcnf0_t pcnf0;
     pcnf1_t pcnf1;
     modecnf0_t modecnf0;
+    shorts_t shorts;
 
     uint32_t txaddress, rxaddresses;
 
@@ -128,6 +163,89 @@ struct RADIO_inst_t
 void radio_reset(RADIO_t *radio)
 {
     radio->powered_on = false;
+    radio->state = STATE_DISABLED;
+}
+
+PPI_TASK_HANDLER(radio_task_handler)
+{
+    RADIO_t *radio = userdata;
+
+    switch (task)
+    {
+    case TASK_ID(TASKS_STOP):
+        switch (radio->state)
+        {
+        case STATE_TX:
+            radio->state = STATE_TXIDLE;
+            break;
+        case STATE_RX:
+            radio->state = STATE_RXIDLE;
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case TASK_ID(TASKS_TXEN):
+        switch (radio->state)
+        {
+        case STATE_DISABLED:
+            radio->state = STATE_TXRU;
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case TASK_ID(TASKS_RXEN):
+        switch (radio->state)
+        {
+        case STATE_DISABLED:
+            radio->state = STATE_RXRU;
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case TASK_ID(TASKS_START):
+        switch (radio->state)
+        {
+        case STATE_TXIDLE:
+            radio->state = STATE_TX;
+            break;
+        case STATE_RXIDLE:
+            radio->state = STATE_RX;
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case TASK_ID(TASKS_DISABLE):
+        switch (radio->state)
+        {
+        case STATE_TX:
+        case STATE_TXIDLE:
+        case STATE_TXRU:
+            radio->state = STATE_TXDISABLE;
+            break;
+        case STATE_RX:
+        case STATE_RXIDLE:
+        case STATE_RXRU:
+            radio->state = STATE_RXDISABLE;
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case TASK_ID(TASKS_RSSISTART):
+    case TASK_ID(TASKS_RSSISTOP):
+    case TASK_ID(TASKS_BCSTART):
+    case TASK_ID(TASKS_BCSTOP):
+        abort();
+    }
 }
 
 OPERATION(radio)
@@ -144,6 +262,30 @@ OPERATION(radio)
 
     switch (offset)
     {
+        OP_TASK(TASKS_TXEN)
+        OP_TASK(TASKS_RXEN)
+        OP_TASK(TASKS_START)
+        OP_TASK(TASKS_STOP)
+        OP_TASK(TASKS_DISABLE)
+        OP_TASK(TASKS_RSSISTART)
+        OP_TASK(TASKS_RSSISTOP)
+        OP_TASK(TASKS_BCSTART)
+        OP_TASK(TASKS_BCSTOP)
+        OP_EVENT(EVENTS_READY)
+        OP_EVENT(EVENTS_ADDRESS)
+        OP_EVENT(EVENTS_PAYLOAD)
+        OP_EVENT(EVENTS_END)
+        OP_EVENT(EVENTS_DISABLED)
+        OP_EVENT(EVENTS_DEVMATCH)
+        OP_EVENT(EVENTS_DEVMISS)
+        OP_EVENT(EVENTS_RSSIEND)
+        OP_EVENT(EVENTS_BCMATCH)
+        OP_EVENT(EVENTS_CRCOK)
+        OP_EVENT(EVENTS_CRCERROR)
+
+    case 0x200: // SHORTS
+        OP_RETURN_REG(radio->shorts.value, WORD);
+
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
             *value = radio->inten.value;
@@ -217,5 +359,9 @@ OPERATION(radio)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
 {
-    return (RADIO_t *)malloc(sizeof(RADIO_t));
+    RADIO_t *radio = malloc(sizeof(RADIO_t));
+
+    ppi_add_peripheral(ctx.ppi, ctx.id, radio_task_handler, radio);
+
+    return radio;
 }
