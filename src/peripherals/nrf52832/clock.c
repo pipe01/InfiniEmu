@@ -12,6 +12,8 @@ struct CLOCK_inst_t
     uint32_t lfclk_source;
     bool lfclk_running;
 
+    bool hfclk_running;
+
     uint32_t inten;
 };
 
@@ -44,11 +46,13 @@ OPERATION(clock)
 
     switch (offset)
     {
+        OP_TASK(TASKS_HFCLKSTART)
         OP_TASK(TASKS_LFCLKSTART)
+        OP_EVENT(EVENTS_HFCLKSTARTED)
         OP_EVENT(EVENTS_LFCLKSTARTED)
+        OP_EVENT(EVENTS_DONE)
+        OP_EVENT(EVENTS_CTTO)
 
-    case 0x10C: // EVENTS_DONE
-    case 0x110: // EVENTS_CTTO
     case 0x538: // CTIV
         OP_ASSERT_WRITE(op);
 
@@ -93,11 +97,23 @@ OPERATION(clock)
 
 PPI_TASK_HANDLER(clock_task_handler)
 {
-    assert(task == TASK_ID(TASKS_LFCLKSTART));
+    CLOCK_t *clock = userdata;
 
-    ((CLOCK_t *)userdata)->lfclk_running = true;
+    switch (task)
+    {
+    case TASK_ID(TASKS_HFCLKSTART):
+        clock->hfclk_running = true;
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_HFCLKSTARTED));
+        break;
 
-    ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LFCLKSTARTED));
+    case TASK_ID(TASKS_LFCLKSTART):
+        clock->lfclk_running = true;
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LFCLKSTARTED));
+        break;
+
+    default:
+        abort();
+    }
 }
 
 NRF52_PERIPHERAL_CONSTRUCTOR(CLOCK, clock)
