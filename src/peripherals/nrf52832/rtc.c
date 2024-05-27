@@ -6,12 +6,7 @@
 
 #include "peripherals/nrf52832/ppi.h"
 
-#define INT_TICK 0
-#define INT_OVRFLW 1
-#define INT_COMPARE0 16
-#define INT_COMPARE1 17
-#define INT_COMPARE2 18
-#define INT_COMPARE3 19
+#define TICK_INTERVAL 50
 
 typedef union
 {
@@ -167,7 +162,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
     {
     case TASK_ID(TASKS_START):
         if (!rtc->running)
-            ticker_add(rtc->ticker, rtc_tick, rtc, 1 << rtc->prescaler);
+            ticker_add(rtc->ticker, rtc_tick, rtc, TICK_INTERVAL);
 
         rtc->running = true;
         break;
