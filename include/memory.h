@@ -68,7 +68,7 @@ typedef enum {
 
 #define OP_RETURN_REG(reg, size) OP_RETURN_REG_RESULT(reg, size, MEMREG_RESULT_OK)
 
-typedef memreg_op_result_t (*memreg_operation_t)(uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata);
+typedef memreg_op_result_t (*memreg_operation_t)(uint32_t base, uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata);
 
 typedef struct memreg_inst_t memreg_t;
 

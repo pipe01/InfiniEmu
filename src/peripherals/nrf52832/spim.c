@@ -154,5 +154,8 @@ SPIM_t *spim_new(uint8_t id, bus_spi_t *spi)
     SPIM_t *spim = (SPIM_t *)malloc(sizeof(SPIM_t));
     spim->bus = spi;
     spim->id = id;
+
+    ppi_on_task(current_ppi, PPI_TASK_SPIM_START, spim_start_handler, spim);
+
     return spim;
 }

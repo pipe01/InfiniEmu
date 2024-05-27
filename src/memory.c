@@ -20,7 +20,7 @@ struct memreg_inst_t
     memreg_operation_t operation;
 };
 
-memreg_op_result_t simple_operation(uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
+memreg_op_result_t simple_operation(uint32_t base, uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
 {
     uint8_t *data = (uint8_t *)userdata;
 
@@ -103,7 +103,7 @@ void memreg_free(memreg_t *region)
 
 void memreg_reset(memreg_t *region)
 {
-    region->operation(0, NULL, OP_RESET, region->userdata);
+    region->operation(0, 0, NULL, OP_RESET, region->userdata);
 }
 
 void memreg_reset_all(memreg_t *region)
@@ -157,7 +157,7 @@ void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32
     {
         if (addr >= region->start && addr < region->end)
         {
-            result = region->operation(addr - region->start, value, op, region->userdata);
+            result = region->operation(region->start, addr - region->start, value, op, region->userdata);
 
             if (result == MEMREG_RESULT_OK)
                 return;

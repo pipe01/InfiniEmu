@@ -7,6 +7,9 @@
 #define MAX_CHANNELS 32
 #define MAX_SUBSCRIBERS 10
 
+#define TASKS_COUNT ((1 << 16) - 1)
+#define EVENTS_COUNT ((1 << 16) - 1)
+
 _Thread_local PPI_t *current_ppi;
 
 typedef struct
@@ -29,8 +32,8 @@ typedef struct
 
 struct PPI_t
 {
-    task_t tasks[PPI_TASKS_COUNT];
-    event_t events[PPI_EVENTS_COUNT];
+    task_t *tasks[TASKS_COUNT];
+    event_t *events[EVENTS_COUNT];
 };
 
 OPERATION(ppi)
@@ -53,38 +56,53 @@ PPI_t *ppi_new()
     return (PPI_t *)calloc(1, sizeof(PPI_t));
 }
 
-void ppi_fire_task(PPI_t *ppi, ppi_tasks_t task)
+void ppi_fire_task(PPI_t *ppi, uint16_t task_id)
 {
-    task_t *task_inst = &ppi->tasks[task];
+    task_t *task_inst = ppi->tasks[task_id];
 
-    if (task_inst->cb)
-        task_inst->cb(task, task_inst->userdata);
+    if (task_inst)
+        task_inst->cb(task_id, task_inst->userdata);
+    else
+        abort();
 }
 
-void ppi_on_task(PPI_t *ppi, ppi_tasks_t task, ppi_task_cb_t cb, void *userdata)
+void ppi_on_task(PPI_t *ppi, uint16_t task_id, ppi_task_cb_t cb, void *userdata)
 {
-    task_t *task_inst = &ppi->tasks[task];
+    task_t **task_inst = &ppi->tasks[task_id];
 
-    if (task_inst->cb)
+    if (task_inst)
         abort();
 
-    task_inst->cb = cb;
-    task_inst->userdata = userdata;
+    *task_inst = malloc(sizeof(task_t));
+    (*task_inst)->cb = cb;
+    (*task_inst)->userdata = userdata;
 }
 
-void ppi_fire_event(PPI_t *ppi, ppi_events_t event)
+static void ppi_ensure_event(PPI_t *ppi, uint16_t event_id)
 {
-    ppi->events[event].is_fired = true;
+    if (!ppi->events[event_id])
+        ppi->events[event_id] = calloc(1, sizeof(event_t));
+}
+
+void ppi_fire_event(PPI_t *ppi, uint16_t event_id)
+{
+    ppi_ensure_event(ppi, event_id);
+
+    ppi->events[event_id]->is_fired = true;
 
     // TODO: Implement
 }
 
-void ppi_clear_event(PPI_t *ppi, ppi_events_t event)
+void ppi_clear_event(PPI_t *ppi, uint16_t event_id)
 {
-    ppi->events[event].is_fired = false;
+    ppi_ensure_event(ppi, event_id);
+
+    ppi->events[event_id]->is_fired = false;
 }
 
-bool ppi_event_is_set(PPI_t *ppi, ppi_events_t event)
+bool ppi_event_is_set(PPI_t *ppi, uint16_t event_id)
 {
-    return ppi->events[event].is_fired;
+    ppi_ensure_event(ppi, event_id);
+
+    return ppi->events[event_id]->is_fired;
 }
