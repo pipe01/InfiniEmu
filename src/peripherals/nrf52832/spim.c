@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "util.h"
 #include "peripherals/nrf52832/easydma.h"
 
 enum
@@ -95,7 +94,11 @@ OPERATION(spim)
 
     if (op == OP_RESET)
     {
-        CLEAR_AFTER(SPIM_t, spim, enabled);
+        *spim = (SPIM_t){
+            .id = spim->id,
+            .bus = spim->bus,
+        };
+
         return MEMREG_RESULT_OK;
     }
 
@@ -178,6 +181,7 @@ SPIM_t *spim_new(uint8_t id, bus_spi_t *spi)
     SPIM_t *spim = (SPIM_t *)malloc(sizeof(SPIM_t));
     spim->bus = spi;
     spim->id = id;
+    spim->frequency = 123123;
 
     return spim;
 }

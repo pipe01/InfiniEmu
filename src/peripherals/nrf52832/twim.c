@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "util.h"
 #include "peripherals/nrf52832/easydma.h"
 
 enum
@@ -79,7 +78,11 @@ OPERATION(twim)
 
     if (op == OP_RESET)
     {
-        CLEAR_AFTER(TWIM_t, twim, enabled);
+        *twim = (TWIM_t){
+            .id = twim->id,
+            .i2c = twim->i2c,
+        };
+
         return MEMREG_RESULT_OK;
     }
 
