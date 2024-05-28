@@ -1499,13 +1499,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_IT:
-    {
         assert(i->size == 2);
         assert(i->bytes[1] == 0xBF);
 
         cpu->itstate.value = i->bytes[0];
         break;
-    }
 
     case ARM_INS_LDM:
         assert(detail->op_count >= 2);
@@ -2488,8 +2486,8 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
     {
         uint32_t value = cpu->xpsr.value;
         value &= ~0x600F800; // Remove EPSR.IT bits
-        value |= (cpu->itstate.value >> 6) << 25;
-        value |= (cpu->itstate.value & 0x3F) << 10;
+        value |= (cpu->itstate.value & 0x3) << 25;
+        value |= (cpu->itstate.value & 0xFC) << 8;
         value |= cpu_get_active_exception(cpu) & 0x1FF;
         return value;
     }
@@ -2529,7 +2527,7 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
         cpu->xpsr.value = value;
 
         if (can_update_it)
-            cpu->itstate.value = ((value >> 10) & 0x3F) | ((value >> 25) & 0x3) << 6;
+            cpu->itstate.value = ((value >> 25) & 0x3) | (((value >> 10) & 0x3F) << 2);
 
         break;
 
