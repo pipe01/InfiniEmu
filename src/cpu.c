@@ -1985,7 +1985,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         op0 = cpu_reg_read(cpu, detail->operands[0].reg);
 
-        for (size_t n = 0; n < detail->op_count; n++)
+        for (size_t n = 1; n < detail->op_count; n++)
         {
             assert(detail->operands[n].type == ARM_OP_REG);
 
