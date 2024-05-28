@@ -1296,7 +1296,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_IMM);
 
-        value = cpu_reg_read(cpu, ARM_REG_PC);
+        value = ALIGN4(cpu_reg_read(cpu, ARM_REG_PC));
 
         if (detail->operands[1].subtracted)
             value -= detail->operands[1].imm;
