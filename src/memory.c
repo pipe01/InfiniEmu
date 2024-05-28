@@ -20,7 +20,7 @@ struct memreg_inst_t
     memreg_operation_t operation;
 };
 
-memreg_op_result_t simple_operation(uint32_t base, uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
+static memreg_op_result_t simple_operation(uint32_t base, uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
 {
     uint8_t *data = (uint8_t *)userdata;
 
@@ -57,9 +57,44 @@ memreg_op_result_t simple_operation(uint32_t base, uint32_t offset, uint32_t *va
     return MEMREG_RESULT_OK;
 }
 
+static memreg_op_result_t simple_operation_readonly(uint32_t base, uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
+{
+    uint8_t *data = (uint8_t *)userdata;
+
+    switch (op)
+    {
+    case OP_READ_BYTE:
+        *value = data[offset];
+        break;
+
+    case OP_READ_HALFWORD:
+        *value = READ_UINT16(data, offset);
+        break;
+
+    case OP_READ_WORD:
+        *value = READ_UINT32(data, offset);
+        break;
+
+    case OP_WRITE_BYTE:
+    case OP_WRITE_HALFWORD:
+    case OP_WRITE_WORD:
+        return MEMREG_RESULT_INVALID_ACCESS;
+
+    default:
+        return MEMREG_RESULT_UNHANDLED;
+    }
+
+    return MEMREG_RESULT_OK;
+}
+
 memreg_t *memreg_new_simple(uint32_t start, uint8_t *data, size_t data_size)
 {
     return memreg_new_operation(start, data_size, simple_operation, data);
+}
+
+memreg_t *memreg_new_simple_readonly(uint32_t start, const uint8_t *data, size_t data_size)
+{
+    return memreg_new_operation(start, data_size, simple_operation_readonly, (uint8_t *)data);
 }
 
 memreg_t *memreg_new_simple_copy(uint32_t start, const uint8_t *data, size_t data_size)

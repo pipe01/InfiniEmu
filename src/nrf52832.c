@@ -89,7 +89,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     memcpy(flash, program, program_size);
     memset(flash + program_size, 0xFF, NRF52832_FLASH_SIZE - program_size); // 0xFF out the rest of the flash
 
-    chip->mem = memreg_new_simple(0, flash, NRF52832_FLASH_SIZE);
+    chip->mem = memreg_new_simple_readonly(0, flash, NRF52832_FLASH_SIZE);
     memreg_t *last = chip->mem;
 
     last = memreg_set_next(last, memreg_new_simple(x(2000, 0000), sram, sram_size));
