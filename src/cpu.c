@@ -730,7 +730,6 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
         }
 
         cpu_reg_write(cpu, ARM_REG_FPSCR, memreg_read(cpu->mem, ptr));
-
     }
 
     cpu->control.FPCA = frametype == 0;
@@ -900,7 +899,7 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_
 
     uint32_t address = cpu_reg_read(cpu, detail->operands[1].mem.base);
     uint32_t offset;
-    
+
     if (detail->operands[1].mem.base == ARM_REG_PC)
         address &= x(FFFF, FFFC); // Align PC value when used as a base register according to A5.1.2
 
@@ -918,16 +917,30 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_
             offset += (cpu_reg_read(cpu, detail->operands[1].mem.index) * detail->operands[1].mem.scale) << detail->operands[1].shift.value;
     }
 
-    uint32_t mask = size == 1   ? 0xFF
-                    : size == 2 ? 0xFFFF
-                                : x(FFFF, FFFF);
-
     uint32_t offsetAddr = address + (detail->post_index ? 0 : offset);
-    uint32_t value = memreg_read(cpu->mem, offsetAddr) & mask;
+    uint32_t value;
+
+    switch (size)
+    {
+    case SIZE_WORD:
+        value = memreg_read(cpu->mem, offsetAddr);
+        break;
+
+    case SIZE_HALFWORD:
+        value = memreg_read_halfword(cpu->mem, offsetAddr);
+        break;
+
+    case SIZE_BYTE:
+        value = memreg_read_byte(cpu->mem, offsetAddr);
+        break;
+
+    default:
+        abort();
+    }
 
     if (sign_extend)
     {
-        bool sign_bit = (value & ((mask + 1) >> 1)) != 0;
+        bool sign_bit = (value & (1 << ((size * 8) - 1))) != 0;
 
         if (sign_bit)
         {
@@ -2263,7 +2276,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         cpu_reg_write(cpu, detail->operands[0].reg, scb_fp_get_fpscr(cpu->scb_fp));
         break;
-        
+
     case ARM_INS_VMSR:
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
