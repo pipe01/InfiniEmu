@@ -20,37 +20,32 @@ static_assert(sizeof(runlog_ev_type) == 1);
 
 struct runlog_t
 {
-    int fd;
-    pthread_mutex_t mutex;
+    FILE *file;
 
     runlog_registers_t regs;
 };
 
-runlog_t *runlog_new(int fd)
+runlog_t *runlog_new(FILE *file)
 {
     runlog_t *runlog = calloc(1, sizeof(runlog_t));
-    runlog->fd = fd;
-
-    pthread_mutex_init(&runlog->mutex, NULL);
+    runlog->file = file;
 
     return runlog;
 }
 
 void runlog_free(runlog_t *runlog)
 {
-    pthread_mutex_destroy(&runlog->mutex);
+    fflush(runlog->file);
     free(runlog);
 }
 
 static void runlog_write(runlog_t *runlog, const void *buf, size_t n)
 {
-    pthread_mutex_lock(&runlog->mutex);
-    if (write(runlog->fd, buf, n) != (ssize_t)n)
+    if (fwrite(buf, n, 1, runlog->file) == 0)
     {
         perror("write");
         exit(1);
     }
-    pthread_mutex_unlock(&runlog->mutex);
 }
 
 static inline void runlog_write_type(runlog_t *runlog, runlog_ev_type type)

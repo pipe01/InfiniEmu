@@ -73,6 +73,7 @@ typedef memreg_op_result_t (*memreg_operation_t)(uint32_t base, uint32_t offset,
 typedef struct memreg_inst_t memreg_t;
 
 memreg_t *memreg_new_simple(uint32_t start, uint8_t *data, size_t data_size);
+memreg_t *memreg_new_simple_readonly(uint32_t start, const uint8_t *data, size_t data_size);
 memreg_t *memreg_new_simple_copy(uint32_t start, const uint8_t *data, size_t data_size);
 memreg_t *memreg_new_operation(uint32_t start, size_t size, memreg_operation_t operation, void *data);
 void memreg_free(memreg_t *region);

@@ -36,7 +36,7 @@ int main(int argc, char **argv)
         case 'l':
             runlog_path = optarg;
             break;
-        
+
         case 'b':
             big_ram = true;
             break;
@@ -79,6 +79,8 @@ int main(int argc, char **argv)
     size_t rtt_counter = 0;
 #endif
 
+    runlog_t *runlog = NULL;
+
     if (runlog_path)
     {
         FILE *f = fopen(runlog_path, "wb");
@@ -88,7 +90,7 @@ int main(int argc, char **argv)
             return -1;
         }
 
-        runlog_t *runlog = runlog_new(fileno(f));
+        runlog = runlog_new(f);
 
         runlog_record_load_program(runlog, program, fsize);
 
@@ -104,47 +106,50 @@ int main(int argc, char **argv)
 
         gdb_t *gdb = gdb_new(nrf, true);
         gdb_start(gdb);
-
-        return 0;
     }
-
+    else
+    {
 #ifdef ENABLE_MEASUREMENT
-    struct timeval tv_start, tv_now;
-    gettimeofday(&tv_start, NULL);
+        struct timeval tv_start, tv_now;
+        gettimeofday(&tv_start, NULL);
 
-    size_t inst_counter = 0;
+        size_t inst_counter = 0;
 #endif
 
-    for (;;)
-    {
-        pinetime_step(pt);
+        for (;;)
+        {
+            pinetime_step(pt);
 
 #ifdef ENABLE_MEASUREMENT
-        if (++inst_counter == 1000000)
-        {
-            gettimeofday(&tv_now, NULL);
+            if (++inst_counter == 1000000)
+            {
+                gettimeofday(&tv_now, NULL);
 
-            long elapsed = (tv_now.tv_sec - tv_start.tv_sec) * 1000000 + (tv_now.tv_usec - tv_start.tv_usec);
+                long elapsed = (tv_now.tv_sec - tv_start.tv_sec) * 1000000 + (tv_now.tv_usec - tv_start.tv_usec);
 
-            tv_start = tv_now;
+                tv_start = tv_now;
 
-            printf("Elapsed: %lu us\n", elapsed);
-            printf("Instructions ran: %lu\n", inst_counter);
-            printf("Instructions per second: %.0f\n", (1000000.f / elapsed) * inst_counter);
-            printf("\n");
+                printf("Elapsed: %lu us\n", elapsed);
+                printf("Instructions ran: %lu\n", inst_counter);
+                printf("Instructions per second: %.0f\n", (1000000.f / elapsed) * inst_counter);
+                printf("\n");
 
-            inst_counter = 0;
-        }
+                inst_counter = 0;
+            }
 #endif
 
 #ifdef ENABLE_SEGGER_RTT
-        if ((rtt_counter++ % 2000) == 0)
-        {
-            rtt_find_control(rtt);
-            rtt_flush_buffers(rtt);
-        }
+            if ((rtt_counter++ % 2000) == 0)
+            {
+                rtt_find_control(rtt);
+                rtt_flush_buffers(rtt);
+            }
 #endif
+        }
     }
+
+    if (runlog)
+        runlog_free(runlog);
 
     return 0;
 }

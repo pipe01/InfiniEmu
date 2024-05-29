@@ -69,7 +69,7 @@ const char memory_map_xml[] = QUOTE(
         <memory type="flash" start="0x10001000" length="0x400">
             <property name="blocksize">0x400</property>
         </memory>
-        <memory type="ram" start="0x20000000" length="0x20000" />
+        <memory type="ram" start="0x20000000" length="0x10000" />
         <memory type="ram" start="0xe0000000" length="0x40000" />
     </memory-map>
 );
@@ -85,6 +85,7 @@ typedef struct
     gdb_t *gdb;
     bool noack;
     bool extended;
+    bool wants_quit;
 } gdbstub;
 
 struct gdb_t
@@ -376,6 +377,12 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
     else if (strcmp(command, "step") == 0)
     {
         nrf52832_step(gdb->gdb->nrf);
+
+        send_response_str(gdb->fd, "OK");
+    }
+    else if (strcmp(command, "quit") == 0)
+    {
+        gdb->wants_quit = true;
 
         send_response_str(gdb->fd, "OK");
     }
@@ -921,6 +928,9 @@ void gdb_start(gdb_t *gdb)
 
         gdb->current_stub = NULL;
         close(client_fd);
+
+        if (stub.wants_quit)
+            break;
     }
 }
 
