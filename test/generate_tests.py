@@ -254,7 +254,7 @@ with open("main.c", "w") as main:
 
                 memcounter += 1
 
-            main.write("cpu_t *cpu = cpu_new(program, sizeof(program), mem_first, 0);\n")
+            main.write("cpu_t *cpu = cpu_new(program, sizeof(program), mem_first, 512, 3);\n")
 
             if test.setup.registers is not None:
                 for reg in test.setup.registers.core:
@@ -281,7 +281,7 @@ with open("main.c", "w") as main:
 
             def test_flag(expected: bool | None, flag_const: str):
                 if expected is not None:
-                    main.write(f"flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_APSR) & (1 << {flag_const})) != 0;\n")
+                    main.write(f"flag_value = (cpu_sysreg_read(cpu, ARM_SYSREG_XPSR) & (1 << {flag_const})) != 0;\n")
                     main.write(f"if (flag_value != {'true' if expected else 'false'})\n")
                     main.write(f'\tprintf("    [!] Flag {flag_const}: expected {1 if expected else 0}, got %d\\n", flag_value);\n')
                 pass

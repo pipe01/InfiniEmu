@@ -59,7 +59,7 @@ gen-test:
 	cd $(TDIR) && python3 generate_tests.py
 .PHONY: gen-test
 
-build-test: obj/src/cpu.o obj/src/memory.o $(patsubst %.c,obj/%.o,$(wildcard src/peripherals/*.c)) test/main.o
+build-test: obj/src/cpu.o obj/src/memory.o obj/src/runlog.o obj/src/fault.o $(patsubst %.c,obj/%.o,$(wildcard src/peripherals/*.c)) test/main.o
 	$(CC) -o $(TEST_BIN) $^ $(CFLAGS) $(LIBS)
 .PHONY: build-test
 
