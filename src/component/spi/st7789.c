@@ -61,8 +61,10 @@ typedef union
 
 struct st7789_t
 {
+    bool on;
     bool sleeping;
     bool inverted;
+    bool normal_mode;
 
     value16_t xstart, xend, ystart, yend;
 
@@ -80,6 +82,10 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
     st7789_t *st7789 = (st7789_t *)userdata;
 
     assert(data_size >= 1);
+
+    // Some commands will send extra data after the command byte, however this data comes
+    // on a separate I2C write. When handling these commands we set the expecting_data to
+    // the number of bytes we expect to receive.
 
     if (st7789->expecting_data)
     {
@@ -157,6 +163,10 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
             }
             break;
 
+        case Command_VdvSet:
+            // Ignore
+            break;
+
         default:
             abort();
         }
@@ -192,13 +202,29 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
     case Command_RowAddressSet:
         st7789->expecting_data = 4;
         break;
-    
+
     case Command_DisplayInversionOff:
         st7789->inverted = false;
         break;
-    
+
     case Command_DisplayInversionOn:
         st7789->inverted = true;
+        break;
+
+    case Command_NormalModeOn:
+        st7789->normal_mode = true;
+        break;
+
+    case Command_VdvSet:
+        st7789->expecting_data = 1;
+        break;
+
+    case Command_DisplayOn:
+        st7789->on = true;
+        break;
+
+    case Command_DisplayOff:
+        st7789->on = false;
         break;
 
     default:
