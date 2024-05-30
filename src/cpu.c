@@ -2313,12 +2313,9 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         uint8_t reg_count = detail->op_count - list_start;
 
-        uint32_t address = cpu_reg_read(cpu, reg_base) + 4 * reg_count;
-
-        if (detail->writeback || i->id == ARM_INS_VPOP)
-            cpu_reg_write(cpu, reg_base, address);
-
         bool single_regs = detail->operands[list_start].reg >= ARM_REG_S0 && detail->operands[list_start].reg <= ARM_REG_S31;
+
+        uint32_t address = cpu_reg_read(cpu, reg_base);
 
         for (size_t n = list_start; n < reg_count; n++)
         {
@@ -2340,6 +2337,9 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
                 address += 8;
             }
         }
+
+        if (detail->writeback || i->id == ARM_INS_VPOP)
+            cpu_reg_write(cpu, reg_base, address);
 
         break;
     }
@@ -2432,12 +2432,12 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         uint8_t reg_count = detail->op_count - list_start;
 
-        uint32_t address = cpu_reg_read(cpu, reg_base) - 4 * reg_count;
+        bool single_regs = detail->operands[list_start].reg >= ARM_REG_S0 && detail->operands[list_start].reg <= ARM_REG_S31;
+
+        uint32_t address = cpu_reg_read(cpu, reg_base) - (single_regs ? 4 : 8) * reg_count;
 
         if (detail->writeback || i->id == ARM_INS_VPUSH)
             cpu_reg_write(cpu, reg_base, address);
-
-        bool single_regs = detail->operands[list_start].reg >= ARM_REG_S0 && detail->operands[list_start].reg <= ARM_REG_S31;
 
         for (size_t n = list_start; n < reg_count; n++)
         {
