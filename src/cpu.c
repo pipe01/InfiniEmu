@@ -2288,6 +2288,18 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
     }
 
+    case ARM_INS_VMOV:
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[0].reg >= ARM_REG_S0 && detail->operands[0].reg <= ARM_REG_S31);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->operands[1].reg >= ARM_REG_R0 && detail->operands[1].reg <= ARM_REG_R12);
+
+        cpu_execute_fp_check(cpu);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, cpu_reg_read(cpu, detail->operands[1].reg));
+        break;
+
     case ARM_INS_VMRS:
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
@@ -2310,28 +2322,52 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         scb_fp_set_fpscr(cpu->scb_fp, cpu_reg_read(cpu, detail->operands[1].reg));
         break;
 
+    case ARM_INS_VPUSH:
     case ARM_INS_VSTMDB:
     {
-        assert(detail->op_count >= 2);
-        assert(detail->operands[0].type == ARM_OP_REG);
+        arm_reg reg_base;
+        size_t list_start;
+
+        if (i->id == ARM_INS_VPUSH)
+        {
+            assert(detail->op_count >= 1);
+
+            reg_base = ARM_REG_SP;
+            list_start = 0;
+        }
+        else
+        {
+            assert(detail->op_count >= 2);
+            assert(detail->operands[0].type == ARM_OP_REG);
+
+            reg_base = detail->operands[0].reg;
+            list_start = 1;
+        }
 
         cpu_execute_fp_check(cpu);
 
-        uint8_t reg_count = detail->op_count - 1;
+        uint8_t reg_count = detail->op_count - list_start;
 
-        uint32_t address = OPERAND_REG(0) - 4 * reg_count;
+        uint32_t address = cpu_reg_read(cpu, reg_base) - 4 * reg_count;
 
         if (detail->writeback)
-            cpu_reg_write(cpu, detail->operands[0].reg, address);
+            cpu_reg_write(cpu, reg_base, address);
 
-        bool single_regs = detail->operands[1].reg >= ARM_REG_S0 && detail->operands[1].reg <= ARM_REG_S31;
+        bool single_regs = detail->operands[list_start].reg >= ARM_REG_S0 && detail->operands[list_start].reg <= ARM_REG_S31;
 
-        for (size_t n = 0; n < reg_count; n++)
+        for (size_t n = list_start; n < reg_count; n++)
         {
             if (single_regs)
-                memreg_write(cpu->mem, address, cpu_reg_read(cpu, detail->operands[n + 1].reg), SIZE_WORD);
+            {
+                memreg_write(cpu->mem, address, cpu_reg_read(cpu, detail->operands[n].reg), SIZE_WORD);
+            }
             else
-                abort(); // TODO: Implement
+            {
+                assert(detail->operands[n].reg >= ARM_REG_D0 && detail->operands[n].reg <= ARM_REG_D31);
+
+                memreg_write(cpu->mem, address, cpu->d[detail->operands[n].reg - ARM_REG_D0].lower, SIZE_WORD);
+                memreg_write(cpu->mem, address + 4, cpu->d[detail->operands[n].reg - ARM_REG_D0].upper, SIZE_WORD);
+            }
 
             address += 4;
         }
