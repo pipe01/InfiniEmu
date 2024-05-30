@@ -148,9 +148,9 @@ func CommandView(modifier, arg string) error {
 			fmt.Printf("%s\t0x%08x\n", i.String(), currentFrame.Registers[i])
 		}
 	} else {
-		baseAddr, err := parseInt(arg)
+		baseAddr, err := EvaluateExpression(arg, ExpressionContext{Frames: frames.Until(frameIndex)})
 		if err != nil {
-			return errors.New("invalid address")
+			return err
 		}
 
 		count := 1

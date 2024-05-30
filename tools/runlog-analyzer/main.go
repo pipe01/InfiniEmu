@@ -38,6 +38,8 @@ func main() {
 	}
 	defer f.Close()
 
+	fmt.Println("Loading frames...")
+
 	frames, err = ReadFrames(f)
 	if err != nil {
 		log.Fatalf("failed to read frames: %v", err)
