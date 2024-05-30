@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include "fault.h"
+
 typedef enum
 {
     Command_SoftwareReset = 0x01,
@@ -22,6 +24,13 @@ typedef enum
     Command_ColMod = 0x3a,
     Command_VdvSet = 0xc4,
 } command_t;
+
+enum
+{
+    RGB_FORMAT_12bpp = 3,
+    RGB_FORMAT_16bpp = 5,
+    RGB_FORMAT_18bpp = 6,
+};
 
 typedef union
 {
@@ -66,11 +75,30 @@ struct st7789_t
     bool inverted;
     bool normal_mode;
 
+    colmod_t colmod;
     value16_t xstart, xend, ystart, yend;
 
     command_t command;
     size_t expecting_data;
 };
+
+static inline int st7789_bpp(uint8_t bpp)
+{
+    switch (bpp)
+    {
+    case RGB_FORMAT_12bpp:
+        return 12;
+
+    case RGB_FORMAT_16bpp:
+        return 16;
+
+    case RGB_FORMAT_18bpp:
+        return 18;
+
+    default:
+        fault_take(FAULT_UNKNOWN);
+    }
+}
 
 size_t st7789_read(uint8_t *data, size_t data_size, void *userdata)
 {
@@ -84,21 +112,29 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
     assert(data_size >= 1);
 
     // Some commands will send extra data after the command byte, however this data comes
-    // on a separate I2C write. When handling these commands we set the expecting_data to
+    // on a separate SPI write. When handling these commands we set the expecting_data to
     // the number of bytes we expect to receive.
 
     if (st7789->expecting_data)
     {
+        if (st7789->command == Command_WriteToRam)
+        {
+            assert(data_size <= st7789->expecting_data);
+
+            st7789->expecting_data -= data_size;
+            return;
+        }
+
         assert(data_size == 1);
 
         switch (st7789->command)
         {
         case Command_ColMod:
         {
-            colmod_t colmod = (colmod_t){.value = data[0]};
+            st7789->colmod = (colmod_t){.value = data[0]};
 
-            assert(colmod.ctrl_color_format == 5);
-            assert(colmod.rgb_color_format == 5);
+            assert(st7789->colmod.ctrl_color_format == 5);
+            assert(st7789->colmod.rgb_color_format == RGB_FORMAT_16bpp);
             break;
         }
 
@@ -226,9 +262,22 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
     case Command_DisplayOff:
         st7789->on = false;
         break;
+        
+    case Command_WriteToRam:
+    {
+        uint16_t width = st7789->xend.value - st7789->xstart.value + 1;
+        uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
+        uint8_t bpp = st7789_bpp(st7789->colmod.rgb_color_format);
+        size_t bytes = (width * height * bpp) / 8;
+
+        assert(bytes > 0);
+
+        st7789->expecting_data = bytes;
+        break;
+    }
 
     default:
-        abort();
+        fault_take(FAULT_I2C_UNKNOWN_COMMAND);
     }
 }
 

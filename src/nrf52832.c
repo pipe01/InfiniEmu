@@ -95,7 +95,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     last = memreg_set_next(last, memreg_new_simple(x(2000, 0000), sram, sram_size));
 
     // PPI must be created first to allow for other peripherals to subscribe to it
-    NEW_PERIPH(chip, PPI, ppi, ppi, x(4001, F000), 0x1000);
+    NEW_PERIPH(chip, PPI, ppi, ppi, x(4001, F000), 0x1000, &chip->cpu);
     current_ppi = chip->ppi;
 
     nrf52_peripheral_context_t ctx = {
