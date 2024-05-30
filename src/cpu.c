@@ -2500,7 +2500,7 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
     case ARM_SYSREG_XPSR:
     {
         uint32_t value = cpu->xpsr.value;
-        value &= ~0x600F800; // Remove EPSR.IT bits
+        value &= ~0x600FC00; // Remove EPSR.IT bits
         value |= (cpu->itstate.value & 0x3) << 25;
         value |= (cpu->itstate.value & 0xFC) << 8;
         value |= cpu_get_active_exception(cpu) & 0x1FF;
