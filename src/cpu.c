@@ -2003,6 +2003,35 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
+    case ARM_INS_SMLABB:
+    case ARM_INS_SMLABT:
+    case ARM_INS_SMLATB:
+    case ARM_INS_SMLATT:
+    {
+        assert(detail->op_count == 4);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND_REG(2);
+
+        int16_t a, b;
+
+        if (i->id == ARM_INS_SMLABB || i->id == ARM_INS_SMLABT)
+            a = op0 & 0xFFFF;
+        else
+            a = (op0 >> 16) & 0xFFFF;
+
+        if (i->id == ARM_INS_SMLABB || i->id == ARM_INS_SMLATB)
+            b = op1 & 0xFFFF;
+        else
+            b = (op1 >> 16) & 0xFFFF;
+
+        int32_t result = (int32_t)a * b + OPERAND_REG(3);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, result);
+        break;
+    }
+
     case ARM_INS_SMULBB:
     case ARM_INS_SMULBT:
     case ARM_INS_SMULTB:
