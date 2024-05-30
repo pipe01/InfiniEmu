@@ -363,8 +363,9 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
     char *data_end = strchr(msg, '#');
     size_t hex_len = data_end - msg;
 
-    char command[hex_len / 2 + 1];
-    command[sizeof(command) - 1] = 0;
+    size_t cmd_len = hex_len / 2;
+    char command[cmd_len + 1];
+    command[cmd_len] = 0;
 
     parse_hex(msg, hex_len, (uint8_t *)command);
 
@@ -385,6 +386,35 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
         gdb->wants_quit = true;
 
         send_response_str(gdb->fd, "OK");
+    }
+    else if (strncmp(command, "reg ", 4) == 0 && cmd_len > 4)
+    {
+        const char *arg = command + 4;
+
+        if (arg[0] == 's' && cmd_len >= 6)
+        {
+            long num = strtol(arg + 1, NULL, 10);
+
+            if (num >= 0 && num <= 31)
+            {
+                uint32_t value = cpu_reg_read(nrf52832_get_cpu(gdb->gdb->nrf), ARM_REG_S0 + num);
+
+                char resp[15];
+                int resp_len = snprintf(resp, sizeof(resp), "0x%08x\n", value);
+
+                send_response_bytes(gdb->fd, (uint8_t *)resp, resp_len);
+            }
+            else
+            {
+                const char *resp = "Invalid scalar register number\n";
+                send_response_bytes(gdb->fd, (uint8_t *)resp, strlen(resp));
+            }
+        }
+        else
+        {
+            const char *resp = "Invalid register\n";
+            send_response_bytes(gdb->fd, (uint8_t *)resp, strlen(resp));
+        }
     }
     else
     {
