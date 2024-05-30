@@ -47,6 +47,7 @@ OPERATION(clock)
     switch (offset)
     {
         OP_TASK(TASKS_HFCLKSTART)
+        OP_TASK(TASKS_HFCLKSTOP)
         OP_TASK(TASKS_LFCLKSTART)
         OP_EVENT(EVENTS_HFCLKSTARTED)
         OP_EVENT(EVENTS_LFCLKSTARTED)
@@ -71,6 +72,12 @@ OPERATION(clock)
             *value = clock->inten;
         else
             clock->inten &= ~*value;
+        return MEMREG_RESULT_OK;
+
+    case 0x40C: // HFCLKSTAT
+        OP_ASSERT_READ(op);
+
+        *value = clock->hfclk_running ? 1 : 0;
         return MEMREG_RESULT_OK;
 
     case 0x418: // LFCLKSTAT
@@ -104,6 +111,10 @@ PPI_TASK_HANDLER(clock_task_handler)
     case TASK_ID(TASKS_HFCLKSTART):
         clock->hfclk_running = true;
         ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_HFCLKSTARTED));
+        break;
+
+    case TASK_ID(TASKS_HFCLKSTOP):
+        clock->hfclk_running = false;
         break;
 
     case TASK_ID(TASKS_LFCLKSTART):
