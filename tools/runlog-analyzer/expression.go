@@ -111,6 +111,8 @@ func visitExpression(ctx *ExpressionContext, expr ast.Expr) uint32 {
 			return ctx.Offset
 		case "next":
 			return ctx.Frames.Last().NextInstruction.Address + uint32(ctx.Frames.Last().NextInstruction.Size)
+		case "xpsr":
+			return ctx.Frames.Last().Registers[RUNLOG_REG_XPSR]
 		}
 
 		reg, err := ParseRegister(expr.Name)
