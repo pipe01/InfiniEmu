@@ -60,3 +60,29 @@ typedef struct
         return result;
 
 #define OP_EVENT(offset) OP_EVENT_RESULT(offset, MEMREG_RESULT_OK)
+
+#define OP_RETURN_REG_SET(reg, size) \
+    if (OP_IS_READ(op))          \
+        *value = reg;            \
+    else                         \
+        reg |= *value;            \
+    return MEMREG_RESULT_OK;
+
+#define OP_RETURN_REG_CLR(reg, size) \
+    if (OP_IS_READ(op))          \
+        *value = reg;            \
+    else                         \
+        reg &= ~*value;            \
+    return MEMREG_RESULT_OK;
+
+#define OP_INTEN(peripheral) \
+    case 0x300:              \
+        OP_RETURN_REG(peripheral->inten.value, WORD);
+
+#define OP_INTENSET(peripheral)         \
+    case 0x304:                         \
+        OP_RETURN_REG_SET(peripheral->inten.value, WORD)
+
+#define OP_INTENCLR(peripheral)         \
+    case 0x308:                         \
+        OP_RETURN_REG_CLR(peripheral->inten.value, WORD)
