@@ -26,11 +26,47 @@ const (
 	RegisterLR
 	RegisterPC
 	RegisterXPSR
+
+	RegisterS0
+	RegisterS1
+	RegisterS2
+	RegisterS3
+	RegisterS4
+	RegisterS5
+	RegisterS6
+	RegisterS7
+	RegisterS8
+	RegisterS9
+	RegisterS10
+	RegisterS11
+	RegisterS12
+	RegisterS13
+	RegisterS14
+	RegisterS15
+	RegisterS16
+	RegisterS17
+	RegisterS18
+	RegisterS19
+	RegisterS20
+	RegisterS21
+	RegisterS22
+	RegisterS23
+	RegisterS24
+	RegisterS25
+	RegisterS26
+	RegisterS27
+	RegisterS28
+	RegisterS29
+	RegisterS30
+	RegisterS31
 )
 
 func (r Register) String() string {
-	if r <= 12 {
+	if r <= RegisterR12 {
 		return fmt.Sprintf("r%d", r)
+	}
+	if r >= RegisterS0 && r <= RegisterS31 {
+		return fmt.Sprintf("s%d", r-RegisterS0)
 	}
 
 	switch r {
@@ -61,9 +97,15 @@ func (r Register) withRange(min, max uint32) FuzzedRegister {
 }
 
 type FuzzedRegister struct {
-	Register Register
-	Minimum  uint32
-	Maximum  uint32
+	Register  Register
+	Minimum   uint32
+	Maximum   uint32
+	AlignBits uint32
+}
+
+func (r FuzzedRegister) withAlignBits(bits uint32) FuzzedRegister {
+	r.AlignBits = bits
+	return r
 }
 
 type XPSR uint32
@@ -207,6 +249,10 @@ func (r RandASM) MaybeNegative(n uint32) int32 {
 
 func (r RandASM) RandIntBits(n int) uint32 {
 	return uint32(r.Int63()) & (1<<n - 1)
+}
+
+func (r RandASM) RandScalarRegister() Register {
+	return Register(r.Intn(32)) + RegisterS0
 }
 
 func (r RandASM) RandRegister() Register {
@@ -841,16 +887,14 @@ var Instructions = []Generator{
 
 	// STMDB
 	func(r RandASM) Instruction {
-		n := r.Intn(12)
-		regs := make([]Register, 0, n)
+		n := r.Intn(11) + 1
 
-		for i := 0; i <= n; i++ {
-			if r.maybe() {
-				regs = append(regs, Register(i))
-			}
+		regs := make([]Register, 13)
+		for i := RegisterR0; i <= RegisterR12; i++ {
+			regs[i] = i
 		}
 
-		return r.inst("stmdb", FlagNone, r.RandLowRegister().withRange(0x2000_0000, 0x2001_0000), regs)
+		return r.inst("stmdb", FlagNone, regs[n].withRange(0x2000_0000, 0x2001_0000).withAlignBits(2), regs[:n])
 	},
 
 	// SMULBB
@@ -872,4 +916,12 @@ var Instructions = []Generator{
 	func(r RandASM) Instruction {
 		return r.inst("smultt", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
 	},
+
+	// VMOV
+	// func(r RandASM) Instruction {
+	// 	return r.inst("vmov", FlagNone, r.RandScalarRegister(), r.RandLowRegister())
+	// },
+	// func(r RandASM) Instruction {
+	// 	return r.inst("vmov", FlagNone, r.RandLowRegister(), r.RandScalarRegister())
+	// },
 }

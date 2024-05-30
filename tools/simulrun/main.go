@@ -240,6 +240,8 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 			for _, op := range inst.Instruction.Operands {
 				if reg, ok := op.(asm.FuzzedRegister); ok && reg.Register == asm.Register(i) {
 					val = uint32(r.Intn(int(reg.Maximum-reg.Minimum))) + reg.Minimum
+
+					val &= ^((1 << reg.AlignBits) - 1)
 				}
 			}
 
