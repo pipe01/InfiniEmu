@@ -52,6 +52,14 @@ func (r Register) withMax(max uint32) FuzzedRegister {
 	}
 }
 
+func (r Register) withRange(min, max uint32) FuzzedRegister {
+	return FuzzedRegister{
+		Register: r,
+		Maximum:  max,
+		Minimum:  min,
+	}
+}
+
 type FuzzedRegister struct {
 	Register Register
 	Minimum  uint32
@@ -154,6 +162,12 @@ func (i Instruction) String() string {
 			if !op.IsEmpty() {
 				opStrings = append(opStrings, op.String())
 			}
+		case []Register:
+			regStrings := make([]string, 0, len(op))
+			for _, reg := range op {
+				regStrings = append(regStrings, reg.String())
+			}
+			opStrings = append(opStrings, "{"+strings.Join(regStrings, ", ")+"}")
 		default:
 			panic("invalid operand type")
 		}
@@ -823,5 +837,19 @@ var Instructions = []Generator{
 	// UXTAB
 	func(r RandASM) Instruction {
 		return r.inst("uxtab", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandROR8())
+	},
+
+	// STMDB
+	func(r RandASM) Instruction {
+		n := r.Intn(12)
+		regs := make([]Register, 0, n)
+
+		for i := 0; i <= n; i++ {
+			if r.maybe() {
+				regs = append(regs, Register(i))
+			}
+		}
+
+		return r.inst("stmdb", FlagNone, r.RandLowRegister().withRange(0x2000_0000, 0x2001_0000), regs)
 	},
 }
