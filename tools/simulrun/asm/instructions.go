@@ -852,4 +852,24 @@ var Instructions = []Generator{
 
 		return r.inst("stmdb", FlagNone, r.RandLowRegister().withRange(0x2000_0000, 0x2001_0000), regs)
 	},
+
+	// SMULBB
+	func(r RandASM) Instruction {
+		return r.inst("smulbb", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SMULBT
+	func(r RandASM) Instruction {
+		return r.inst("smulbt", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SMULTB
+	func(r RandASM) Instruction {
+		return r.inst("smultb", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SMULTT
+	func(r RandASM) Instruction {
+		return r.inst("smultt", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
 }

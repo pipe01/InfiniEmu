@@ -2003,6 +2003,35 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
+    case ARM_INS_SMULBB:
+    case ARM_INS_SMULBT:
+    case ARM_INS_SMULTB:
+    case ARM_INS_SMULTT:
+    {
+        assert(detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+
+        op0 = OPERAND_REG(1);
+        op1 = OPERAND_REG(2);
+
+        int16_t a, b;
+
+        if (i->id == ARM_INS_SMULBB || i->id == ARM_INS_SMULBT)
+            a = op0 & 0xFFFF;
+        else
+            a = (op0 >> 16) & 0xFFFF;
+
+        if (i->id == ARM_INS_SMULBB || i->id == ARM_INS_SMULTB)
+            b = op1 & 0xFFFF;
+        else
+            b = (op1 >> 16) & 0xFFFF;
+
+        int32_t result = (int32_t)a * b;
+
+        cpu_reg_write(cpu, detail->operands[0].reg, result);
+        break;
+    }
+
     case ARM_INS_SMULL:
     {
         assert(detail->op_count == 4);
@@ -2288,7 +2317,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
     }
 
-    case ARM_INS_VMOV:
+    case ARM_INS_VMOV: // TODO: Implement other variants
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[0].reg >= ARM_REG_S0 && detail->operands[0].reg <= ARM_REG_S31);
