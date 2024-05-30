@@ -135,6 +135,11 @@ OPERATION(spim)
                 *value = SPIM_ENABLE_VALUE;
                 return MEMREG_RESULT_OK;
             }
+            else
+            {
+                *value = 0;
+                return MEMREG_RESULT_OK_CONTINUE;
+            }
         }
         else if (*value == SPIM_ENABLE_VALUE)
         {
