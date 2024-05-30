@@ -2287,6 +2287,63 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
+    case ARM_INS_VLDMIA:
+    case ARM_INS_VPOP:
+    {
+        arm_reg reg_base;
+        size_t list_start;
+
+        if (i->id == ARM_INS_VPOP)
+        {
+            assert(detail->op_count >= 1);
+
+            reg_base = ARM_REG_SP;
+            list_start = 0;
+        }
+        else
+        {
+            assert(detail->op_count >= 2);
+            assert(detail->operands[0].type == ARM_OP_REG);
+
+            reg_base = detail->operands[0].reg;
+            list_start = 1;
+        }
+
+        cpu_execute_fp_check(cpu);
+
+        uint8_t reg_count = detail->op_count - list_start;
+
+        uint32_t address = cpu_reg_read(cpu, reg_base) + 4 * reg_count;
+
+        if (detail->writeback || i->id == ARM_INS_VPOP)
+            cpu_reg_write(cpu, reg_base, address);
+
+        bool single_regs = detail->operands[list_start].reg >= ARM_REG_S0 && detail->operands[list_start].reg <= ARM_REG_S31;
+
+        for (size_t n = list_start; n < reg_count; n++)
+        {
+            if (single_regs)
+            {
+                cpu_reg_write(cpu, detail->operands[n].reg, memreg_read(cpu->mem, address));
+
+                address += 4;
+            }
+            else
+            {
+                assert(detail->operands[n].reg >= ARM_REG_D0 && detail->operands[n].reg <= ARM_REG_D31);
+
+                uint32_t word1 = memreg_read(cpu->mem, address);
+                uint32_t word2 = memreg_read(cpu->mem, address + 4);
+
+                cpu->d[detail->operands[n].reg - ARM_REG_D0].value = (uint64_t)word1 | ((uint64_t)word2 << 32);
+
+                address += 8;
+            }
+        }
+
+        break;
+    }
+
     case ARM_INS_VLDR:
     {
         assert(detail->op_count == 2);
@@ -2320,9 +2377,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_VMOV: // TODO: Implement other variants
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
-        assert(detail->operands[0].reg >= ARM_REG_S0 && detail->operands[0].reg <= ARM_REG_S31);
         assert(detail->operands[1].type == ARM_OP_REG);
-        assert(detail->operands[1].reg >= ARM_REG_R0 && detail->operands[1].reg <= ARM_REG_R12);
 
         cpu_execute_fp_check(cpu);
 
@@ -2379,7 +2434,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         uint32_t address = cpu_reg_read(cpu, reg_base) - 4 * reg_count;
 
-        if (detail->writeback)
+        if (detail->writeback || i->id == ARM_INS_VPUSH)
             cpu_reg_write(cpu, reg_base, address);
 
         bool single_regs = detail->operands[list_start].reg >= ARM_REG_S0 && detail->operands[list_start].reg <= ARM_REG_S31;
@@ -2389,6 +2444,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             if (single_regs)
             {
                 memreg_write(cpu->mem, address, cpu_reg_read(cpu, detail->operands[n].reg), SIZE_WORD);
+
+                address += 4;
             }
             else
             {
@@ -2396,9 +2453,9 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
                 memreg_write(cpu->mem, address, cpu->d[detail->operands[n].reg - ARM_REG_D0].lower, SIZE_WORD);
                 memreg_write(cpu->mem, address + 4, cpu->d[detail->operands[n].reg - ARM_REG_D0].upper, SIZE_WORD);
-            }
 
-            address += 4;
+                address += 8;
+            }
         }
 
         break;
