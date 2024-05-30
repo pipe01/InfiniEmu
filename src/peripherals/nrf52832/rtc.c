@@ -47,7 +47,7 @@ struct RTC_inst_t
 
     bool running;
 
-    inten_t inten;
+    inten_t inten, evten;
     uint32_t prescaler, counter, prescaler_counter;
 };
 
@@ -62,30 +62,19 @@ void rtc_tick(void *userdata)
         rtc->prescaler_counter = 0;
         rtc->counter++;
 
-        if (rtc->inten.TICK)
-        {
-            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_TICK));
-            cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
-        }
+        ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_TICK), rtc->inten.TICK);
 
         if (rtc->counter == (1 << 24))
         {
             rtc->counter = 0;
 
-            if (rtc->inten.OVRFLW)
-            {
-                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_OVRFLW));
-                cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
-            }
+            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_OVRFLW), rtc->inten.OVRFLW);
         }
 
         for (size_t i = 0; i < rtc->cc_num; i++)
         {
-            if (rtc->counter == rtc->cc[i] && (rtc->inten.COMPARE & (1 << i)) != 0)
-            {
-                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_COMPARE0) + i);
-                cpu_exception_set_pending(*rtc->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(rtc->id));
-            }
+            if (rtc->counter == rtc->cc[i])
+                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_COMPARE0) + i, rtc->inten.COMPARE & (1 << i));
         }
     }
 }
@@ -117,25 +106,17 @@ OPERATION(rtc)
         OP_EVENT(EVENTS_COMPARE2)
         OP_EVENT(EVENTS_COMPARE3)
 
-    case 0x304: // INTENSET
-        if (OP_IS_READ(op))
-            *value = rtc->inten.value;
-        else
-            rtc->inten.value |= *value;
-        return MEMREG_RESULT_OK;
-
-    case 0x308: // INTENCLR
-        if (OP_IS_READ(op))
-            *value = rtc->inten.value;
-        else
-            rtc->inten.value &= ~*value;
-        return MEMREG_RESULT_OK;
+        OP_INTENSET(rtc)
+        OP_INTENCLR(rtc)
 
     case 0x340: // EVTEN
+        OP_RETURN_REG(rtc->evten.value, WORD);
+
     case 0x344: // EVTENSET
+        OP_RETURN_REG_SET(rtc->evten.value, WORD);
+    
     case 0x348: // EVTENCLR
-        // TODO: Implement
-        return MEMREG_RESULT_OK;
+        OP_RETURN_REG_CLR(rtc->evten.value, WORD);
 
     case 0x504: // COUNTER
         OP_RETURN_REG(rtc->counter, WORD);

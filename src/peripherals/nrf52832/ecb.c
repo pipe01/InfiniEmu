@@ -16,6 +16,18 @@ enum
     EVENTS_ERRORECB = 0x104, // ECB block encrypt aborted because of a STOPECB task or due to an error
 };
 
+
+typedef struct
+{
+    union
+    {
+        unsigned int ENDECB : 1;
+        unsigned int ERRORECB : 1;
+    };
+    uint32_t value;
+} inten_t;
+
+
 typedef struct
 {
     uint8_t key[16];
@@ -29,6 +41,7 @@ struct ECB_inst_t
     dma_t *dma;
 
     uint32_t ecbdataptr;
+    inten_t inten;
 };
 
 OPERATION(ecb)
@@ -48,6 +61,9 @@ OPERATION(ecb)
         OP_TASK(TASKS_STOPECB)
         OP_EVENT(EVENTS_ENDECB)
         OP_EVENT(EVENTS_ERRORECB)
+
+        OP_INTENSET(ecb)
+        OP_INTENCLR(ecb)
 
     case 0x504:
         OP_RETURN_REG(ecb->ecbdataptr, WORD);
@@ -83,7 +99,7 @@ PPI_TASK_HANDLER(ecb_task_handler)
 
         dma_write(ecb->dma, ecb->ecbdataptr, sizeof(ecbdata_t), (const uint8_t *)&ecbdata);
 
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDECB));
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDECB), ecb->inten.ENDECB);
         break;
     }
 

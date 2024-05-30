@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cpu.h"
+
 #define MAX_CHANNELS 32
 #define MAX_SUBSCRIBERS 10
 
@@ -30,6 +32,8 @@ typedef struct
 
 struct PPI_t
 {
+    cpu_t **cpu;
+
     peripheral_t *peripherals[PERIPHERALS_COUNT];
 };
 
@@ -53,9 +57,12 @@ OPERATION(ppi)
     return MEMREG_RESULT_OK;
 }
 
-PPI_t *ppi_new()
+PPI_t *ppi_new(cpu_t **cpu)
 {
-    return (PPI_t *)calloc(1, sizeof(PPI_t));
+    PPI_t *ppi = calloc(1, sizeof(PPI_t));
+    ppi->cpu = cpu;
+
+    return ppi;
 }
 
 void ppi_add_peripheral(PPI_t *ppi, uint8_t id, ppi_task_cb_t cb, void *userdata)
@@ -97,7 +104,7 @@ void ppi_fire_task(PPI_t *ppi, uint8_t peripheral_id, uint8_t task_id)
     periph->cb(ppi, peripheral_id, task_id, periph->userdata);
 }
 
-void ppi_fire_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
+void ppi_fire_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id, bool pend_exception)
 {
     assert(peripheral_id < PERIPHERALS_COUNT);
     assert(event_id < EVENTS_COUNT);
@@ -107,7 +114,10 @@ void ppi_fire_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
 
     periph->events |= (1 << event_id);
 
-    // TODO: Implement
+    if (pend_exception)
+        cpu_exception_set_pending(*ppi->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(peripheral_id));
+
+    // TODO: Implement channels
 }
 
 void ppi_clear_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)

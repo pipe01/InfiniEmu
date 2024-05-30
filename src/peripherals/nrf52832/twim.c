@@ -22,11 +22,32 @@ enum
     EVENTS_LASTTX = 0x160,
 };
 
+typedef struct
+{
+    union
+    {
+        unsigned int : 1;
+        unsigned int STOPPED : 1;
+        unsigned int : 7;
+        unsigned int ERROR : 1;
+        unsigned int : 8;
+        unsigned int SUSPENDED : 1;
+        unsigned int RXSTARTED : 1;
+        unsigned int TXSTARTED : 1;
+        unsigned int : 2;
+        unsigned int LASTRX : 1;
+        unsigned int LASTTX : 1;
+    };
+    uint32_t value;
+} inten_t;
+
 struct TWIM_inst_t
 {
     uint8_t id;
     bus_i2c_t *i2c;
     bool enabled;
+
+    inten_t inten;
 
     uint32_t address;
 
@@ -48,8 +69,8 @@ PPI_TASK_HANDLER(twim_task_handler)
         size_t read = i2c_read(twim->i2c, twim->address, twim->rx.ptr, twim->rx.maxcnt);
         twim->rx.amount = read;
 
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_RXSTARTED));
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LASTRX)); // TODO: Delay LASTRX
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_RXSTARTED), twim->inten.RXSTARTED);
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LASTRX), twim->inten.LASTRX); // TODO: Delay LASTRX
         break;
     }
 
@@ -58,17 +79,17 @@ PPI_TASK_HANDLER(twim_task_handler)
         // TODO: Handle invalid I2C address
         i2c_write(twim->i2c, twim->address, twim->tx.ptr, twim->tx.maxcnt);
 
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_TXSTARTED));
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LASTTX)); // TODO: Delay LASTTX
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_TXSTARTED), twim->inten.TXSTARTED);
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LASTTX), twim->inten.LASTTX); // TODO: Delay LASTTX
         break;
     }
 
     case TASK_ID(TASKS_STOP):
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_STOPPED));
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_STOPPED), twim->inten.STOPPED);
         break;
 
     case TASK_ID(TASKS_SUSPEND):
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_SUSPENDED));
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_SUSPENDED), twim->inten.SUSPENDED);
         break;
     }
 }
@@ -102,6 +123,10 @@ OPERATION(twim)
         OP_EVENT_RESULT(EVENTS_TXSTARTED, MEMREG_RESULT_OK_CONTINUE)
         OP_EVENT_RESULT(EVENTS_LASTRX, MEMREG_RESULT_OK_CONTINUE)
         OP_EVENT_RESULT(EVENTS_LASTTX, MEMREG_RESULT_OK_CONTINUE)
+
+        OP_INTEN(twim)
+        OP_INTENSET(twim)
+        OP_INTENCLR(twim)
 
     case 0x500: // ENABLE
         if (OP_IS_READ(op))

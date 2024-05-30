@@ -13,6 +13,15 @@ enum
     EVENTS_VALRDY = 0x100,
 };
 
+typedef union
+{
+    struct
+    {
+        unsigned int VALRDY : 1;
+    };
+    uint32_t value;
+} inten_t;
+
 struct RNG_inst_t
 {
     cpu_t **cpu;
@@ -23,16 +32,14 @@ struct RNG_inst_t
     bool running;
     uint32_t config;
 
-    uint32_t inten;
+    inten_t inten;
 };
 
 static inline void rng_new_value(RNG_t *rng)
 {
     rng->value = (uint32_t)rand();
 
-    ppi_fire_event(rng->ppi, INSTANCE_RNG, EVENT_ID(EVENTS_VALRDY));
-    if (rng->inten)
-        cpu_exception_set_pending(*rng->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(INSTANCE_RNG));
+    ppi_fire_event(rng->ppi, INSTANCE_RNG, EVENT_ID(EVENTS_VALRDY), rng->inten.VALRDY);
 }
 
 OPERATION(rng)
@@ -56,19 +63,8 @@ OPERATION(rng)
         OP_TASK(TASKS_STOP)
         OP_EVENT(EVENTS_VALRDY)
 
-    case 0x304: // INTENSET
-        if (OP_IS_READ(op))
-            *value = rng->inten;
-        else
-            rng->inten |= *value;
-        return MEMREG_RESULT_OK;
-
-    case 0x308: // INTENCLR
-        if (OP_IS_READ(op))
-            *value = rng->inten;
-        else
-            rng->inten &= ~(*value);
-        return MEMREG_RESULT_OK;
+        OP_INTENSET(rng)
+        OP_INTENCLR(rng)
 
     case 0x504: // CONFIG
         OP_RETURN_REG(rng->config, WORD);

@@ -96,10 +96,7 @@ void timer_increase_counter(TIMER_t *timer)
     {
         if ((timer->cc[i] & mask) == counter)
         {
-            ppi_fire_event(current_ppi, timer->id, EVENT_ID(EVENTS_COMPARE0) + i);
-
-            if (timer->inten & (1 << (i + 16)))
-                cpu_exception_set_pending(*timer->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(timer->id));
+            ppi_fire_event(current_ppi, timer->id, EVENT_ID(EVENTS_COMPARE0) + i, timer->inten & (1 << (i + 16)));
         }
     }
 }

@@ -73,7 +73,7 @@ PPI_TASK_HANDLER(spim_task_handler)
     {
         spi_result_t result = spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
         if (result == SPI_RESULT_OK)
-            ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDTX));
+            ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDTX), spim->inten.ENDTX);
         else
             abort(); // TODO: Handle better
     }
@@ -81,10 +81,10 @@ PPI_TASK_HANDLER(spim_task_handler)
     {
         size_t read = spi_read(spim->bus, spim->rx.ptr, spim->rx.maxcnt);
         spim->rx.amount = read;
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDRX));
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDRX), spim->inten.ENDRX);
     }
 
-    ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_END));
+    ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_END), spim->inten.END);
 }
 
 OPERATION(spim)

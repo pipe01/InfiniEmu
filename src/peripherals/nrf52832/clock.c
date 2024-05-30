@@ -7,6 +7,19 @@
 #include "nrf52832.h"
 #include "peripherals/nrf52832/ppi.h"
 
+typedef union
+{
+    struct
+    {
+        unsigned int HFCLKSTARTED : 1;
+        unsigned int LFCLKSTARTED : 1;
+        unsigned int : 1;
+        unsigned int DONE : 1;
+        unsigned int CTTO : 1;
+    };
+    uint32_t value;
+} inten_t;
+
 struct CLOCK_inst_t
 {
     uint32_t lfclk_source;
@@ -14,7 +27,7 @@ struct CLOCK_inst_t
 
     bool hfclk_running;
 
-    uint32_t inten;
+    inten_t inten;
 };
 
 enum
@@ -62,16 +75,16 @@ OPERATION(clock)
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
-            *value = clock->inten;
+            *value = clock->inten.value;
         else
-            clock->inten |= *value;
+            clock->inten.value |= *value;
         return MEMREG_RESULT_OK;
 
     case 0x308: // INTENCLR
         if (OP_IS_READ(op))
-            *value = clock->inten;
+            *value = clock->inten.value;
         else
-            clock->inten &= ~*value;
+            clock->inten.value &= ~*value;
         return MEMREG_RESULT_OK;
 
     case 0x40C: // HFCLKSTAT
@@ -110,7 +123,7 @@ PPI_TASK_HANDLER(clock_task_handler)
     {
     case TASK_ID(TASKS_HFCLKSTART):
         clock->hfclk_running = true;
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_HFCLKSTARTED));
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_HFCLKSTARTED), clock->inten.HFCLKSTARTED);
         break;
 
     case TASK_ID(TASKS_HFCLKSTOP):
@@ -119,7 +132,7 @@ PPI_TASK_HANDLER(clock_task_handler)
 
     case TASK_ID(TASKS_LFCLKSTART):
         clock->lfclk_running = true;
-        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LFCLKSTARTED));
+        ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LFCLKSTARTED), clock->inten.LFCLKSTARTED);
         break;
 
     default:
