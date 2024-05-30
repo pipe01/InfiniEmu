@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LOG(tag, msg, ...) printf("0x%08X: [" tag "] " msg "\n", cpu->core_regs[ARM_REG_PC], __VA_ARGS__)
+#define LOG(tag, msg, ...) printf("0x%08X: [" tag "] " msg "\n", cpu->core_regs[ARM_REG_PC], ##__VA_ARGS__)
 
 #ifdef ENABLE_LOG_CPU_EXCEPTIONS
 #define LOG_CPU_EX(msg, ...) LOG("CPU_EX", msg, __VA_ARGS__)
@@ -333,9 +333,21 @@ static bool cpu_in_it_block(cpu_t *cpu)
 static void cpu_it_advance(cpu_t *cpu)
 {
     if ((cpu->itstate.value & 0x7) == 0)
+    {
         cpu->itstate.value = 0;
+
+#if ENABLE_LOG_CPU_IT
+        LOG("IT", "Exiting IT block");
+#endif
+    }
     else
+    {
         cpu->itstate.mask <<= 1;
+
+#if ENABLE_LOG_CPU_IT
+        LOG("IT", "Advancing IT block to 0x%X", cpu->itstate.value);
+#endif
+    }
 }
 
 static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
@@ -1517,6 +1529,10 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(i->size == 2);
         assert(i->bytes[1] == 0xBF);
 
+#if ENABLE_LOG_CPU_IT
+        LOG("IT", "Entering IT block, ITSTATE: 0x%X", i->bytes[0]);
+#endif
+
         cpu->itstate.value = i->bytes[0];
         break;
 
@@ -2542,7 +2558,13 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
         cpu->xpsr.value = value;
 
         if (can_update_it)
+        {
             cpu->itstate.value = ((value >> 25) & 0x3) | (((value >> 10) & 0x3F) << 2);
+
+#if ENABLE_LOG_CPU_IT
+            LOG("IT", "Updating ITSTATE from XPSR: 0x%X", cpu->itstate.value);
+#endif
+        }
 
         break;
 
