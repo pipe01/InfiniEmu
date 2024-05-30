@@ -31,6 +31,10 @@ void cst816s_write(uint8_t *data, size_t data_size, void *userdata)
         // Do nothing
         break;
 
+    case 0xA5: // Sleep?
+        // Do nothing
+        break;
+
     case 0xA7: // ChipID
         cst816s->next_read = CHIPID;
         break;
