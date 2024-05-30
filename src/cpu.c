@@ -1308,6 +1308,12 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
+        // TODO: Make sure this implements ADR correctly
+        if (detail->op_count == 3 && detail->operands[1].reg == ARM_REG_PC)
+        {
+            op0 = ALIGN4(op0);
+        }
+
         carry = false;
         value = AddWithCarry(op0, op1, &carry, &overflow);
 
