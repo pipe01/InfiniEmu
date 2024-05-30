@@ -97,7 +97,7 @@ type MemoryAccess struct {
 	Address   uint32
 	Value     uint32
 	Register  RunlogRegister
-	SizeBytes int
+	SizeBytes uint8
 }
 
 type Registers [RUNLOG_REG_MAX + 1]uint32
@@ -105,7 +105,7 @@ type Registers [RUNLOG_REG_MAX + 1]uint32
 type Frame struct {
 	Program         []byte
 	Registers       Registers
-	NextInstruction Instruction
+	NextInstruction *Instruction
 	MemoryAccesses  []MemoryAccess
 }
 
@@ -175,6 +175,8 @@ func ReadFrames(r io.Reader) (Frames, error) {
 	var currentFrame *Frame
 	frames := make([]*Frame, 0)
 
+	instCache := make(map[uint32]*Instruction)
+
 	br := bufio.NewReader(r)
 
 	disasm, err := NewDisassembler()
@@ -217,15 +219,19 @@ func ReadFrames(r io.Reader) (Frames, error) {
 
 			addr := pc & 0xFFFF_FFFE
 
-			ins, err := disasm.Disassemble(program[addr:], addr)
-			if err != nil {
-				return nil, fmt.Errorf("disassemble instruction: %v", err)
+			if _, ok := instCache[addr]; !ok {
+				ins, err := disasm.Disassemble(program[addr:], addr)
+				if err != nil {
+					return nil, fmt.Errorf("disassemble instruction: %v", err)
+				}
+
+				instCache[addr] = ins
 			}
 
 			currentFrame = &Frame{
 				Program:         program,
 				Registers:       regs,
-				NextInstruction: *ins,
+				NextInstruction: instCache[addr],
 			}
 			frames = append(frames, currentFrame)
 
@@ -252,7 +258,7 @@ func ReadFrames(r io.Reader) (Frames, error) {
 					Address:   addr,
 					Value:     value,
 					Register:  dstReg,
-					SizeBytes: int(size),
+					SizeBytes: size,
 				})
 			}
 
@@ -273,7 +279,7 @@ func ReadFrames(r io.Reader) (Frames, error) {
 					Address:   addr,
 					Value:     value,
 					Register:  srcReg,
-					SizeBytes: int(size),
+					SizeBytes: size,
 				})
 			}
 
