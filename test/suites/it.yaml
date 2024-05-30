@@ -1,0 +1,66 @@
+"IT":
+- name: "1 instruction"
+  setup:
+    registers:
+      r0: 0
+      r1: 0
+  execute:
+    - "cmp r0, r0"
+    - "it eq"
+    - "addeq r1, #1"
+  expect:
+    registers:
+      r0: ==
+      r1: 1
+    nczv: "0000"
+
+- name: "2 instructions"
+  setup:
+    registers:
+      r0: 0
+      r1: 0
+  execute:
+    - "cmp r0, r0"
+    - "itt eq"
+    - "addeq r1, #1"
+    - "addeq r1, #1"
+  expect:
+    registers:
+      r0: ==
+      r1: 2
+    nczv: "0000"
+
+- name: "3 instructions"
+  setup:
+    registers:
+      r0: 0
+      r1: 0
+  execute:
+    - "cmp r0, r0"
+    - "ittt eq"
+    - "addeq r1, #1"
+    - "addeq r1, #1"
+    - "addeq r1, #1"
+  expect:
+    registers:
+      r0: ==
+      r1: 3
+    nczv: "0000"
+
+- name: "4 instructions"
+  setup:
+    registers:
+      r0: 0
+      r1: 0
+  execute:
+    - "cmp r0, r0"
+    - "itttt eq"
+    - "addeq r1, #1"
+    - "addeq r1, #1"
+    - "addeq r1, #1"
+    - "addeq r1, #1"
+  expect:
+    registers:
+      r0: ==
+      r1: 4
+    nczv: "0000"
