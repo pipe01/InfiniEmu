@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -127,14 +128,14 @@ func CommandFrame(_, arg string) error {
 	if arg == "" {
 		fmt.Printf("On frame %d out of %d\n", frameIndex, len(frames))
 	} else if arg == "end" {
-		frameIndex = len(frames) - 1
+		doFrameJump(len(frames) - 1)
 	} else {
 		n, err := parseInt(arg)
 		if err != nil || n < 0 || n >= len(frames) {
 			return errors.New("invalid or out of range frame index")
 		}
 
-		frameIndex = n
+		doFrameJump(n)
 	}
 
 	return nil
@@ -155,7 +156,7 @@ func CommandView(modifier, arg string) error {
 
 		count := 1
 		if modifier != "" {
-			firstNum := strings.LastIndexAny(modifier, digits)
+			firstNum := strings.IndexAny(modifier, digits)
 			lastNum := strings.LastIndexAny(modifier, digits)
 
 			if firstNum == 0 {
@@ -308,7 +309,7 @@ func CommandFind(reverse bool) Command {
 			})
 
 			if found {
-				frameIndex = idx
+				doFrameJump(idx)
 			} else {
 				dirStr := "after"
 				if reverse {
@@ -355,7 +356,7 @@ func CommandFind(reverse bool) Command {
 			})
 
 			if found {
-				frameIndex = idx
+				doFrameJump(idx)
 
 				// The frame index we found is the frame *after* the change, so we need to go back one
 				// in order to find the instruction that caused the change
@@ -369,7 +370,7 @@ func CommandFind(reverse bool) Command {
 				fmt.Printf("No registry %s access found %s frame #%d\n", reg.String(), dirStr, frameIndex)
 			}
 
-		case "inst":
+		case "at":
 			pc, err := EvaluateExpression(arg, ExpressionContext{Frames: frames.Until(frameIndex)})
 			if err != nil {
 				return err
@@ -380,7 +381,7 @@ func CommandFind(reverse bool) Command {
 			})
 
 			if found {
-				frameIndex = idx
+				doFrameJump(idx)
 			} else {
 				dirStr := "after"
 				if reverse {
@@ -388,6 +389,39 @@ func CommandFind(reverse bool) Command {
 				}
 
 				fmt.Printf("No instruction found at address 0x%08x %s frame #%d\n", pc, dirStr, frameIndex)
+			}
+
+		case "inst":
+			if arg == "" {
+				return ErrMissingArgument
+			}
+
+			var regex *regexp.Regexp
+			if len(arg) > 2 && arg[0] == '/' && arg[len(arg)-1] == '/' {
+				var err error
+
+				regex, err = regexp.Compile(arg[1 : len(arg)-1])
+				if err != nil {
+					return errors.New("invalid regular expression")
+				}
+			}
+
+			idx, found := doFindFrame(reverse, func(f *Frame) bool {
+				if regex != nil {
+					return regex.MatchString(f.NextInstruction.Mnemonic)
+				}
+				return strings.HasPrefix(f.NextInstruction.Mnemonic, arg)
+			})
+
+			if found {
+				doFrameJump(idx)
+			} else {
+				dirStr := "after"
+				if reverse {
+					dirStr = "before"
+				}
+
+				fmt.Printf("No matching instruction found at %s frame #%d\n", dirStr, frameIndex)
 			}
 
 		case "change":
@@ -426,9 +460,9 @@ func CommandFind(reverse bool) Command {
 					return err
 				}
 
-				fmt.Printf("%s changed from 0x%08x to 0x%08x\n", arg, initialValue, finalValue)
+				doFrameJump(idx)
 
-				frameIndex = idx
+				fmt.Printf("%s changed from 0x%08x to 0x%08x\n", arg, initialValue, finalValue)
 			} else {
 				fmt.Println("No change found")
 			}

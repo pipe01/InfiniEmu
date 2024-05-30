@@ -103,6 +103,23 @@ func main() {
 	}
 }
 
+func doFrameJump(newIndex int) {
+	if newIndex == frameIndex {
+		return
+	}
+
+	dir := "forward"
+	amount := newIndex - frameIndex
+	if newIndex < frameIndex {
+		dir = "backward"
+		amount = frameIndex - newIndex
+	}
+
+	fmt.Printf("Jumping %d frames %s\n", amount, dir)
+
+	frameIndex = newIndex
+}
+
 func executeLine(line string) error {
 	defer func() {
 		if r := recover(); r != nil {
