@@ -30,9 +30,9 @@ typedef struct
     uint32_t value;
 } config_t;
 
-typedef struct
+typedef union
 {
-    union
+    struct
     {
         unsigned int : 1;
         unsigned int STOPPED : 1;
