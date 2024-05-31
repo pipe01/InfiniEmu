@@ -69,7 +69,7 @@ const char memory_map_xml[] = QUOTE(
         <memory type="flash" start="0x10001000" length="0x400">
             <property name="blocksize">0x400</property>
         </memory>
-        <memory type="ram" start="0x20000000" length="0x10000" />
+        <memory type="ram" start="0x20000000" length="0x20000" />
         <memory type="ram" start="0xe0000000" length="0x40000" />
     </memory-map>
 );
@@ -413,6 +413,26 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
         else
         {
             const char *resp = "Invalid register\n";
+            send_response_bytes(gdb->fd, (uint8_t *)resp, strlen(resp));
+        }
+    }
+    else if (strncmp(command, "pin ", 4) == 0)
+    {
+        const char *arg = command + 4;
+
+        long num = strtol(arg, NULL, 10);
+
+        if (num >= 0 && num <= 31)
+        {
+            pins_t *pins = nrf52832_get_pins(gdb->gdb->nrf);
+
+            pins_toggle(pins, num);
+
+            send_response_str(gdb->fd, "OK");
+        }
+        else
+        {
+            const char *resp = "Invalid pin number\n";
             send_response_bytes(gdb->fd, (uint8_t *)resp, strlen(resp));
         }
     }

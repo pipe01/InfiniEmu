@@ -160,7 +160,7 @@ void nrf52832_step(NRF52832_t *nrf52832)
     current_ppi = nrf52832->ppi;
 
     ticker_tick(nrf52832->ticker);
-
+    gpiote_step(nrf52832->gpiote);
     spi_step(nrf52832->spi);
 
     cpu_step(nrf52832->cpu);
@@ -179,4 +179,9 @@ bus_spi_t *nrf52832_get_spi(NRF52832_t *chip)
 bus_i2c_t *nrf52832_get_i2c(NRF52832_t *chip)
 {
     return chip->i2c;
+}
+
+pins_t *nrf52832_get_pins(NRF52832_t *chip)
+{
+    return chip->pins;
 }

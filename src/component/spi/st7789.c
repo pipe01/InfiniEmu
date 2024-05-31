@@ -1,6 +1,7 @@
 #include "components/spi/st7789.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -78,6 +79,7 @@ struct st7789_t
 
     colmod_t colmod;
     value16_t xstart, xend, ystart, yend;
+    value16_t vertical_scroll_start;
 
     command_t command;
     size_t expecting_data;
@@ -115,6 +117,13 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
 
             if (st7789->expecting_data == 0)
             {
+                assert_fault(st7789->xend.value > st7789->xstart.value, FAULT_ST7789_INVALID_COORDS);
+                assert_fault(st7789->yend.value > st7789->ystart.value, FAULT_ST7789_INVALID_COORDS);
+                assert_fault(st7789->xstart.value < DISPLAY_WIDTH, FAULT_ST7789_INVALID_COORDS);
+                assert_fault(st7789->xend.value < DISPLAY_WIDTH, FAULT_ST7789_INVALID_COORDS);
+                assert_fault(st7789->ystart.value < DISPLAY_HEIGHT, FAULT_ST7789_INVALID_COORDS);
+                assert_fault(st7789->yend.value < DISPLAY_HEIGHT, FAULT_ST7789_INVALID_COORDS);
+
                 uint16_t width = st7789->xend.value - st7789->xstart.value + 1;
                 uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
                 size_t stride = width * BYTES_PER_PIXEL;
@@ -220,6 +229,22 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
             // Ignore
             break;
 
+        case Command_VerticalScrollStartAddress:
+            switch (st7789->expecting_data)
+            {
+            case 2:
+                st7789->vertical_scroll_start.msb = data[0];
+                break;
+
+            case 1:
+                st7789->vertical_scroll_start.lsb = data[0];
+                break;
+
+            default:
+                abort();
+            }
+            break;
+
         default:
             abort();
         }
@@ -293,6 +318,10 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
         st7789->screen_buffer_ptr = 0;
         break;
     }
+
+    case Command_VerticalScrollStartAddress:
+        st7789->expecting_data = 2;
+        break;
 
     default:
         fault_take(FAULT_I2C_UNKNOWN_COMMAND);

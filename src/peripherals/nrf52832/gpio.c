@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "fault.h"
 #include "memory.h"
 #include "pins.h"
 
@@ -61,12 +62,43 @@ OPERATION(gpio)
         {
             pincnf_t cnf = {0};
             cnf.dir = pins_is_input(gpio->pins, pin) ? 1 : 0;
+            
+            switch (pins_get_sense(gpio->pins, pin))
+            {
+            case SENSE_DISABLED:
+                cnf.sense = 0;
+                break;
+            case SENSE_HIGH:
+                cnf.sense = 2;
+                break;
+            case SENSE_LOW:
+                cnf.sense = 3;
+                break;
+            }
 
             *value = cnf.value;
         }
         else
         {
             pincnf_t cnf = (pincnf_t){.value = *value};
+
+            pinsense_t sense;
+            switch (cnf.sense)
+            {
+            case 0:
+                sense = SENSE_DISABLED;
+                break;
+            case 2:
+                sense = SENSE_HIGH;
+                break;
+            case 3:
+                sense = SENSE_LOW;
+                break;
+            default:
+                fault_take(FAULT_UNKNOWN);
+            }
+
+            pins_set_sense(gpio->pins, pin, sense);
 
             if (cnf.dir)
                 pins_set_output(gpio->pins, pin);
@@ -94,12 +126,6 @@ OPERATION(gpio)
                     pins_clear(gpio->pins, i);
             }
         }
-        return MEMREG_RESULT_OK;
-
-    case 0x510: // IN
-        OP_ASSERT_READ(op);
-
-        *value = read_gpios(gpio->pins);
         return MEMREG_RESULT_OK;
 
     case 0x508: // OUTSET
@@ -130,6 +156,12 @@ OPERATION(gpio)
                     pins_clear(gpio->pins, i);
             }
         }
+        return MEMREG_RESULT_OK;
+
+    case 0x510: // IN
+        OP_ASSERT_READ(op);
+
+        *value = read_gpios(gpio->pins);
         return MEMREG_RESULT_OK;
 
     default:

@@ -86,3 +86,4 @@ void nrf52832_step(NRF52832_t *);
 cpu_t *nrf52832_get_cpu(NRF52832_t *);
 bus_spi_t *nrf52832_get_spi(NRF52832_t *);
 bus_i2c_t *nrf52832_get_i2c(NRF52832_t *);
+pins_t *nrf52832_get_pins(NRF52832_t *);
