@@ -124,7 +124,7 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
 
                 for (size_t row = 0; row < height; row++)
                 {
-                    size_t start_px = region_start_px + row * width;
+                    size_t start_px = region_start_px + row * DISPLAY_WIDTH;
                     size_t start = start_px * BYTES_PER_PIXEL;
 
                     assert(start + stride <= sizeof(st7789->screen));
