@@ -1,7 +1,6 @@
 #include "components/spi/st7789.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -120,12 +119,7 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
                 uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
                 size_t stride = width * BYTES_PER_PIXEL;
 
-                if (st7789->xstart.value != 0)
-                {
-                    fflush(NULL);
-                }
-
-                printf("WriteToRam %d: %d x %d starting at %d,%d\n", counter, width, height, st7789->xstart.value, st7789->ystart.value);
+                // printf("WriteToRam %d: %d x %d starting at %d,%d\n", counter, width, height, st7789->xstart.value, st7789->ystart.value);
 
                 size_t region_start_px = (DISPLAY_WIDTH * st7789->ystart.value) + st7789->xstart.value;
 
@@ -141,12 +135,6 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
                 }
 
                 free(st7789->screen_buffer);
-
-                char name[20];
-                snprintf(name, sizeof(name), "screen_%d.raw", counter);
-                FILE *f = fopen(name, "wb");
-                fwrite(st7789->screen, 1, sizeof(st7789->screen), f);
-                fclose(f);
 
                 counter++;
             }
