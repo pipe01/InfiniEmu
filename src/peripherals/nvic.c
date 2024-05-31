@@ -129,6 +129,10 @@ OPERATION(nvic)
             cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), *value & nvic->priority_mask);
             break;
 
+        case OP_READ_BYTE:
+            *value = cpu_get_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num));
+            break;
+
         case OP_WRITE_WORD:
             cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num), reg4->a & nvic->priority_mask);
             cpu_set_exception_priority(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(ipr_num + 1), reg4->b & nvic->priority_mask);
