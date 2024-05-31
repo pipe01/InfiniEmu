@@ -87,7 +87,10 @@ void rtt_flush_buffers(rtt_t *rtt)
         data[i - rdOff] = memreg_read_byte(rtt->mem, bufferAddr + i);
     }
 
-    LOG("Read %d bytes from RTT buffer: %s\n", wrOff - rdOff, data);
+    fputs(data, stdout);
+    if (data[data_size - 1] != '\n')
+        putchar('\n');
+    fflush(stdout);
 
     memreg_write(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 16), wrOff, SIZE_WORD);
 
