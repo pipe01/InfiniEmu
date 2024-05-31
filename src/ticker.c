@@ -44,7 +44,7 @@ void ticker_add(ticker_t *ticker, ticker_cb_t cb, void *userdata, uint32_t inter
     entry->cb = cb;
     entry->userdata = userdata;
     entry->interval = interval;
-    entry->counter = interval;
+    entry->counter = 0;
 }
 
 void ticker_remove(ticker_t *ticker, ticker_cb_t cb)
@@ -74,9 +74,9 @@ void ticker_tick(ticker_t *ticker)
     {
         ticker_entry_t *entry = &ticker->entries[i];
 
-        if (--entry->counter == 0)
+        if (++entry->counter == entry->interval)
         {
-            entry->counter = entry->interval;
+            entry->counter = 0;
             entry->cb(entry->userdata);
         }
     }

@@ -160,7 +160,7 @@ void nrf52832_step(NRF52832_t *nrf52832)
     current_ppi = nrf52832->ppi;
 
     ticker_tick(nrf52832->ticker);
-    gpiote_step(nrf52832->gpiote);
+    gpiote_step(nrf52832->gpiote); // TODO: Add to ticker instead
     spi_step(nrf52832->spi);
 
     cpu_step(nrf52832->cpu);

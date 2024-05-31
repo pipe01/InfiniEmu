@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 #include "peripherals/nrf52832/ppi.h"
 
@@ -47,6 +48,10 @@ struct RTC_inst_t
 
     bool running;
 
+    size_t tick_interval_us;
+    size_t last_check_us;
+    struct timeval timeval;
+
     inten_t inten, evten;
     uint32_t prescaler, counter, prescaler_counter;
 };
@@ -55,11 +60,19 @@ void rtc_tick(void *userdata)
 {
     RTC_t *rtc = userdata;
 
-    rtc->prescaler_counter++;
+    gettimeofday(&rtc->timeval, NULL);
+    size_t now = rtc->timeval.tv_sec * 1e6 + rtc->timeval.tv_usec;
 
-    if (rtc->prescaler_counter == rtc->prescaler)
+    size_t elapsed = now - rtc->last_check_us;
+    size_t elapsed_ticks = elapsed / rtc->tick_interval_us;
+
+    if (elapsed_ticks > 0)
     {
-        rtc->prescaler_counter = 0;
+        rtc->last_check_us = now;
+
+        // if (elapsed_ticks > 1)
+        //     printf("Warning: skipped %ld ticks\n", elapsed_ticks - 1);
+
         rtc->counter++;
 
         ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_TICK), rtc->inten.TICK);
@@ -91,8 +104,11 @@ OPERATION(rtc)
         rtc->prescaler = 0;
         rtc->counter = 0;
         rtc->prescaler_counter = 0;
+        rtc->tick_interval_us = 0;
         return MEMREG_RESULT_OK;
     }
+
+    OP_ASSERT_SIZE(op, WORD);
 
     switch (offset)
     {
@@ -114,7 +130,7 @@ OPERATION(rtc)
 
     case 0x344: // EVTENSET
         OP_RETURN_REG_SET(rtc->evten.value, WORD);
-    
+
     case 0x348: // EVTENCLR
         OP_RETURN_REG_CLR(rtc->evten.value, WORD);
 
@@ -122,7 +138,17 @@ OPERATION(rtc)
         OP_RETURN_REG(rtc->counter, WORD);
 
     case 0x508: // PRESCALER
-        OP_RETURN_REG(rtc->prescaler, WORD);
+        if (OP_IS_READ(op))
+        {
+            *value = rtc->prescaler;
+        }
+        else
+        {
+            rtc->prescaler = *value;
+            rtc->tick_interval_us = ((size_t)(rtc->prescaler + 1) * 1e6) / 32768;
+        }
+
+        return MEMREG_RESULT_OK;
     }
 
     if (offset >= 0x540 && offset <= 0x54C + 4)
@@ -143,16 +169,23 @@ PPI_TASK_HANDLER(rtc_task_handler)
     {
     case TASK_ID(TASKS_START):
         if (!rtc->running)
+        {
             ticker_add(rtc->ticker, rtc_tick, rtc, TICK_INTERVAL);
 
-        rtc->running = true;
+            gettimeofday(&rtc->timeval, NULL);
+            rtc->last_check_us = rtc->timeval.tv_sec * 1e6 + rtc->timeval.tv_usec;
+
+            rtc->running = true;
+        }
         break;
 
     case TASK_ID(TASKS_STOP):
         if (rtc->running)
+        {
             ticker_remove(rtc->ticker, rtc_tick);
 
-        rtc->running = false;
+            rtc->running = false;
+        }
         break;
 
     case TASK_ID(TASKS_CLEAR):
