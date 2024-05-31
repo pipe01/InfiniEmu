@@ -5,7 +5,7 @@
 typedef struct st7789_t st7789_t;
 
 #define DISPLAY_WIDTH 240
-#define DISPLAY_HEIGHT 240
+#define DISPLAY_HEIGHT 320
 #define BYTES_PER_PIXEL 2 // We assume 16bpp format
 
 st7789_t* st7789_new();

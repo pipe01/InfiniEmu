@@ -91,6 +91,7 @@ typedef struct
 struct gdb_t
 {
     NRF52832_t *nrf;
+    pinetime_t *pt;
     gdbstub *current_stub;
 
     pthread_cond_t conn_cond;
@@ -756,7 +757,7 @@ void *gdb_run_cpu(void *userdata)
             if (gdb_has_breakpoint_at(stub->gdb, pc))
                 break;
 
-            nrf52832_step(stub->gdb->nrf);
+            pinetime_step(stub->gdb->pt);
         }
     }
 
@@ -872,14 +873,14 @@ void gdbstub_run(gdbstub *gdb)
                 LOG("Resetting target");
 
                 ret = strchr(msg, '#');
-                nrf52832_reset(gdb->gdb->nrf);
+                pinetime_reset(gdb->gdb->pt);
                 break;
 
             case 's':
                 ret = msg + 1;
 
                 // TODO: Catch faults
-                nrf52832_step(gdb->gdb->nrf);
+                pinetime_step(gdb->gdb->pt);
                 gdb_send_signal(gdb, SIGTRAP);
                 break;
 
@@ -984,12 +985,13 @@ void gdb_start(gdb_t *gdb)
     }
 }
 
-gdb_t *gdb_new(NRF52832_t *nrf52832, bool start_paused)
+gdb_t *gdb_new(pinetime_t *pt, bool start_paused)
 {
     gdb_t *gdb = (gdb_t *)malloc(sizeof(gdb_t));
     memset(gdb, 0, sizeof(gdb_t));
 
-    gdb->nrf = nrf52832;
+    gdb->nrf = pinetime_get_nrf52832(pt);
+    gdb->pt = pt;
 
     pthread_mutex_init(&gdb->conn_lock, NULL);
     pthread_cond_init(&gdb->conn_cond, NULL);

@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "fault.h"
+
 #define CHIPID 0xB4
 #define VENDORID 0x00
 #define FWVERSION 0x01
@@ -56,7 +58,7 @@ void cst816s_write(uint8_t *data, size_t data_size, void *userdata)
         break;
 
     default:
-        abort();
+        fault_take(FAULT_I2C_UNKNOWN_COMMAND);
     }
 }
 

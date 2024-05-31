@@ -8,10 +8,6 @@
 #include "pinetime.h"
 #include "gdb.h"
 
-#ifdef ENABLE_SEGGER_RTT
-#include "segger_rtt.h"
-#endif
-
 int main(int argc, char **argv)
 {
     char *program_path = NULL;
@@ -74,11 +70,6 @@ int main(int argc, char **argv)
     NRF52832_t *nrf = pinetime_get_nrf52832(pt);
     cpu_t *cpu = nrf52832_get_cpu(nrf);
 
-#ifdef ENABLE_SEGGER_RTT
-    rtt_t *rtt = rtt_new(cpu_mem(cpu));
-    size_t rtt_counter = 0;
-#endif
-
     runlog_t *runlog = NULL;
 
     if (runlog_path)
@@ -104,7 +95,7 @@ int main(int argc, char **argv)
     {
         printf("Waiting for GDB connection...\n");
 
-        gdb_t *gdb = gdb_new(nrf, true);
+        gdb_t *gdb = gdb_new(pt, true);
         gdb_start(gdb);
     }
     else
@@ -152,14 +143,6 @@ int main(int argc, char **argv)
                 printf("\n");
 
                 inst_counter = 0;
-            }
-#endif
-
-#ifdef ENABLE_SEGGER_RTT
-            if ((rtt_counter++ % 2000) == 0)
-            {
-                rtt_find_control(rtt);
-                rtt_flush_buffers(rtt);
             }
 #endif
         }

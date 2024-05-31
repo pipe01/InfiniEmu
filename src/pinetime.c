@@ -1,5 +1,6 @@
 #include "pinetime.h"
 
+#include "segger_rtt.h"
 #include "components/i2c/bma425.h"
 #include "components/i2c/cst816s.h"
 #include "components/i2c/hrs3300.h"
@@ -11,6 +12,11 @@ struct pinetime_t
     NRF52832_t *nrf;
 
     st7789_t *lcd;
+
+#ifdef ENABLE_SEGGER_RTT
+    rtt_t *rtt;
+    size_t rtt_counter;
+#endif
 };
 
 pinetime_t *pinetime_new(const uint8_t *program, size_t program_size, bool big_ram)
@@ -18,6 +24,11 @@ pinetime_t *pinetime_new(const uint8_t *program, size_t program_size, bool big_r
     pinetime_t *pt = (pinetime_t *)malloc(sizeof(pinetime_t));
     pt->nrf = nrf52832_new(program, program_size, big_ram ? 512 * 1024 : NRF52832_SRAM_SIZE);
     pt->lcd = st7789_new();
+
+#ifdef ENABLE_SEGGER_RTT
+    pt->rtt = rtt_new(cpu_mem(nrf52832_get_cpu(pt->nrf)));
+    pt->rtt_counter = 0;
+#endif
 
     spi_add_slave(nrf52832_get_spi(pt->nrf), PINETIME_EXTFLASH_CS_PIN, spinorflash_new(PINETIME_EXTFLASH_SIZE, PINETIME_EXTFLASH_SECTOR_SIZE));
     spi_add_slave(nrf52832_get_spi(pt->nrf), PINETIME_LCD_CS_PIN, st7789_get_slave(pt->lcd));
@@ -43,6 +54,14 @@ void pinetime_reset(pinetime_t *pt)
 void pinetime_step(pinetime_t *pt)
 {
     nrf52832_step(pt->nrf);
+
+#ifdef ENABLE_SEGGER_RTT
+    if (pt->rtt_counter++ % 1000 == 0)
+    {
+        rtt_find_control(pt->rtt);
+        rtt_flush_buffers(pt->rtt);
+    }
+#endif
 }
 
 NRF52832_t *pinetime_get_nrf52832(pinetime_t *pt)

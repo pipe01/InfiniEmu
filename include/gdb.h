@@ -1,8 +1,8 @@
 #pragma once
 
-#include "nrf52832.h"
+#include "pinetime.h"
 
 typedef struct gdb_t gdb_t;
 
-gdb_t *gdb_new(NRF52832_t *nrf52832, bool start_paused);
+gdb_t *gdb_new(pinetime_t *pt, bool start_paused);
 void gdb_start(gdb_t *gdb);
