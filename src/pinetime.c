@@ -49,3 +49,8 @@ NRF52832_t *pinetime_get_nrf52832(pinetime_t *pt)
 {
     return pt->nrf;
 }
+
+st7789_t *pinetime_get_st7789(pinetime_t *pt)
+{
+    return pt->lcd;
+}

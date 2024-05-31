@@ -70,8 +70,6 @@ typedef union
     uint16_t value;
 } value16_t;
 
-#define BYTES_PER_PIXEL 2 // We assume 16bpp format
-
 struct st7789_t
 {
     bool on;
@@ -109,6 +107,8 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
     {
         if (st7789->command == Command_WriteToRam)
         {
+            static int counter = 0;
+
             memcpy(&st7789->screen_buffer[st7789->screen_buffer_ptr], data, data_size);
     
             st7789->expecting_data -= data_size;
@@ -119,6 +119,13 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
                 uint16_t width = st7789->xend.value - st7789->xstart.value + 1;
                 uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
                 size_t stride = width * BYTES_PER_PIXEL;
+
+                if (st7789->xstart.value != 0)
+                {
+                    fflush(NULL);
+                }
+
+                printf("WriteToRam %d: %d x %d starting at %d,%d\n", counter, width, height, st7789->xstart.value, st7789->ystart.value);
 
                 size_t region_start_px = (DISPLAY_WIDTH * st7789->ystart.value) + st7789->xstart.value;
 
@@ -134,8 +141,6 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
                 }
 
                 free(st7789->screen_buffer);
-
-                static int counter = 0;
 
                 char name[20];
                 snprintf(name, sizeof(name), "screen_%d.raw", counter);
@@ -329,4 +334,9 @@ spi_slave_t st7789_get_slave(st7789_t *st7789)
         .reset = st7789_reset,
         .cs_changed = st7789_cs_changed,
     };
+}
+
+void st7789_read_screen(st7789_t *st, uint8_t *data)
+{
+    memcpy(data, st->screen, sizeof(st->screen));
 }

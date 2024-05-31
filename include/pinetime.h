@@ -1,6 +1,7 @@
 #pragma once
 
 #include "nrf52832.h"
+#include "components/spi/st7789.h"
 
 #define PINETIME_EXTFLASH_CS_PIN 5
 #define PINETIME_EXTFLASH_SIZE (4 * 1024 * 1024)
@@ -19,3 +20,4 @@ void pinetime_reset(pinetime_t *);
 void pinetime_step(pinetime_t *);
 
 NRF52832_t *pinetime_get_nrf52832(pinetime_t *);
+st7789_t *pinetime_get_st7789(pinetime_t *);
