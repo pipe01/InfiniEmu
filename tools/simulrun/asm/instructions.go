@@ -924,4 +924,24 @@ var Instructions = []Generator{
 	// func(r RandASM) Instruction {
 	// 	return r.inst("vmov", FlagNone, r.RandLowRegister(), r.RandScalarRegister())
 	// },
+
+	// SMLABB
+	func(r RandASM) Instruction {
+		return r.inst("smlabb", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SMLABT
+	func(r RandASM) Instruction {
+		return r.inst("smlabt", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SMLATB
+	func(r RandASM) Instruction {
+		return r.inst("smlatb", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
+
+	// SMLATT
+	func(r RandASM) Instruction {
+		return r.inst("smlatt", FlagNone, r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister(), r.RandLowRegister())
+	},
 }

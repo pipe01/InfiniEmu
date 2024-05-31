@@ -214,6 +214,7 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 	must(gdb2.Reset())
 
 	lastUpdate := time.Now()
+	failures := 0
 
 	const updateInterval = 100
 
@@ -222,7 +223,7 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 			instPerSecond := float64(updateInterval) / (time.Now().Sub(lastUpdate).Seconds())
 			lastUpdate = time.Now()
 
-			log.Printf("%d instructions, %.0f per second", i, instPerSecond)
+			log.Printf("%d instructions, %.0f per second. %d failures", i, instPerSecond, failures)
 		}
 
 		inst := <-ch
@@ -279,7 +280,7 @@ func doFuzz(gdb1, gdb2 *GDBClient, count int) {
 			}
 			log.Printf("exchange instruction: %s", ex.String())
 
-			break
+			failures++
 		}
 	}
 }
