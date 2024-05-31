@@ -1,6 +1,7 @@
 #pragma once
 
 #include <setjmp.h>
+#include <stdio.h>
 
 typedef enum
 {
@@ -29,6 +30,13 @@ typedef enum
         }                                                                      \
     } while (0)
 
+#define fault_take(t)                                       \
+    do                                                      \
+    {                                                       \
+        printf(__FILE__ ":%d: took fault %d", __LINE__, t); \
+        fault_take_(t);                                     \
+    } while (0)
+
 void fault_set_jmp(jmp_buf *buf);
 void fault_clear_jmp();
-void fault_take(fault_type_t t) __THROW __attribute__((__noreturn__));
+void fault_take_(fault_type_t t) __THROW __attribute__((__noreturn__));
