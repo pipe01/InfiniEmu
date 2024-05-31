@@ -1,7 +1,9 @@
 #include "components/spi/st7789.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "fault.h"
 
@@ -68,6 +70,8 @@ typedef union
     uint16_t value;
 } value16_t;
 
+#define BYTES_PER_PIXEL 2 // We assume 16bpp format
+
 struct st7789_t
 {
     bool on;
@@ -80,25 +84,11 @@ struct st7789_t
 
     command_t command;
     size_t expecting_data;
+
+    uint8_t screen[DISPLAY_WIDTH * DISPLAY_HEIGHT * BYTES_PER_PIXEL];
+    uint8_t *screen_buffer;
+    size_t screen_buffer_ptr;
 };
-
-static inline int st7789_bpp(uint8_t bpp)
-{
-    switch (bpp)
-    {
-    case RGB_FORMAT_12bpp:
-        return 12;
-
-    case RGB_FORMAT_16bpp:
-        return 16;
-
-    case RGB_FORMAT_18bpp:
-        return 18;
-
-    default:
-        fault_take(FAULT_UNKNOWN);
-    }
-}
 
 size_t st7789_read(uint8_t *data, size_t data_size, void *userdata)
 {
@@ -119,9 +109,43 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
     {
         if (st7789->command == Command_WriteToRam)
         {
-            assert(data_size <= st7789->expecting_data);
-
+            memcpy(&st7789->screen_buffer[st7789->screen_buffer_ptr], data, data_size);
+    
             st7789->expecting_data -= data_size;
+            st7789->screen_buffer_ptr += data_size;
+
+            if (st7789->expecting_data == 0)
+            {
+                uint16_t width = st7789->xend.value - st7789->xstart.value + 1;
+                uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
+                size_t stride = width * BYTES_PER_PIXEL;
+
+                size_t region_start_px = (DISPLAY_WIDTH * st7789->ystart.value) + st7789->xstart.value;
+
+                for (size_t row = 0; row < height; row++)
+                {
+                    size_t start_px = region_start_px + row * width;
+                    size_t start = start_px * BYTES_PER_PIXEL;
+
+                    assert(start + stride <= sizeof(st7789->screen));
+                    assert(row * stride + stride <= st7789->screen_buffer_ptr);
+
+                    memcpy(&st7789->screen[start], &st7789->screen_buffer[row * stride], stride);
+                }
+
+                free(st7789->screen_buffer);
+
+                static int counter = 0;
+
+                char name[20];
+                snprintf(name, sizeof(name), "screen_%d.raw", counter);
+                FILE *f = fopen(name, "wb");
+                fwrite(st7789->screen, 1, sizeof(st7789->screen), f);
+                fclose(f);
+
+                counter++;
+            }
+
             return;
         }
 
@@ -267,12 +291,13 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
     {
         uint16_t width = st7789->xend.value - st7789->xstart.value + 1;
         uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
-        uint8_t bpp = st7789_bpp(st7789->colmod.rgb_color_format);
-        size_t bytes = (width * height * bpp) / 8;
+        size_t bytes = width * height * BYTES_PER_PIXEL;
 
         assert(bytes > 0);
 
         st7789->expecting_data = bytes;
+        st7789->screen_buffer = malloc(bytes);
+        st7789->screen_buffer_ptr = 0;
         break;
     }
 
