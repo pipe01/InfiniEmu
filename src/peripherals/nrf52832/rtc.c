@@ -210,6 +210,11 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RTC, rtc, size_t cc_num)
     return rtc;
 }
 
+uint32_t rtc_is_running(RTC_t *rtc)
+{
+    return rtc->running;
+}
+
 uint32_t rtc_get_counter(RTC_t *rtc)
 {
     return rtc->counter;

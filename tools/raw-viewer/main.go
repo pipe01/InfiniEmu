@@ -61,11 +61,11 @@ func convertImage(raw []byte) *image.RGBA {
 type RTCTracker struct {
 	rtc *C.RTC_t
 
-	ticksPerSecond       uint32
-	targetTicksPerSecond uint32
+	TicksPerSecond       uint32
+	TargetTicksPerSecond uint32
+	Running              bool
 
-	lastTicks     uint32
-	lastCheckTime time.Time
+	lastTicks uint32
 }
 
 func NewRTCTracker(rtc *C.RTC_t) *RTCTracker {
@@ -74,7 +74,12 @@ func NewRTCTracker(rtc *C.RTC_t) *RTCTracker {
 	}
 }
 
-func (r *RTCTracker) Update() {
+func (r *RTCTracker) Update(updateInterval time.Duration) {
+	r.Running = C.rtc_is_running(r.rtc) != 0
+	if !r.Running {
+		return
+	}
+
 	ticks := uint32(C.rtc_get_counter(r.rtc))
 
 	interval := time.Duration(C.rtc_get_tick_interval_us(r.rtc)) * time.Microsecond
@@ -82,15 +87,10 @@ func (r *RTCTracker) Update() {
 		return
 	}
 
-	r.targetTicksPerSecond = 1e6 / uint32(interval.Microseconds())
-
-	now := time.Now()
-	elapsed := now.Sub(r.lastCheckTime)
-
-	r.ticksPerSecond = (1e6 * (ticks - r.lastTicks)) / uint32(elapsed.Microseconds())
+	r.TargetTicksPerSecond = 1e6 / uint32(interval.Microseconds())
+	r.TicksPerSecond = (1e6 * (ticks - r.lastTicks)) / uint32(updateInterval.Microseconds())
 
 	r.lastTicks = ticks
-	r.lastCheckTime = now
 }
 
 func main() {
@@ -123,12 +123,14 @@ func main() {
 
 	var instPerSecond uint64
 	go func() {
-		for range time.Tick(time.Second) {
+		interval := 500 * time.Millisecond
+
+		for range time.Tick(interval) {
 			for _, rtc := range rtcs {
-				rtc.Update()
+				rtc.Update(interval)
 			}
 
-			instPerSecond = uint64(C.inst_counter)
+			instPerSecond = (1e6 * uint64(C.inst_counter)) / uint64(interval.Microseconds())
 			C.inst_counter = 0
 		}
 	}()
@@ -265,9 +267,14 @@ func main() {
 		imgui.BeginV("Performance", nil, imgui.WindowFlagsAlwaysAutoResize)
 		{
 			for i, rtc := range rtcs {
-				imgui.Text(fmt.Sprintf("RTC%d", i))
-				imgui.Text(fmt.Sprintf("Ticks per second: %d", rtc.ticksPerSecond))
-				imgui.Text(fmt.Sprintf("Target ticks per second: %d", rtc.targetTicksPerSecond))
+				status := "off"
+				if rtc.Running {
+					status = "running"
+				}
+
+				imgui.Text(fmt.Sprintf("RTC%d (%s)", i, status))
+				imgui.Text(fmt.Sprintf("Ticks per second: %d", rtc.TicksPerSecond))
+				imgui.Text(fmt.Sprintf("Target ticks per second: %d", rtc.TargetTicksPerSecond))
 
 				imgui.Separator()
 			}
