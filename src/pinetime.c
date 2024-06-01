@@ -16,6 +16,7 @@ struct pinetime_t
 
 #ifdef ENABLE_SEGGER_RTT
     rtt_t *rtt;
+    bool rtt_found;
     size_t rtt_counter;
 #endif
 };
@@ -50,6 +51,9 @@ void pinetime_free(pinetime_t *pt)
 
 void pinetime_reset(pinetime_t *pt)
 {
+    pt->rtt_counter = 0;
+    pt->rtt_found = false;
+
     nrf52832_reset(pt->nrf);
 }
 
@@ -58,9 +62,11 @@ void pinetime_step(pinetime_t *pt)
     nrf52832_step(pt->nrf);
 
 #ifdef ENABLE_SEGGER_RTT
-    if (pt->rtt_counter % 1000 == 0 && pt->rtt_counter < 1000000)
+    if ((pt->rtt_found || pt->rtt_counter < 1000000) && pt->rtt_counter % 1000 == 0)
     {
-        rtt_find_control(pt->rtt);
+        if (!pt->rtt_found)
+            pt->rtt_found = rtt_find_control(pt->rtt);
+
         rtt_flush_buffers(pt->rtt);
 
         pt->rtt_counter++;
