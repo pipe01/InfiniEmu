@@ -57,7 +57,7 @@ OPERATION(scb)
 
             // TODO: Set RETTOBASE bit
 
-            arm_exception active_exc = cpu_get_active_exception(scb->cpu);
+            arm_exception active_exc = cpu_get_top_running_exception(scb->cpu);
             *value |= active_exc & 0x1FF;
         }
         else

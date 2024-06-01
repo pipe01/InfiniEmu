@@ -156,7 +156,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
     case TASK_ID(RTC_TASKS_START):
         if (!rtc->running)
         {
-            ticker_add(rtc->ticker, rtc_tick, rtc, TICK_INTERVAL);
+            ticker_add(rtc->ticker, rtc_tick, rtc, TICK_INTERVAL, true);
 
             gettimeofday(&rtc->timeval, NULL);
             rtc->last_check_us = rtc->timeval.tv_sec * 1e6 + rtc->timeval.tv_usec;

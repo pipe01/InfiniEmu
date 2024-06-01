@@ -12,6 +12,7 @@ typedef struct
     ticker_cb_t cb;
     void *userdata;
     uint32_t interval, counter;
+    bool auto_reload;
 } ticker_entry_t;
 
 struct ticker_t
@@ -35,7 +36,7 @@ void ticker_reset(ticker_t *ticker)
     memset(ticker, 0, sizeof(ticker_t));
 }
 
-void ticker_add(ticker_t *ticker, ticker_cb_t cb, void *userdata, uint32_t interval)
+void ticker_add(ticker_t *ticker, ticker_cb_t cb, void *userdata, uint32_t interval, bool auto_reload)
 {
     assert(ticker->count < MAX_ENTRIES);
 
@@ -45,6 +46,7 @@ void ticker_add(ticker_t *ticker, ticker_cb_t cb, void *userdata, uint32_t inter
     entry->userdata = userdata;
     entry->interval = interval;
     entry->counter = 0;
+    entry->auto_reload = auto_reload;
 }
 
 void ticker_remove(ticker_t *ticker, ticker_cb_t cb)
@@ -76,8 +78,17 @@ void ticker_tick(ticker_t *ticker)
 
         if (++entry->counter == entry->interval)
         {
-            entry->counter = 0;
             entry->cb(entry->userdata);
+
+            if (entry->auto_reload)
+            {
+                entry->counter = 0;
+            }
+            else
+            {
+                ticker_remove(ticker, entry->cb);
+                i--;
+            }
         }
     }
 }

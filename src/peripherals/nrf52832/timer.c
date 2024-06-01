@@ -99,6 +99,8 @@ OPERATION(timer)
         *timer = (TIMER_t){
             .cc_num = timer->cc_num,
             .id = timer->id,
+            .ticker = timer->ticker,
+            .cpu = timer->cpu,
         };
         return MEMREG_RESULT_OK;
     }
@@ -170,7 +172,7 @@ PPI_TASK_HANDLER(timer_task_handler)
         if (timer->mode == MODE_TIMER)
         {
             if (!timer->running)
-                ticker_add(timer->ticker, timer_tick, timer, TICK_INTERVAL);
+                ticker_add(timer->ticker, timer_tick, timer, TICK_INTERVAL, true);
 
             timer->running = true;
         }

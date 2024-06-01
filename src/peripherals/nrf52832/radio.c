@@ -5,6 +5,8 @@
 
 #include "peripherals/nrf52832/ppi.h"
 
+#define STATE_CHANGE_DELAY_INST 10000
+
 typedef union
 {
     struct
@@ -132,8 +134,10 @@ typedef enum
 
 struct RADIO_inst_t
 {
+    ticker_t *ticker;
+
     bool powered_on;
-    radio_state_t state;
+    radio_state_t state, next_state;
     inten_t inten;
 
     uint32_t mode;
@@ -165,6 +169,35 @@ void radio_reset(RADIO_t *radio)
     radio->state = STATE_DISABLED;
 }
 
+void radio_do_state_change(void *userdata)
+{
+    RADIO_t *radio = userdata;
+
+    radio->state = radio->next_state;
+
+    switch (radio->state)
+    {
+    case STATE_RXDISABLE:
+    case STATE_TXDISABLE:
+        radio->next_state = STATE_DISABLED;
+        break;
+
+    case STATE_TXRU:
+        radio->next_state = STATE_TXIDLE;
+        break;
+
+    case STATE_RXRU:
+        radio->next_state = STATE_RXIDLE;
+        break;
+
+    default:
+        break;
+    }
+
+    if (radio->next_state != radio->state)
+        ticker_add(radio->ticker, radio_do_state_change, radio, STATE_CHANGE_DELAY_INST, false);
+}
+
 PPI_TASK_HANDLER(radio_task_handler)
 {
     RADIO_t *radio = userdata;
@@ -175,10 +208,10 @@ PPI_TASK_HANDLER(radio_task_handler)
         switch (radio->state)
         {
         case STATE_TX:
-            radio->state = STATE_TXIDLE;
+            radio->next_state = STATE_TXIDLE;
             break;
         case STATE_RX:
-            radio->state = STATE_RXIDLE;
+            radio->next_state = STATE_RXIDLE;
             break;
         default:
             break;
@@ -189,7 +222,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         switch (radio->state)
         {
         case STATE_DISABLED:
-            radio->state = STATE_TXRU;
+            radio->next_state = STATE_TXRU;
             break;
         default:
             break;
@@ -200,7 +233,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         switch (radio->state)
         {
         case STATE_DISABLED:
-            radio->state = STATE_RXRU;
+            radio->next_state = STATE_RXRU;
             break;
         default:
             break;
@@ -211,10 +244,10 @@ PPI_TASK_HANDLER(radio_task_handler)
         switch (radio->state)
         {
         case STATE_TXIDLE:
-            radio->state = STATE_TX;
+            radio->next_state = STATE_TX;
             break;
         case STATE_RXIDLE:
-            radio->state = STATE_RX;
+            radio->next_state = STATE_RX;
             break;
         default:
             break;
@@ -227,12 +260,12 @@ PPI_TASK_HANDLER(radio_task_handler)
         case STATE_TX:
         case STATE_TXIDLE:
         case STATE_TXRU:
-            radio->state = STATE_TXDISABLE;
+            radio->next_state = STATE_TXDISABLE;
             break;
         case STATE_RX:
         case STATE_RXIDLE:
         case STATE_RXRU:
-            radio->state = STATE_RXDISABLE;
+            radio->next_state = STATE_RXDISABLE;
             break;
         default:
             break;
@@ -245,6 +278,9 @@ PPI_TASK_HANDLER(radio_task_handler)
     case TASK_ID(RADIO_TASKS_BCSTOP):
         abort();
     }
+
+    if (radio->next_state != radio->state)
+        ticker_add(radio->ticker, radio_do_state_change, radio, STATE_CHANGE_DELAY_INST, false);
 }
 
 OPERATION(radio)
@@ -387,6 +423,7 @@ OPERATION(radio)
 NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
 {
     RADIO_t *radio = malloc(sizeof(RADIO_t));
+    radio->ticker = ctx.ticker;
 
     ppi_add_peripheral(ctx.ppi, ctx.id, radio_task_handler, radio);
 
