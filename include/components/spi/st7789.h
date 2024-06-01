@@ -11,4 +11,4 @@ typedef struct st7789_t st7789_t;
 st7789_t* st7789_new();
 spi_slave_t st7789_get_slave(st7789_t *);
 
-void st7789_read_screen(st7789_t *, uint8_t *data);
+void st7789_read_screen(st7789_t *, uint8_t *data, size_t width, size_t height);

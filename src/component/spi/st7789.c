@@ -354,7 +354,23 @@ spi_slave_t st7789_get_slave(st7789_t *st7789)
     };
 }
 
-void st7789_read_screen(st7789_t *st, uint8_t *data)
+void st7789_read_screen(st7789_t *st, uint8_t *data, size_t width, size_t height)
 {
-    memcpy(data, st->screen, sizeof(st->screen));
+    assert(width == DISPLAY_WIDTH);
+    assert(height <= DISPLAY_HEIGHT);
+
+    size_t start = st->vertical_scroll_start.value * DISPLAY_WIDTH * BYTES_PER_PIXEL;
+    size_t length = width * height * BYTES_PER_PIXEL;
+
+    if (start + length > sizeof(st->screen))
+    {
+        // Wrap around
+
+        memcpy(data, &st->screen[start], sizeof(st->screen) - start);
+        memcpy(&data[sizeof(st->screen) - start], st->screen, length - (sizeof(st->screen) - start));
+    }
+    else
+    {
+        memcpy(data, &st->screen[start], length);
+    }
 }
