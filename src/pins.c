@@ -44,10 +44,12 @@ static inline void pins_set_state(pins_t *pins, int pin, bool is_set)
     assert(pin >= 0 && pin < PINS_COUNT);
 
     pin_t *p = &pins->pins[pin];
+    if (p->is_set == is_set)
+        return;
 
     p->is_set = is_set;
 
-    if (p->sense != SENSE_DISABLED && ((is_set && p->sense == SENSE_HIGH) || (!is_set && p->sense == SENSE_LOW)))
+    if (p->sense != SENSE_DISABLED && ((is_set && (p->sense == SENSE_HIGH)) || (!is_set && (p->sense == SENSE_LOW))))
         pins->latch |= 1 << pin;
 }
 
