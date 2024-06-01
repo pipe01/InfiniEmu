@@ -1,5 +1,6 @@
 #include "peripherals/dcb.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "memory.h"
@@ -23,6 +24,12 @@ OPERATION(dcb)
 
     switch (offset)
     {
+    case 0x0: // DHCSR
+        if (OP_IS_READ(op))
+            *value = 0;
+        printf("DHCSR: %08X\n", *value);
+        return MEMREG_RESULT_OK;
+
     case 0xC: // DEMCR
         OP_RETURN_REG(dcb->demcr, WORD);
     }
