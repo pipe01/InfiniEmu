@@ -100,7 +100,7 @@ int main(int argc, char **argv)
     }
     else
     {
-#if ENABLE_MEASUREMENT || true
+#if ENABLE_MEASUREMENT
         struct timeval tv_start, tv_now;
         gettimeofday(&tv_start, NULL);
 
@@ -110,23 +110,6 @@ int main(int argc, char **argv)
         for (;;)
         {
             pinetime_step(pt);
-
-            static bool set = false, cleared = false;
-            if (!(set && cleared) && ++inst_counter % 1000000 == 0)
-            {
-                gettimeofday(&tv_now, NULL);
-                long elapsed = (tv_now.tv_sec - tv_start.tv_sec) * 1000000 + (tv_now.tv_usec - tv_start.tv_usec);
-                if (!set && elapsed >= 10000000)
-                {
-                    set = true;
-                    pins_set(nrf52832_get_pins(nrf), 13);
-                }
-                if (set && elapsed > 11000000)
-                {
-                    cleared = true;
-                    pins_clear(nrf52832_get_pins(nrf), 13);
-                }
-            }
 
 #ifdef ENABLE_MEASUREMENT
             if (++inst_counter == 1000000)
