@@ -1587,6 +1587,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_LDRB:
+    case ARM_INS_LDREXB:
         cpu_do_load(cpu, detail, SIZE_BYTE, false);
         break;
 
@@ -2106,6 +2107,8 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_STREX:
+    case ARM_INS_STREXB:
+    case ARM_INS_STREXH:
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2114,7 +2117,9 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op0 = cpu_mem_operand_address(cpu, &detail->operands[2]);
 
         cpu_reg_write(cpu, detail->operands[0].reg, 0);
-        memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail->operands[1].reg), SIZE_WORD);
+        memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail->operands[1].reg),
+                     i->id == ARM_INS_STREXB ? SIZE_BYTE : i->id == ARM_INS_STREXH ? SIZE_HALFWORD
+                                                                                   : SIZE_WORD);
         break;
 
     case ARM_INS_STRH:

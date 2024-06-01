@@ -2,11 +2,13 @@
 
 #include "nrf52832.h"
 #include "components/spi/st7789.h"
+#include "components/i2c/cst816s.h"
 
 #define PINETIME_EXTFLASH_CS_PIN 5
 #define PINETIME_EXTFLASH_SIZE (4 * 1024 * 1024)
 #define PINETIME_EXTFLASH_SECTOR_SIZE (4 * 1024)
 #define PINETIME_LCD_CS_PIN 25
+#define PINETIME_CST816S_IRQ_PIN 28
 
 #define PINETIME_CST816S_I2C_ADDR 0x15
 #define PINETIME_BMA425_I2C_ADDR 0x18
@@ -21,3 +23,4 @@ void pinetime_step(pinetime_t *);
 
 NRF52832_t *pinetime_get_nrf52832(pinetime_t *);
 st7789_t *pinetime_get_st7789(pinetime_t *);
+cst816s_t *pinetime_get_cst816s(pinetime_t *);
