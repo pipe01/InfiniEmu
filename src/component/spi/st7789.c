@@ -331,6 +331,9 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
 
 void st7789_reset(void *userdata)
 {
+    st7789_t *st7789 = (st7789_t *)malloc(sizeof(st7789_t));
+
+    st7789->sleeping = true;
 }
 
 void st7789_cs_changed(bool selected, void *userdata)
@@ -339,7 +342,7 @@ void st7789_cs_changed(bool selected, void *userdata)
 
 st7789_t *st7789_new()
 {
-    st7789_t *st7789 = (st7789_t *)malloc(sizeof(st7789_t));
+    st7789_t *st7789 = malloc(sizeof(st7789_t));
     return st7789;
 }
 
@@ -373,4 +376,9 @@ void st7789_read_screen(st7789_t *st, uint8_t *data, size_t width, size_t height
     {
         memcpy(data, &st->screen[start], length);
     }
+}
+
+bool st7789_is_sleeping(st7789_t *st)
+{
+    return st->sleeping;
 }

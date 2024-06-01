@@ -184,26 +184,30 @@ func main() {
 		p.NewFrame()
 		imgui.NewFrame()
 
-		C.st7789_read_screen(lcd, (*C.uchar)(&screen[0]), displayWidth, displayHeight)
-		img := convertImage(screen)
-
-		r.ReleaseImage(texid)
-		texid, err = r.LoadImage(img)
-		if err != nil {
-			log.Fatal(err)
-		}
-
 		imgui.BeginV("Display", nil, imgui.WindowFlagsNoResize)
 		{
-			imgui.Image(texid, imgui.Vec2{X: displayWidth, Y: displayHeight})
+			if C.st7789_is_sleeping(lcd) {
+				imgui.Text("Display is off")
+			} else {
+				C.st7789_read_screen(lcd, (*C.uchar)(&screen[0]), displayWidth, displayHeight)
+				img := convertImage(screen)
 
-			if imgui.IsItemHovered() {
-				if mouseIsDown && !mouseWasDown {
-					pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
+				r.ReleaseImage(texid)
+				texid, err = r.LoadImage(img)
+				if err != nil {
+					log.Fatal(err)
+				}
 
-					C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(pos.X), C.ushort(pos.Y))
-				} else if !mouseIsDown && mouseWasDown {
-					C.cst816s_release_touch(touchScreen)
+				imgui.Image(texid, imgui.Vec2{X: displayWidth, Y: displayHeight})
+
+				if imgui.IsItemHovered() {
+					if mouseIsDown && !mouseWasDown {
+						pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
+
+						C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(pos.X), C.ushort(pos.Y))
+					} else if !mouseIsDown && mouseWasDown {
+						C.cst816s_release_touch(touchScreen)
+					}
 				}
 			}
 		}
