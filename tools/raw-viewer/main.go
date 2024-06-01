@@ -22,19 +22,22 @@ import (
 #include "scheduler.h"
 
 volatile unsigned long inst_counter = 0;
+volatile bool stop_loop = false;
 
 void loop(pinetime_t *pt)
 {
-	for (;;)
+	stop_loop = false;
+
+	while (!stop_loop)
 	{
 		pinetime_step(pt);
 		inst_counter++;
 	}
 }
 
-scheduler_t *create_sched(pinetime_t *pt)
+scheduler_t *create_sched(pinetime_t *pt, size_t freq)
 {
-	return scheduler_new((scheduler_cb_t)pinetime_step, pt);
+	return scheduler_new((scheduler_cb_t)pinetime_step, pt, freq);
 }
 */
 import "C"
@@ -68,9 +71,9 @@ const (
 	pinTwiSda             = 6
 )
 
-const (
-	touchDuration = 200 * time.Millisecond
-)
+const baseFrequencyHZ = 18_000_000
+
+const touchDuration = 200 * time.Millisecond
 
 func convertImage(raw []byte) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, displayWidth, displayHeight))
@@ -131,8 +134,10 @@ func constCheckbox(id string, state bool) {
 }
 
 func main() {
+	var noScheduler bool
+
 	runGDB := flag.Bool("gdb", false, "")
-	noScheduler := flag.Bool("no-sched", false, "")
+	flag.BoolVar(&noScheduler, "no-sched", false, "")
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -147,15 +152,15 @@ func main() {
 	pt := C.pinetime_new((*C.uchar)(&program[0]), C.ulong(len(program)), false)
 	C.pinetime_reset(pt)
 
-	sched := C.create_sched(pt)
+	sched := C.create_sched(pt, baseFrequencyHZ)
 
 	if *runGDB {
 		gdb := C.gdb_new(pt, true)
 		go C.gdb_start(gdb)
-	} else if *noScheduler {
+	} else if noScheduler {
 		go C.loop(pt)
 	} else {
-		go C.scheduler_run(sched, 18_000_000)
+		go C.scheduler_run(sched)
 	}
 
 	lcd := C.pinetime_get_st7789(pt)
@@ -179,7 +184,7 @@ func main() {
 			}
 
 			var instCounter uint64
-			if *noScheduler {
+			if noScheduler {
 				instCounter = uint64(C.inst_counter)
 			} else {
 				instCounter = uint64(C.scheduler_get_counter(sched))
@@ -355,7 +360,31 @@ func main() {
 
 			imgui.Text(fmt.Sprintf("Instructions per second: %d", instPerSecond))
 
-			imgui.SliderFloat("Speed", &speed, 0, 2)
+			if imgui.Checkbox("Disable scheduler", &noScheduler) {
+				if noScheduler {
+					C.scheduler_stop(sched)
+
+					//TODO: Wait for scheduler to stop
+					time.Sleep(100 * time.Millisecond)
+
+					go C.loop(pt)
+				} else {
+					C.stop_loop = true
+
+					//TODO: Wait for loop to stop
+					time.Sleep(100 * time.Millisecond)
+
+					go C.scheduler_run(sched)
+				}
+			}
+
+			imgui.BeginDisabled(noScheduler)
+			{
+				if imgui.SliderFloat("Speed", &speed, 0, 2) {
+					C.scheduler_set_frequency(sched, C.ulong(speed*baseFrequencyHZ))
+				}
+			}
+			imgui.EndDisabled()
 		}
 		imgui.End()
 

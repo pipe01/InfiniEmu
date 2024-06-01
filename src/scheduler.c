@@ -1,5 +1,6 @@
 #include "scheduler.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
@@ -13,28 +14,38 @@ struct scheduler_t
     scheduler_cb_t cb;
     void *userdata;
 
+    bool stop;
+
+    size_t iteration_count, should_take_ns;
+
     uint64_t counter;
 };
 
-scheduler_t *scheduler_new(scheduler_cb_t cb, void *userdata)
+scheduler_t *scheduler_new(scheduler_cb_t cb, void *userdata, size_t target_hz)
 {
     scheduler_t *scheduler = malloc(sizeof(scheduler_t));
     scheduler->cb = cb;
     scheduler->userdata = userdata;
+    scheduler->stop = false;
+
+    scheduler_set_frequency(scheduler, target_hz);
 
     return scheduler;
 }
 
-void scheduler_run(scheduler_t *sched, size_t target_hz)
+void scheduler_run(scheduler_t *sched)
 {
     struct timeval tv;
     struct timespec ts_rem, ts_req = {0};
 
-    size_t iteration_count = target_hz / SCHEDULER_HZ;
-    size_t should_take_ns = (1e9 * iteration_count) / target_hz;
+    sched->stop = false;
 
-    for (;;)
+    while (!sched->stop)
     {
+        // Copy variables here to prevent them from changing during the loop body
+        size_t iteration_count = sched->iteration_count;
+        size_t should_take_ns = sched->should_take_ns;
+
         gettimeofday(&tv, NULL);
         size_t start = tv.tv_sec * 1e6 + tv.tv_usec;
 
@@ -48,7 +59,6 @@ void scheduler_run(scheduler_t *sched, size_t target_hz)
         size_t end = tv.tv_sec * 1e6 + tv.tv_usec;
         size_t elapsed_ns = (end - start) * 1e3;
 
-
         if (elapsed_ns < should_take_ns)
         {
             ts_req.tv_nsec = should_take_ns - elapsed_ns;
@@ -57,7 +67,18 @@ void scheduler_run(scheduler_t *sched, size_t target_hz)
     }
 }
 
+void scheduler_stop(scheduler_t *sched)
+{
+    sched->stop = true;
+}
+
 uint64_t scheduler_get_counter(scheduler_t *sched)
 {
     return sched->counter;
+}
+
+void scheduler_set_frequency(scheduler_t *sched, size_t target_hz)
+{
+    sched->iteration_count = target_hz / SCHEDULER_HZ;
+    sched->should_take_ns = (1e9 * sched->iteration_count) / target_hz;
 }
