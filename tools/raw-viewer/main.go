@@ -13,16 +13,21 @@ import (
 	"github.com/AllenDang/imgui-go"
 )
 
-// #include "gdb.h"
-// #include "pinetime.h"
-// #cgo CFLAGS: -I../../include
-// #cgo LDFLAGS: -L. -linfiniemu
 /*
+#cgo CFLAGS: -I../../include
+#cgo LDFLAGS: -L. -linfiniemu
+
+#include "gdb.h"
+#include "pinetime.h"
+
+volatile unsigned long inst_counter = 0;
+
 void loop(pinetime_t *pt)
 {
 	for (;;)
 	{
 		pinetime_step(pt);
+		inst_counter++;
 	}
 }
 */
@@ -116,11 +121,15 @@ func main() {
 		NewRTCTracker((*C.RTC_t)(C.nrf52832_get_peripheral(C.pinetime_get_nrf52832(pt), C.INSTANCE_RTC2))),
 	}
 
+	var instPerSecond uint64
 	go func() {
-		for range time.Tick(500 * time.Millisecond) {
+		for range time.Tick(time.Second) {
 			for _, rtc := range rtcs {
 				rtc.Update()
 			}
+
+			instPerSecond = uint64(C.inst_counter)
+			C.inst_counter = 0
 		}
 	}()
 
@@ -249,17 +258,17 @@ func main() {
 		}
 		imgui.End()
 
-		imgui.Begin("RTC")
+		imgui.BeginV("Performance", nil, imgui.WindowFlagsAlwaysAutoResize)
 		{
 			for i, rtc := range rtcs {
 				imgui.Text(fmt.Sprintf("RTC%d", i))
 				imgui.Text(fmt.Sprintf("Ticks per second: %d", rtc.ticksPerSecond))
 				imgui.Text(fmt.Sprintf("Target ticks per second: %d", rtc.targetTicksPerSecond))
 
-				if i < len(rtcs)-1 {
-					imgui.Separator()
-				}
+				imgui.Separator()
 			}
+
+			imgui.Text(fmt.Sprintf("Instructions per second: %d", instPerSecond))
 		}
 		imgui.End()
 
