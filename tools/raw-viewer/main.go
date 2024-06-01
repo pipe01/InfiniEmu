@@ -101,14 +101,14 @@ func main() {
 
 	clearColor := [4]float32{0.7, 0.7, 0.7, 1.0}
 
-	sideButton := false
-
 	imgui.StyleColorsDark()
 
 	t := time.Tick(time.Second / 60)
 
 	var doAction func()
 	var doActionTime time.Time
+
+	sideButtonDown := false
 
 	for !p.ShouldStop() {
 		<-t
@@ -135,15 +135,26 @@ func main() {
 		imgui.BeginV("Display", nil, imgui.WindowFlagsNoResize)
 		{
 			imgui.Image(texid, imgui.Vec2{X: displayWidth, Y: displayHeight})
+
+			if imgui.IsItemHovered() && imgui.IsMouseClicked(0) {
+				pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
+
+				C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(pos.X), C.ushort(pos.Y))
+				doAction = func() { C.cst816s_release_touch(touchScreen) }
+				doActionTime = time.Now().Add(200 * time.Millisecond)
+			}
 		}
 		imgui.End()
 
 		imgui.Begin("Inputs")
 		{
-			if imgui.Checkbox("Side button pressed", &sideButton) {
-				if sideButton {
+			imgui.Button("Side button")
+			if imgui.IsItemHovered() {
+				if imgui.IsMouseDown(0) && !sideButtonDown {
+					sideButtonDown = true
 					C.pins_set(pins, 13)
-				} else {
+				} else if !imgui.IsMouseDown(0) && sideButtonDown {
+					sideButtonDown = false
 					C.pins_clear(pins, 13)
 				}
 			}
