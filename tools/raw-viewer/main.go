@@ -15,10 +15,11 @@ import (
 
 /*
 #cgo CFLAGS: -I../../include
-#cgo LDFLAGS: -L. -linfiniemu
+#cgo LDFLAGS: libinfiniemu.o -lcapstone
 
 #include "gdb.h"
 #include "pinetime.h"
+#include "scheduler.h"
 
 volatile unsigned long inst_counter = 0;
 
@@ -29,6 +30,11 @@ void loop(pinetime_t *pt)
 		pinetime_step(pt);
 		inst_counter++;
 	}
+}
+
+scheduler_t *create_sched(pinetime_t *pt)
+{
+	return scheduler_new((scheduler_cb_t)pinetime_step, pt);
 }
 */
 import "C"
@@ -66,7 +72,7 @@ type RTCTracker struct {
 	Running              bool
 
 	lastTicks uint32
-}
+} //
 
 func NewRTCTracker(rtc *C.RTC_t) *RTCTracker {
 	return &RTCTracker{
@@ -95,6 +101,7 @@ func (r *RTCTracker) Update(updateInterval time.Duration) {
 
 func main() {
 	runGDB := flag.Bool("gdb", false, "")
+	noScheduler := flag.Bool("no-sched", false, "")
 	flag.Parse()
 
 	program, err := os.ReadFile("../../infinitime.bin")
@@ -105,11 +112,15 @@ func main() {
 	pt := C.pinetime_new((*C.uchar)(&program[0]), C.ulong(len(program)), true)
 	C.pinetime_reset(pt)
 
+	sched := C.create_sched(pt)
+
 	if *runGDB {
 		gdb := C.gdb_new(pt, true)
 		go C.gdb_start(gdb)
-	} else {
+	} else if *noScheduler {
 		go C.loop(pt)
+	} else {
+		go C.scheduler_run(sched, 18_000_000)
 	}
 
 	lcd := C.pinetime_get_st7789(pt)
@@ -123,15 +134,24 @@ func main() {
 
 	var instPerSecond uint64
 	go func() {
-		interval := 500 * time.Millisecond
+		interval := 1000 * time.Millisecond
+
+		var lastCounter uint64
 
 		for range time.Tick(interval) {
 			for _, rtc := range rtcs {
 				rtc.Update(interval)
 			}
 
-			instPerSecond = (1e6 * uint64(C.inst_counter)) / uint64(interval.Microseconds())
-			C.inst_counter = 0
+			var instCounter uint64
+			if *noScheduler {
+				instCounter = uint64(C.inst_counter)
+			} else {
+				instCounter = uint64(C.scheduler_get_counter(sched))
+			}
+
+			instPerSecond = (1e6 * (instCounter - lastCounter)) / uint64(interval.Microseconds())
+			lastCounter = instCounter
 		}
 	}()
 
@@ -230,35 +250,39 @@ func main() {
 
 			imgui.BeginTable("Slide", 3, 0, imgui.Vec2{}, 0)
 			{
-				imgui.TableNextRow(0, 0)
-				imgui.TableSetColumnIndex(1)
-				if imgui.Button("Slide up") {
-					C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDEUP, displayWidth/2, displayHeight/2)
-					doAction = func() { C.cst816s_release_touch(touchScreen) }
-					doActionTime = time.Now().Add(200 * time.Millisecond)
-				}
+				imgui.BeginDisabled(doAction != nil)
+				{
+					imgui.TableNextRow(0, 0)
+					imgui.TableSetColumnIndex(1)
+					if imgui.Button("Slide up") {
+						C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDEUP, displayWidth/2, displayHeight/2)
+						doAction = func() { C.cst816s_release_touch(touchScreen) }
+						doActionTime = time.Now().Add(200 * time.Millisecond)
+					}
 
-				imgui.TableNextRow(0, 0)
-				imgui.TableSetColumnIndex(0)
-				if imgui.Button("Slide left") {
-					C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDELEFT, displayWidth/2, displayHeight/2)
-					doAction = func() { C.cst816s_release_touch(touchScreen) }
-					doActionTime = time.Now().Add(200 * time.Millisecond)
-				}
-				imgui.TableSetColumnIndex(2)
-				if imgui.Button("Slide right") {
-					C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDERIGHT, displayWidth/2, displayHeight/2)
-					doAction = func() { C.cst816s_release_touch(touchScreen) }
-					doActionTime = time.Now().Add(200 * time.Millisecond)
-				}
+					imgui.TableNextRow(0, 0)
+					imgui.TableSetColumnIndex(0)
+					if imgui.Button("Slide left") {
+						C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDELEFT, displayWidth/2, displayHeight/2)
+						doAction = func() { C.cst816s_release_touch(touchScreen) }
+						doActionTime = time.Now().Add(200 * time.Millisecond)
+					}
+					imgui.TableSetColumnIndex(2)
+					if imgui.Button("Slide right") {
+						C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDERIGHT, displayWidth/2, displayHeight/2)
+						doAction = func() { C.cst816s_release_touch(touchScreen) }
+						doActionTime = time.Now().Add(200 * time.Millisecond)
+					}
 
-				imgui.TableNextRow(0, 0)
-				imgui.TableSetColumnIndex(1)
-				if imgui.Button("Slide down") {
-					C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDEDOWN, displayWidth/2, displayHeight/2)
-					doAction = func() { C.cst816s_release_touch(touchScreen) }
-					doActionTime = time.Now().Add(200 * time.Millisecond)
+					imgui.TableNextRow(0, 0)
+					imgui.TableSetColumnIndex(1)
+					if imgui.Button("Slide down") {
+						C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDEDOWN, displayWidth/2, displayHeight/2)
+						doAction = func() { C.cst816s_release_touch(touchScreen) }
+						doActionTime = time.Now().Add(200 * time.Millisecond)
+					}
 				}
+				imgui.EndDisabled()
 			}
 			imgui.EndTable()
 		}

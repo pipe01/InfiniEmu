@@ -2,6 +2,7 @@
 /*.dis
 /*.out
 /*.so
+/*.o
 obj
 infiniemu
 tests.out

@@ -31,7 +31,7 @@ LIBS = -lm -lcapstone
 
 DEPS = $(shell find $(IDIR) -type f -name '*.h')
 
-_OBJ = $(patsubst %.c,%.o,$(shell find $(SDIR) -type f -name '*.c'))
+_OBJ = $(patsubst %.c,%.o,$(shell find $(SDIR) -type f -name '*.c' ! -name "infiniemu.c"))
 _OBJ += $(LDIR)/tiny-AES-c/aes.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
@@ -45,8 +45,11 @@ $(ODIR)/%.o: %.c $(DEPS)
 	mkdir -p $(shell dirname $@)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-infiniemu: $(OBJ)
+infiniemu: $(OBJ) obj/src/infiniemu.o
 	$(CC) -o $@ $^ -static $(CFLAGS) $(LIBS)
+
+libinfiniemu.o: $(OBJ)
+	ld -relocatable -static $^ -o $@
 
 libinfiniemu.so: $(OBJ)
 	$(CC) -o $@ $^ -shared $(CFLAGS) $(LIBS)
