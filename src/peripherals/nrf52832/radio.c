@@ -124,17 +124,34 @@ typedef union
 } shorts_t;
 static_assert(sizeof(shorts_t) == 4, "shorts_t size is not 4 bytes");
 
+typedef union
+{
+    uint8_t byte[4];
+    uint32_t value;
+} prefix_t;
+
+typedef union
+{
+    struct
+    {
+        unsigned int FREQUENCY : 7;
+        unsigned int : 1;
+        unsigned int MAP : 1;
+    };
+    uint32_t value;
+} frequency_t;
+
 typedef enum
 {
-    STATE_DISABLED,  // No operations are going on inside the radio and the power consumption is at a minimum
-    STATE_RXRU,      // The radio is ramping up and preparing for reception
-    STATE_RXIDLE,    // The radio is ready for reception to start
-    STATE_RX,        // Reception has been started and the addresses enabled in the RXADDRESSES register are being monitored
-    STATE_TXRU,      // The radio is ramping up and preparing for transmission
-    STATE_TXIDLE,    // The radio is ready for transmission to start
-    STATE_TX,        // The radio is transmitting a packet
-    STATE_RXDISABLE, // The radio is disabling the receiver
-    STATE_TXDISABLE, // The radio is disabling the transmitter
+    STATE_DISABLED = 0,   // No operations are going on inside the radio and the power consumption is at a minimum
+    STATE_RXRU = 1,       // The radio is ramping up and preparing for reception
+    STATE_RXIDLE = 2,     // The radio is ready for reception to start
+    STATE_RX = 3,         // Reception has been started and the addresses enabled in the RXADDRESSES register are being monitored
+    STATE_RXDISABLE = 4,  // The radio is disabling the receiver
+    STATE_TXRU = 9,       // The radio is ramping up and preparing for transmission
+    STATE_TXIDLE = 10,    // The radio is ready for transmission to start
+    STATE_TX = 11,        // The radio is transmitting a packet
+    STATE_TXDISABLE = 12, // The radio is disabling the transmitter
 } radio_state_t;
 
 struct RADIO_inst_t
@@ -152,10 +169,16 @@ struct RADIO_inst_t
     modecnf0_t modecnf0;
     shorts_t shorts;
 
+    frequency_t frequency;
+
+    uint32_t base0, base1;
+    prefix_t prefix0, prefix1;
     uint32_t txaddress, rxaddresses;
 
     crccnf_t crccnf;
     uint32_t crcinit, crcpoly;
+
+    uint32_t datawhiteiv;
 
     uint32_t tifs;
 };
@@ -303,6 +326,9 @@ OPERATION(radio)
     case 0x504: // PACKETPTR
         OP_RETURN_REG(radio->packetptr, WORD);
 
+    case 0x508: // FREQUENCY
+        OP_RETURN_REG(radio->frequency.value, WORD);
+
     case 0x50C: // TXPOWER
         OP_RETURN_REG(radio->txpower, WORD);
 
@@ -314,6 +340,18 @@ OPERATION(radio)
 
     case 0x518: // PCNF1
         OP_RETURN_REG(radio->pcnf1.value, WORD);
+
+    case 0x51C: // BASE0
+        OP_RETURN_REG(radio->base0, WORD);
+
+    case 0x520: // BASE1
+        OP_RETURN_REG(radio->base1, WORD);
+
+    case 0x524: // PREFIX0
+        OP_RETURN_REG(radio->prefix0.value, WORD);
+
+    case 0x528: // PREFIX1
+        OP_RETURN_REG(radio->prefix1.value, WORD);
 
     case 0x52C: // TXADDRESS
         OP_RETURN_REG(radio->txaddress, WORD);
@@ -333,11 +371,24 @@ OPERATION(radio)
     case 0x544: // TIFS
         OP_RETURN_REG(radio->tifs, WORD);
 
+    case 0x550: // STATE
+        OP_ASSERT_READ(op);
+        *value = radio->state;
+        return MEMREG_RESULT_OK;
+
+    case 0x554: // DATAWHITEIV
+        OP_RETURN_REG(radio->datawhiteiv, WORD);
+
     case 0x650: // MODECNF0
         OP_RETURN_REG(radio->modecnf0.value, WORD);
 
     case 0x73C: // Undocumented
         *value = 0x00003090;
+        return MEMREG_RESULT_OK;
+
+    case 0x774: // Undocumented, used on errata 102, 106, 107
+        if (OP_IS_READ(op))
+            *value = 0;
         return MEMREG_RESULT_OK;
 
     case 0xFFC: // POWER
