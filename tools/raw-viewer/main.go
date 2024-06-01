@@ -79,12 +79,13 @@ func (r *RTCTracker) Update() {
 
 	r.targetTicksPerSecond = 1e6 / uint32(interval.Microseconds())
 
-	elapsed := time.Now().Sub(r.lastCheckTime)
+	now := time.Now()
+	elapsed := now.Sub(r.lastCheckTime)
 
-	r.ticksPerSecond = (1e6 * (r.lastTicks - ticks)) / uint32(elapsed.Microseconds())
+	r.ticksPerSecond = (1e6 * (ticks - r.lastTicks)) / uint32(elapsed.Microseconds())
 
 	r.lastTicks = ticks
-	r.lastCheckTime = time.Now()
+	r.lastCheckTime = now
 }
 
 func main() {
