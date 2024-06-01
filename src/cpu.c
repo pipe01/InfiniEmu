@@ -171,8 +171,8 @@ struct cpu_inst_t
 
     size_t exception_count, pending_exception_count;
     exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
-    arm_exception active_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
-    size_t active_exception_count;
+    arm_exception running_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
+    size_t running_exception_count;
 
 #if ASSERT_EXCEPTION_REGISTERS
     uint32_t exception_regs[sizeof(check_exc_registers) / sizeof(arm_reg)][MAX_EXECUTING_EXCEPTIONS];
@@ -525,12 +525,12 @@ static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool 
     }
 }
 
-arm_exception cpu_get_active_exception(cpu_t *cpu)
+arm_exception cpu_get_top_running_exception(cpu_t *cpu)
 {
-    if (cpu->active_exception_count == 0)
+    if (cpu->running_exception_count == 0)
         return ARM_EXC_NONE;
 
-    return cpu->active_exceptions[cpu->active_exception_count - 1];
+    return cpu->running_exceptions[cpu->running_exception_count - 1];
 }
 
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
@@ -792,7 +792,7 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
     cpu->control.SPSEL = 0;
 
     cpu->exceptions[ex].active = true;
-    cpu->active_exceptions[cpu->active_exception_count++] = ex;
+    cpu->running_exceptions[cpu->running_exception_count++] = ex;
 
     // TODO: SCS_UpdateStatusRegs
 }
@@ -860,7 +860,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
     }
 
     cpu->exceptions[returning_exception_number].active = false;
-    cpu->active_exception_count--;
+    cpu->running_exception_count--;
 
     if (cpu->xpsr.ipsr != 2)
         cpu->faultmask = 0;
@@ -2681,7 +2681,7 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
         value &= ~0x600FC00; // Remove EPSR.IT bits
         value |= (cpu->itstate.value & 0x3) << 25;
         value |= (cpu->itstate.value & 0xFC) << 8;
-        value |= cpu_get_active_exception(cpu) & 0x1FF;
+        value |= cpu_get_top_running_exception(cpu) & 0x1FF;
         return value;
     }
 
