@@ -2,16 +2,12 @@ package main
 
 import (
 	"encoding/binary"
-	"flag"
 	"image"
 	"image/color"
-	"image/png"
 	"log"
 	"os"
-	"strings"
 	"time"
 
-	g "github.com/AllenDang/giu"
 	"github.com/AllenDang/imgui-go"
 )
 
@@ -30,8 +26,8 @@ void loop(pinetime_t *pt)
 import "C"
 
 const (
-	displayWidth         = C.DISPLAY_WIDTH
-	displayHeight        = C.DISPLAY_HEIGHT
+	displayWidth         = 240
+	displayHeight        = 240
 	displayBytesPerPixel = C.BYTES_PER_PIXEL
 )
 
@@ -54,34 +50,7 @@ func convertImage(raw []byte) *image.RGBA {
 	return img
 }
 
-var lastImage image.Image
-
-func convert(inPath, outPath string) {
-	raw, err := os.ReadFile(inPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	img := convertImage(raw)
-
-	if strings.HasSuffix(inPath, "_60.raw") {
-		lastImage = img
-	}
-
-	f, err := os.Create(outPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	if err := png.Encode(f, img); err != nil {
-		log.Fatal(err)
-	}
-}
-
 func main() {
-	flag.Parse()
-
 	program, err := os.ReadFile("../../infinitime.bin")
 	if err != nil {
 		log.Fatal(err)
@@ -93,45 +62,79 @@ func main() {
 	go C.loop(pt)
 
 	lcd := C.pinetime_get_st7789(pt)
+	pins := C.nrf52832_get_pins(C.pinetime_get_nrf52832(pt))
 
 	screen := make([]byte, displayWidth*displayHeight*displayBytesPerPixel)
 
 	var texid imgui.TextureID
 
-	go func() {
-		time.Sleep(200 * time.Millisecond) // TODO: Find a better way to wait for the window to be created
+	context := imgui.CreateContext(nil)
+	defer context.Destroy()
 
-		for range time.Tick(20 * time.Millisecond) {
-			g.Update()
-		}
-	}()
+	io := imgui.CurrentIO()
+	io.Fonts().AddFontDefault()
 
-	wnd := g.NewMasterWindow("InfiniEmu", 500, 500, g.MasterWindowFlagsNotResizable)
-	wnd.Run(func() {
-		C.st7789_read_screen(lcd, (*C.uchar)(&screen[0]))
+	p, err := imgui.NewGLFW(io, "InfiniEmu", 500, 500, imgui.GLFWWindowFlagsNotResizable)
+	if err != nil {
+		panic(err)
+	}
+	defer p.Dispose()
 
+	r, err := imgui.NewOpenGL3(io, 1.0)
+	if err != nil {
+		panic(err)
+	}
+	defer r.Dispose()
+
+	r.SetFontTexture(io.Fonts().TextureDataRGBA32())
+
+	clearColor := [4]float32{0.7, 0.7, 0.7, 1.0}
+
+	sideButton := false
+
+	imgui.StyleColorsDark()
+
+	t := time.Tick(time.Second / 60)
+
+	for !p.ShouldStop() {
+		<-t
+
+		p.ProcessEvents()
+
+		p.NewFrame()
+		imgui.NewFrame()
+
+		C.st7789_read_screen(lcd, (*C.uchar)(&screen[0]), displayWidth, displayHeight)
 		img := convertImage(screen)
 
-		g.Context.GetRenderer().ReleaseImage(texid)
-		texid, err = g.Context.GetRenderer().LoadImage(img)
+		r.ReleaseImage(texid)
+		texid, err = r.LoadImage(img)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		tex := g.ToTexture(texid)
+		imgui.Begin("Display")
+		{
+			imgui.Image(texid, imgui.Vec2{displayWidth, displayHeight})
+		}
+		imgui.End()
 
-		g.Window("Screen").
-			Flags(g.WindowFlagsNoResize).
-			Layout(
-				g.Image(tex).Size(displayWidth, displayHeight),
-			)
+		imgui.Begin("Inputs")
+		{
+			if imgui.Checkbox("Side button pressed", &sideButton) {
+				if sideButton {
+					C.pins_set(pins, 13)
+				} else {
+					C.pins_clear(pins, 13)
+				}
+			}
+		}
+		imgui.End()
 
-		g.Window("Inputs").Layout(
-			g.Button("Side button").OnClick(func() {
-				C.pins_set(C.nrf52832_get_pins(C.pinetime_get_nrf52832(pt)), 13)
-				time.Sleep(200 * time.Millisecond)
-				C.pins_clear(C.nrf52832_get_pins(C.pinetime_get_nrf52832(pt)), 13)
-			}),
-		)
-	})
+		imgui.Render() // This call only creates the draw data list. Actual rendering to framebuffer is done below.
+
+		r.PreRender(clearColor)
+		r.Render(p.DisplaySize(), p.FramebufferSize(), imgui.RenderedDrawData())
+		p.PostRender()
+	}
 }
