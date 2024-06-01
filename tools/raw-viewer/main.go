@@ -68,6 +68,10 @@ const (
 	pinTwiSda             = 6
 )
 
+const (
+	touchDuration = 200 * time.Millisecond
+)
+
 func convertImage(raw []byte) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, displayWidth, displayHeight))
 
@@ -140,7 +144,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	pt := C.pinetime_new((*C.uchar)(&program[0]), C.ulong(len(program)), true)
+	pt := C.pinetime_new((*C.uchar)(&program[0]), C.ulong(len(program)), false)
 	C.pinetime_reset(pt)
 
 	sched := C.create_sched(pt)
@@ -216,20 +220,21 @@ func main() {
 
 	t := time.Tick(time.Second / 60)
 
-	var doAction func()
-	var doActionTime time.Time
+	var releaseTouchTime time.Time
 
 	mouseWasDown := false
 	mouseIsDown := false
+
+	var speed float32 = 1
 
 	for !p.ShouldStop() {
 		<-t
 
 		mouseIsDown = imgui.IsMouseDown(0)
 
-		if doAction != nil && time.Now().After(doActionTime) {
-			doAction()
-			doAction = nil
+		if !releaseTouchTime.IsZero() && time.Now().After(releaseTouchTime) {
+			releaseTouchTime = time.Time{}
+			C.cst816s_release_touch(touchScreen)
 		}
 
 		p.ProcessEvents()
@@ -245,6 +250,11 @@ func main() {
 		{
 			if C.st7789_is_sleeping(lcd) {
 				imgui.Text("Display is off")
+
+				if imgui.Button("Tap") {
+					C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, displayWidth/2, displayHeight/2)
+					releaseTouchTime = time.Now().Add(touchDuration)
+				}
 			} else {
 				C.st7789_read_screen(lcd, (*C.uchar)(&screen[0]), displayWidth, displayHeight)
 				img := convertImage(screen)
@@ -285,36 +295,32 @@ func main() {
 
 			imgui.BeginTable("Slide", 3, 0, imgui.Vec2{}, 0)
 			{
-				imgui.BeginDisabled(doAction != nil)
+				imgui.BeginDisabled(!releaseTouchTime.IsZero())
 				{
 					imgui.TableNextRow(0, 0)
 					imgui.TableSetColumnIndex(1)
 					if imgui.Button("Slide up") {
 						C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDEUP, displayWidth/2, displayHeight/2)
-						doAction = func() { C.cst816s_release_touch(touchScreen) }
-						doActionTime = time.Now().Add(200 * time.Millisecond)
+						releaseTouchTime = time.Now().Add(touchDuration)
 					}
 
 					imgui.TableNextRow(0, 0)
 					imgui.TableSetColumnIndex(0)
 					if imgui.Button("Slide left") {
 						C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDELEFT, displayWidth/2, displayHeight/2)
-						doAction = func() { C.cst816s_release_touch(touchScreen) }
-						doActionTime = time.Now().Add(200 * time.Millisecond)
+						releaseTouchTime = time.Now().Add(touchDuration)
 					}
 					imgui.TableSetColumnIndex(2)
 					if imgui.Button("Slide right") {
 						C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDERIGHT, displayWidth/2, displayHeight/2)
-						doAction = func() { C.cst816s_release_touch(touchScreen) }
-						doActionTime = time.Now().Add(200 * time.Millisecond)
+						releaseTouchTime = time.Now().Add(touchDuration)
 					}
 
 					imgui.TableNextRow(0, 0)
 					imgui.TableSetColumnIndex(1)
 					if imgui.Button("Slide down") {
 						C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDEDOWN, displayWidth/2, displayHeight/2)
-						doAction = func() { C.cst816s_release_touch(touchScreen) }
-						doActionTime = time.Now().Add(200 * time.Millisecond)
+						releaseTouchTime = time.Now().Add(touchDuration)
 					}
 				}
 				imgui.EndDisabled()
@@ -348,6 +354,8 @@ func main() {
 			}
 
 			imgui.Text(fmt.Sprintf("Instructions per second: %d", instPerSecond))
+
+			imgui.SliderFloat("Speed", &speed, 0, 2)
 		}
 		imgui.End()
 
