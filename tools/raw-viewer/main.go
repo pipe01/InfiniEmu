@@ -45,6 +45,29 @@ const (
 	displayBytesPerPixel = C.BYTES_PER_PIXEL
 )
 
+const (
+	pinCharging           = 12
+	pinCst816sReset       = 10
+	pinButton             = 13
+	pinButtonEnable       = 15
+	pinCst816sIrq         = 28
+	pinPowerPresent       = 19
+	pinBma421Irq          = 8
+	pinMotor              = 16
+	pinLcdBacklightLow    = 14
+	pinLcdBacklightMedium = 22
+	pinLcdBacklightHigh   = 23
+	pinSpiSck             = 2
+	pinSpiMosi            = 3
+	pinSpiMiso            = 4
+	pinSpiFlashCsn        = 5
+	pinSpiLcdCsn          = 25
+	pinLcdDataCommand     = 18
+	pinLcdReset           = 26
+	pinTwiScl             = 7
+	pinTwiSda             = 6
+)
+
 func convertImage(raw []byte) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, displayWidth, displayHeight))
 
@@ -99,12 +122,20 @@ func (r *RTCTracker) Update(updateInterval time.Duration) {
 	r.lastTicks = ticks
 }
 
+func constCheckbox(id string, state bool) {
+	imgui.Checkbox(id, &state)
+}
+
 func main() {
 	runGDB := flag.Bool("gdb", false, "")
 	noScheduler := flag.Bool("no-sched", false, "")
 	flag.Parse()
 
-	program, err := os.ReadFile("../../infinitime.bin")
+	if flag.NArg() != 1 {
+		log.Fatal("Usage: infiniemu [options] <firmware.bin>")
+	}
+
+	program, err := os.ReadFile(flag.Arg(0))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -206,6 +237,10 @@ func main() {
 		p.NewFrame()
 		imgui.NewFrame()
 
+		lcdLow := bool(C.pins_is_set(pins, pinLcdBacklightLow))
+		lcdMedium := bool(C.pins_is_set(pins, pinLcdBacklightMedium))
+		lcdHigh := bool(C.pins_is_set(pins, pinLcdBacklightHigh))
+
 		imgui.BeginV("Display", nil, imgui.WindowFlagsNoResize)
 		{
 			if C.st7789_is_sleeping(lcd) {
@@ -240,9 +275,9 @@ func main() {
 			imgui.Button("Side button")
 			if imgui.IsItemHovered() {
 				if mouseIsDown && !mouseWasDown {
-					C.pins_set(pins, 13)
+					C.pins_set(pins, pinButton)
 				} else if !mouseIsDown && mouseWasDown {
-					C.pins_clear(pins, 13)
+					C.pins_clear(pins, pinButton)
 				}
 			}
 
@@ -285,6 +320,15 @@ func main() {
 				imgui.EndDisabled()
 			}
 			imgui.EndTable()
+		}
+		imgui.End()
+
+		imgui.BeginV("LCD", nil, imgui.WindowFlagsAlwaysAutoResize)
+		{
+			constCheckbox("Low", !lcdLow && lcdMedium && lcdHigh)
+			constCheckbox("Medium", !lcdLow && !lcdMedium && lcdHigh)
+			constCheckbox("High", !lcdLow && !lcdMedium && !lcdHigh)
+			constCheckbox("Off", lcdLow && lcdMedium && lcdHigh)
 		}
 		imgui.End()
 
