@@ -1,7 +1,6 @@
 #include "components/i2c/cst816s.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -51,18 +50,12 @@ void cst816s_write(uint8_t *data, size_t data_size, void *userdata)
 
     uint8_t reg = data[0];
 
-    printf("CST816S: Write %02X\n", reg);
-
     switch (reg)
     {
     case 0x00: // Read touch data
     {
-        printf("CST816S: Read touch data\n");
-
         if (cst816s->has_touch)
         {
-            printf("CST816S: Touch data available\n");
-
             pins_set(cst816s->pins, cst816s->irqPin);
             cst816s->has_touch = false;
         }
