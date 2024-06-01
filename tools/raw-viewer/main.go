@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
 	"image"
 	"image/color"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"github.com/AllenDang/imgui-go"
 )
 
+// #include "gdb.h"
 // #include "pinetime.h"
 // #cgo CFLAGS: -I../../include
 // #cgo LDFLAGS: -L. -linfiniemu
@@ -51,6 +53,9 @@ func convertImage(raw []byte) *image.RGBA {
 }
 
 func main() {
+	runGDB := flag.Bool("gdb", false, "")
+	flag.Parse()
+
 	program, err := os.ReadFile("../../infinitime.bin")
 	if err != nil {
 		log.Fatal(err)
@@ -59,9 +64,15 @@ func main() {
 	pt := C.pinetime_new((*C.uchar)(&program[0]), C.ulong(len(program)), true)
 	C.pinetime_reset(pt)
 
-	go C.loop(pt)
+	if *runGDB {
+		gdb := C.gdb_new(pt, true)
+		go C.gdb_start(gdb)
+	} else {
+		go C.loop(pt)
+	}
 
 	lcd := C.pinetime_get_st7789(pt)
+	touchScreen := C.pinetime_get_cst816s(pt)
 	pins := C.nrf52832_get_pins(C.pinetime_get_nrf52832(pt))
 
 	screen := make([]byte, displayWidth*displayHeight*displayBytesPerPixel)
@@ -74,7 +85,7 @@ func main() {
 	io := imgui.CurrentIO()
 	io.Fonts().AddFontDefault()
 
-	p, err := imgui.NewGLFW(io, "InfiniEmu", 500, 500, imgui.GLFWWindowFlagsNotResizable)
+	p, err := imgui.NewGLFW(io, "InfiniEmu", 600, 600, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -96,8 +107,16 @@ func main() {
 
 	t := time.Tick(time.Second / 60)
 
+	var doAction func()
+	var doActionTime time.Time
+
 	for !p.ShouldStop() {
 		<-t
+
+		if doAction != nil && time.Now().After(doActionTime) {
+			doAction()
+			doAction = nil
+		}
 
 		p.ProcessEvents()
 
@@ -113,9 +132,9 @@ func main() {
 			log.Fatal(err)
 		}
 
-		imgui.Begin("Display")
+		imgui.BeginV("Display", nil, imgui.WindowFlagsNoResize)
 		{
-			imgui.Image(texid, imgui.Vec2{displayWidth, displayHeight})
+			imgui.Image(texid, imgui.Vec2{X: displayWidth, Y: displayHeight})
 		}
 		imgui.End()
 
@@ -128,6 +147,40 @@ func main() {
 					C.pins_clear(pins, 13)
 				}
 			}
+
+			imgui.BeginTable("Slide", 3, 0, imgui.Vec2{}, 0)
+			{
+				imgui.TableNextRow(0, 0)
+				imgui.TableSetColumnIndex(1)
+				if imgui.Button("Slide up") {
+					C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDEUP, displayWidth/2, displayHeight/2)
+					doAction = func() { C.cst816s_release_touch(touchScreen) }
+					doActionTime = time.Now().Add(200 * time.Millisecond)
+				}
+
+				imgui.TableNextRow(0, 0)
+				imgui.TableSetColumnIndex(0)
+				if imgui.Button("Slide left") {
+					C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDELEFT, displayWidth/2, displayHeight/2)
+					doAction = func() { C.cst816s_release_touch(touchScreen) }
+					doActionTime = time.Now().Add(200 * time.Millisecond)
+				}
+				imgui.TableSetColumnIndex(2)
+				if imgui.Button("Slide right") {
+					C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDERIGHT, displayWidth/2, displayHeight/2)
+					doAction = func() { C.cst816s_release_touch(touchScreen) }
+					doActionTime = time.Now().Add(200 * time.Millisecond)
+				}
+
+				imgui.TableNextRow(0, 0)
+				imgui.TableSetColumnIndex(1)
+				if imgui.Button("Slide down") {
+					C.cst816s_do_touch(touchScreen, C.GESTURE_SLIDEDOWN, displayWidth/2, displayHeight/2)
+					doAction = func() { C.cst816s_release_touch(touchScreen) }
+					doActionTime = time.Now().Add(200 * time.Millisecond)
+				}
+			}
+			imgui.EndTable()
 		}
 		imgui.End()
 

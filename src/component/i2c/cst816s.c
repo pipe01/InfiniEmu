@@ -18,25 +18,29 @@ typedef struct __attribute__((packed))
     uint8_t _unknown;
     uint8_t gesture;
     uint8_t pointNum;
-    uint8_t event;
     uint8_t xHigh;
     uint8_t xLow;
-    uint8_t id;
     uint8_t yHigh;
-    uint8_t yLog;
-    uint8_t step;
-    uint8_t xy;
-    uint8_t misc;
+    uint8_t yLow;
 } touchdata_t;
 
-typedef struct
+struct cst816s_t
 {
+    pins_t *pins;
+    int irqPin;
+
     uint8_t next_read[MAX_READ_SIZE];
     size_t next_read_size;
-} cst816s_t;
+
+    touchdata_t touchdata;
+    bool has_touch;
+};
 
 void cst816s_reset(void *userdata)
 {
+    cst816s_t *cst816s = userdata;
+
+    pins_set(cst816s->pins, cst816s->irqPin); // Active low
 }
 
 void cst816s_write(uint8_t *data, size_t data_size, void *userdata)
@@ -47,12 +51,23 @@ void cst816s_write(uint8_t *data, size_t data_size, void *userdata)
 
     uint8_t reg = data[0];
 
+    printf("CST816S: Write %02X\n", reg);
+
     switch (reg)
     {
     case 0x00: // Read touch data
     {
-        touchdata_t data = {0};
-        memcpy(cst816s->next_read, &data, sizeof(touchdata_t));
+        printf("CST816S: Read touch data\n");
+
+        if (cst816s->has_touch)
+        {
+            printf("CST816S: Touch data available\n");
+
+            pins_set(cst816s->pins, cst816s->irqPin);
+            cst816s->has_touch = false;
+        }
+
+        memcpy(cst816s->next_read, &cst816s->touchdata, sizeof(touchdata_t));
         cst816s->next_read_size = sizeof(touchdata_t);
         break;
     }
@@ -106,14 +121,47 @@ size_t cst816s_read(uint8_t *data, size_t data_size, void *userdata)
     return data_size;
 }
 
-i2c_slave_t cst816s_new()
+cst816s_t *cst816s_new(pins_t *pins, int irqPin)
 {
-    cst816s_t *cst816s = (cst816s_t *)malloc(sizeof(cst816s_t));
+    cst816s_t *cst816s = calloc(1, sizeof(cst816s_t));
+    cst816s->pins = pins;
+    cst816s->irqPin = irqPin;
 
+    return cst816s;
+}
+
+i2c_slave_t cst816s_get_slave(cst816s_t *cst816s)
+{
     return (i2c_slave_t){
         .userdata = cst816s,
         .write = cst816s_write,
         .read = cst816s_read,
         .reset = cst816s_reset,
     };
+}
+
+void cst816s_do_touch(cst816s_t *cst, touch_gesture_t gesture, uint16_t x, uint16_t y)
+{
+    cst->touchdata = (touchdata_t){
+        .gesture = gesture,
+        .pointNum = 1,
+        .xHigh = (x >> 8) & 0xFF,
+        .xLow = x & 0xFF,
+        .yHigh = (y >> 8) & 0xFF,
+        .yLow = y & 0xFF,
+    };
+    cst->has_touch = true;
+
+    pins_clear(cst->pins, cst->irqPin);
+}
+
+void cst816s_release_touch(cst816s_t *cst)
+{
+    cst->touchdata = (touchdata_t){
+        .gesture = GESTURE_NONE,
+        .pointNum = 0,
+    };
+    cst->has_touch = true;
+
+    pins_clear(cst->pins, cst->irqPin);
 }

@@ -50,7 +50,10 @@ static inline void pins_set_state(pins_t *pins, int pin, bool is_set)
     p->is_set = is_set;
 
     if (p->sense != SENSE_DISABLED && ((is_set && (p->sense == SENSE_HIGH)) || (!is_set && (p->sense == SENSE_LOW))))
+    {
+        printf("Sense triggered on pin %d\n", pin);
         pins->latch |= 1 << pin;
+    }
 }
 
 void pins_set(pins_t *pins, int pin)
@@ -99,6 +102,8 @@ void pins_set_output(pins_t *pins, int pin)
 void pins_set_sense(pins_t *pins, int pin, pinsense_t sense)
 {
     assert(pin >= 0 && pin < PINS_COUNT);
+
+    printf("Setting sense for pin %d to %d\n", pin, sense);
 
     pins->pins[pin].sense = sense;
 }
