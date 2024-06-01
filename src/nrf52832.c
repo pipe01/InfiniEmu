@@ -67,10 +67,10 @@ struct NRF52832_inst_t
 };
 
 #define NEW_NRF52_PERIPH(chip, type, name, field, idn, ...)                                                                               \
-    do                                                                                                                                   \
-    {                                                                                                                                    \
+    do                                                                                                                                    \
+    {                                                                                                                                     \
         ctx.id = idn;                                                                                                                     \
-        (chip)->field = name##_new(ctx, ##__VA_ARGS__);                                                                                  \
+        (chip)->field = name##_new(ctx, ##__VA_ARGS__);                                                                                   \
         last = memreg_set_next(last, memreg_new_operation(0x40000000 | (((idn) & 0xFF) << 12), 0x1000, name##_operation, (chip)->field)); \
     } while (0)
 
@@ -184,4 +184,20 @@ bus_i2c_t *nrf52832_get_i2c(NRF52832_t *chip)
 pins_t *nrf52832_get_pins(NRF52832_t *chip)
 {
     return chip->pins;
+}
+
+void *nrf52832_get_peripheral(NRF52832_t *chip, uint8_t instance_id)
+{
+    uint32_t want_start = x(4000, 0000) | (instance_id << 12);
+    memreg_t *region = chip->mem;
+
+    while (region)
+    {
+        if (memreg_get_start(region) == want_start)
+            return memreg_get_userdata(region);
+
+        region = memreg_get_next(region);
+    }
+
+    return NULL;
 }

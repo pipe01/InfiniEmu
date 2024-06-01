@@ -280,3 +280,18 @@ uint32_t memreg_find_data(memreg_t *region, uint32_t start_addr, uint32_t search
 
     return MEMREG_FIND_NOT_FOUND;
 }
+
+memreg_t *memreg_get_next(memreg_t *region)
+{
+    return region->next;
+}
+
+uint32_t memreg_get_start(memreg_t *region)
+{
+    return region->start;
+}
+
+void *memreg_get_userdata(memreg_t *region)
+{
+    return region->userdata;
+}

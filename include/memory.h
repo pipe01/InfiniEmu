@@ -79,18 +79,22 @@ memreg_t *memreg_new_operation(uint32_t start, size_t size, memreg_operation_t o
 void memreg_free(memreg_t *region);
 
 // Resets this memory region
-void memreg_reset(memreg_t *region);
+void memreg_reset(memreg_t *);
 
 // Resets this memory region and all of its children recursively
-void memreg_reset_all(memreg_t *region);
+void memreg_reset_all(memreg_t *);
 
-bool memreg_is_mapped(memreg_t *region, uint32_t addr);
-uint32_t memreg_read(memreg_t *region, uint32_t addr);
-uint8_t memreg_read_byte(memreg_t *region, uint32_t addr);
-uint16_t memreg_read_halfword(memreg_t *region, uint32_t addr);
-void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, byte_size_t size);
+bool memreg_is_mapped(memreg_t *, uint32_t addr);
+uint32_t memreg_read(memreg_t *, uint32_t addr);
+uint8_t memreg_read_byte(memreg_t *, uint32_t addr);
+uint16_t memreg_read_halfword(memreg_t *, uint32_t addr);
+void memreg_write(memreg_t *, uint32_t addr, uint32_t value, byte_size_t size);
 
-uint32_t memreg_find_data(memreg_t *region, uint32_t start_addr, uint32_t search_length, uint8_t *data, size_t data_size);
+uint32_t memreg_find_data(memreg_t *, uint32_t start_addr, uint32_t search_length, uint8_t *data, size_t data_size);
 
-memreg_t *memreg_set_next(memreg_t *region, memreg_t *next);
-memreg_t *memreg_find_last(memreg_t *region);
+memreg_t *memreg_set_next(memreg_t *, memreg_t *next);
+memreg_t *memreg_get_next(memreg_t *);
+memreg_t *memreg_find_last(memreg_t *);
+
+uint32_t memreg_get_start(memreg_t *);
+void *memreg_get_userdata(memreg_t *);
