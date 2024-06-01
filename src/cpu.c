@@ -157,6 +157,7 @@ struct cpu_inst_t
     xPSR_t xpsr;
 
     itstate_t itstate;
+    bool must_advance_it;
 
     arm_mode mode;
 
@@ -333,6 +334,8 @@ static bool cpu_in_it_block(cpu_t *cpu)
 
 static void cpu_it_advance(cpu_t *cpu)
 {
+    cpu->must_advance_it = false;
+
     if ((cpu->itstate.value & 0x7) == 0)
     {
         cpu->itstate.value = 0;
@@ -361,8 +364,9 @@ static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
 
     assert(cpu_in_it_block(cpu));
 
+    cpu->must_advance_it = true;
+
     uint8_t cond = cpu->itstate.cond;
-    cpu_it_advance(cpu);
 
     switch (cond)
     {
@@ -971,24 +975,19 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_
 
     if (sign_extend)
     {
-        bool sign_bit = (value & (1 << ((size * 8) - 1))) != 0;
-
-        if (sign_bit)
+        switch (size)
         {
-            switch (size)
-            {
-            case SIZE_BYTE:
-                value = SIGNEXTEND8_32(value);
-                break;
+        case SIZE_BYTE:
+            value = SIGNEXTEND8_32(value);
+            break;
 
-            case SIZE_HALFWORD:
-                value = SIGNEXTEND16_32(value);
-                break;
+        case SIZE_HALFWORD:
+            value = SIGNEXTEND16_32(value);
+            break;
 
-            case SIZE_WORD:
-                // Do nothing
-                break;
-            }
+        case SIZE_WORD:
+            // Do nothing
+            break;
         }
     }
 
@@ -1294,12 +1293,16 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
     default:
         if (!cpu_condition_passed(cpu, i))
+        {
+            cpu_it_advance(cpu);
             return;
+        }
+
         break;
     }
 
     bool update_flags = detail->update_flags;
-    if (cpu_in_it_block(cpu) && i->size == 2 && i->id != ARM_INS_CMP && i->id != ARM_INS_CMN && i->id != ARM_INS_TST)
+    if (cpu->must_advance_it && i->size == 2 && i->id != ARM_INS_CMP && i->id != ARM_INS_CMN && i->id != ARM_INS_TST)
         update_flags = false;
 
     bool carry = false, overflow = false;
@@ -2547,6 +2550,9 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         fprintf(stderr, "Unhandled instruction %s %s at 0x%08X\n", i->mnemonic, i->op_str, cpu->core_regs[ARM_REG_PC]);
         fault_take(FAULT_CPU_INVALID_INSTRUCTION);
     }
+
+    if (cpu->must_advance_it)
+        cpu_it_advance(cpu);
 }
 
 void cpu_step(cpu_t *cpu)
