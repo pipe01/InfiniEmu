@@ -58,10 +58,12 @@ void pinetime_step(pinetime_t *pt)
     nrf52832_step(pt->nrf);
 
 #ifdef ENABLE_SEGGER_RTT
-    if (pt->rtt_counter++ % 1000 == 0)
+    if (pt->rtt_counter % 1000 == 0 && pt->rtt_counter < 1000000)
     {
         rtt_find_control(pt->rtt);
         rtt_flush_buffers(pt->rtt);
+
+        pt->rtt_counter++;
     }
 #endif
 }
