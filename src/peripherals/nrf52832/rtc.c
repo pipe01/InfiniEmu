@@ -7,7 +7,7 @@
 
 #include "peripherals/nrf52832/ppi.h"
 
-#define TICK_INTERVAL 50
+#define TICK_INTERVAL 100
 
 typedef union
 {
@@ -208,4 +208,14 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RTC, rtc, size_t cc_num)
     ppi_add_peripheral(ctx.ppi, ctx.id, rtc_task_handler, rtc);
 
     return rtc;
+}
+
+uint32_t rtc_get_counter(RTC_t *rtc)
+{
+    return rtc->counter;
+}
+
+uint32_t rtc_get_tick_interval_us(RTC_t *rtc)
+{
+    return rtc->tick_interval_us;
 }
