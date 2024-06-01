@@ -10,27 +10,6 @@
 
 enum
 {
-    TASKS_START = 0x000,
-    TASKS_STOP = 0x004,
-    TASKS_COUNT = 0x008,
-    TASKS_CLEAR = 0x00C,
-    TASKS_SHUTDOWN = 0x010,
-    TASKS_CAPTURE0 = 0x040,
-    TASKS_CAPTURE1 = 0x044,
-    TASKS_CAPTURE2 = 0x048,
-    TASKS_CAPTURE3 = 0x04C,
-    TASKS_CAPTURE4 = 0x050,
-    TASKS_CAPTURE5 = 0x054,
-    EVENTS_COMPARE0 = 0x140,
-    EVENTS_COMPARE1 = 0x144,
-    EVENTS_COMPARE2 = 0x148,
-    EVENTS_COMPARE3 = 0x14C,
-    EVENTS_COMPARE4 = 0x150,
-    EVENTS_COMPARE5 = 0x154,
-};
-
-enum
-{
     MODE_TIMER = 0,
     MODE_COUNTER = 1,
     MODE_LOW_POWER_COUNTER = 2,
@@ -96,7 +75,7 @@ void timer_increase_counter(TIMER_t *timer)
     {
         if ((timer->cc[i] & mask) == counter)
         {
-            ppi_fire_event(current_ppi, timer->id, EVENT_ID(EVENTS_COMPARE0) + i, timer->inten & (1 << (i + 16)));
+            ppi_fire_event(current_ppi, timer->id, EVENT_ID(TIMER_EVENTS_COMPARE0) + i, timer->inten & (1 << (i + 16)));
         }
     }
 }
@@ -128,23 +107,23 @@ OPERATION(timer)
 
     switch (offset)
     {
-        OP_TASK(TASKS_START)
-        OP_TASK(TASKS_STOP)
-        OP_TASK(TASKS_COUNT)
-        OP_TASK(TASKS_CLEAR)
-        OP_TASK(TASKS_SHUTDOWN)
-        OP_TASK(TASKS_CAPTURE0)
-        OP_TASK(TASKS_CAPTURE1)
-        OP_TASK(TASKS_CAPTURE2)
-        OP_TASK(TASKS_CAPTURE3)
-        OP_TASK(TASKS_CAPTURE4)
-        OP_TASK(TASKS_CAPTURE5)
-        OP_EVENT(EVENTS_COMPARE0)
-        OP_EVENT(EVENTS_COMPARE1)
-        OP_EVENT(EVENTS_COMPARE2)
-        OP_EVENT(EVENTS_COMPARE3)
-        OP_EVENT(EVENTS_COMPARE4)
-        OP_EVENT(EVENTS_COMPARE5)
+        OP_TASK(TIMER_TASKS_START)
+        OP_TASK(TIMER_TASKS_STOP)
+        OP_TASK(TIMER_TASKS_COUNT)
+        OP_TASK(TIMER_TASKS_CLEAR)
+        OP_TASK(TIMER_TASKS_SHUTDOWN)
+        OP_TASK(TIMER_TASKS_CAPTURE0)
+        OP_TASK(TIMER_TASKS_CAPTURE1)
+        OP_TASK(TIMER_TASKS_CAPTURE2)
+        OP_TASK(TIMER_TASKS_CAPTURE3)
+        OP_TASK(TIMER_TASKS_CAPTURE4)
+        OP_TASK(TIMER_TASKS_CAPTURE5)
+        OP_EVENT(TIMER_EVENTS_COMPARE0)
+        OP_EVENT(TIMER_EVENTS_COMPARE1)
+        OP_EVENT(TIMER_EVENTS_COMPARE2)
+        OP_EVENT(TIMER_EVENTS_COMPARE3)
+        OP_EVENT(TIMER_EVENTS_COMPARE4)
+        OP_EVENT(TIMER_EVENTS_COMPARE5)
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
@@ -187,7 +166,7 @@ PPI_TASK_HANDLER(timer_task_handler)
 
     switch (task)
     {
-    case TASK_ID(TASKS_START):
+    case TASK_ID(TIMER_TASKS_START):
         if (timer->mode == MODE_TIMER)
         {
             if (!timer->running)
@@ -197,44 +176,44 @@ PPI_TASK_HANDLER(timer_task_handler)
         }
         break;
 
-    case TASK_ID(TASKS_STOP):
-    case TASK_ID(TASKS_SHUTDOWN):
+    case TASK_ID(TIMER_TASKS_STOP):
+    case TASK_ID(TIMER_TASKS_SHUTDOWN):
         if (timer->running)
             ticker_remove(timer->ticker, timer_tick);
 
         timer->running = false;
         break;
 
-    case TASK_ID(TASKS_COUNT):
+    case TASK_ID(TIMER_TASKS_COUNT):
         if (timer->mode == MODE_COUNTER)
             timer->counter++;
         break;
 
-    case TASK_ID(TASKS_CLEAR):
+    case TASK_ID(TIMER_TASKS_CLEAR):
         timer->counter = 0;
         break;
 
-    case TASK_ID(TASKS_CAPTURE0):
+    case TASK_ID(TIMER_TASKS_CAPTURE0):
         timer->cc[0] = timer->counter;
         break;
 
-    case TASK_ID(TASKS_CAPTURE1):
+    case TASK_ID(TIMER_TASKS_CAPTURE1):
         timer->cc[1] = timer->counter;
         break;
 
-    case TASK_ID(TASKS_CAPTURE2):
+    case TASK_ID(TIMER_TASKS_CAPTURE2):
         timer->cc[2] = timer->counter;
         break;
 
-    case TASK_ID(TASKS_CAPTURE3):
+    case TASK_ID(TIMER_TASKS_CAPTURE3):
         timer->cc[3] = timer->counter;
         break;
 
-    case TASK_ID(TASKS_CAPTURE4):
+    case TASK_ID(TIMER_TASKS_CAPTURE4):
         timer->cc[4] = timer->counter;
         break;
 
-    case TASK_ID(TASKS_CAPTURE5):
+    case TASK_ID(TIMER_TASKS_CAPTURE5):
         timer->cc[5] = timer->counter;
         break;
     }

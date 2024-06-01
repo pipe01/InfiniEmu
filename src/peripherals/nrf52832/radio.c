@@ -5,30 +5,6 @@
 
 #include "peripherals/nrf52832/ppi.h"
 
-enum
-{
-    TASKS_TXEN = 0x000,
-    TASKS_RXEN = 0x004,
-    TASKS_START = 0x008,
-    TASKS_STOP = 0x00C,
-    TASKS_DISABLE = 0x010,
-    TASKS_RSSISTART = 0x014,
-    TASKS_RSSISTOP = 0x018,
-    TASKS_BCSTART = 0x01C,
-    TASKS_BCSTOP = 0x020,
-    EVENTS_READY = 0x100,
-    EVENTS_ADDRESS = 0x104,
-    EVENTS_PAYLOAD = 0x108,
-    EVENTS_END = 0x10C,
-    EVENTS_DISABLED = 0x110,
-    EVENTS_DEVMATCH = 0x114,
-    EVENTS_DEVMISS = 0x118,
-    EVENTS_RSSIEND = 0x11C,
-    EVENTS_BCMATCH = 0x128,
-    EVENTS_CRCOK = 0x130,
-    EVENTS_CRCERROR = 0x134,
-};
-
 typedef union
 {
     struct
@@ -195,7 +171,7 @@ PPI_TASK_HANDLER(radio_task_handler)
 
     switch (task)
     {
-    case TASK_ID(TASKS_STOP):
+    case TASK_ID(RADIO_TASKS_STOP):
         switch (radio->state)
         {
         case STATE_TX:
@@ -209,7 +185,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         }
         break;
 
-    case TASK_ID(TASKS_TXEN):
+    case TASK_ID(RADIO_TASKS_TXEN):
         switch (radio->state)
         {
         case STATE_DISABLED:
@@ -220,7 +196,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         }
         break;
 
-    case TASK_ID(TASKS_RXEN):
+    case TASK_ID(RADIO_TASKS_RXEN):
         switch (radio->state)
         {
         case STATE_DISABLED:
@@ -231,7 +207,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         }
         break;
 
-    case TASK_ID(TASKS_START):
+    case TASK_ID(RADIO_TASKS_START):
         switch (radio->state)
         {
         case STATE_TXIDLE:
@@ -245,7 +221,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         }
         break;
 
-    case TASK_ID(TASKS_DISABLE):
+    case TASK_ID(RADIO_TASKS_DISABLE):
         switch (radio->state)
         {
         case STATE_TX:
@@ -263,10 +239,10 @@ PPI_TASK_HANDLER(radio_task_handler)
         }
         break;
 
-    case TASK_ID(TASKS_RSSISTART):
-    case TASK_ID(TASKS_RSSISTOP):
-    case TASK_ID(TASKS_BCSTART):
-    case TASK_ID(TASKS_BCSTOP):
+    case TASK_ID(RADIO_TASKS_RSSISTART):
+    case TASK_ID(RADIO_TASKS_RSSISTOP):
+    case TASK_ID(RADIO_TASKS_BCSTART):
+    case TASK_ID(RADIO_TASKS_BCSTOP):
         abort();
     }
 }
@@ -285,26 +261,26 @@ OPERATION(radio)
 
     switch (offset)
     {
-        OP_TASK(TASKS_TXEN)
-        OP_TASK(TASKS_RXEN)
-        OP_TASK(TASKS_START)
-        OP_TASK(TASKS_STOP)
-        OP_TASK(TASKS_DISABLE)
-        OP_TASK(TASKS_RSSISTART)
-        OP_TASK(TASKS_RSSISTOP)
-        OP_TASK(TASKS_BCSTART)
-        OP_TASK(TASKS_BCSTOP)
-        OP_EVENT(EVENTS_READY)
-        OP_EVENT(EVENTS_ADDRESS)
-        OP_EVENT(EVENTS_PAYLOAD)
-        OP_EVENT(EVENTS_END)
-        OP_EVENT(EVENTS_DISABLED)
-        OP_EVENT(EVENTS_DEVMATCH)
-        OP_EVENT(EVENTS_DEVMISS)
-        OP_EVENT(EVENTS_RSSIEND)
-        OP_EVENT(EVENTS_BCMATCH)
-        OP_EVENT(EVENTS_CRCOK)
-        OP_EVENT(EVENTS_CRCERROR)
+        OP_TASK(RADIO_TASKS_TXEN)
+        OP_TASK(RADIO_TASKS_RXEN)
+        OP_TASK(RADIO_TASKS_START)
+        OP_TASK(RADIO_TASKS_STOP)
+        OP_TASK(RADIO_TASKS_DISABLE)
+        OP_TASK(RADIO_TASKS_RSSISTART)
+        OP_TASK(RADIO_TASKS_RSSISTOP)
+        OP_TASK(RADIO_TASKS_BCSTART)
+        OP_TASK(RADIO_TASKS_BCSTOP)
+        OP_EVENT(RADIO_EVENTS_READY)
+        OP_EVENT(RADIO_EVENTS_ADDRESS)
+        OP_EVENT(RADIO_EVENTS_PAYLOAD)
+        OP_EVENT(RADIO_EVENTS_END)
+        OP_EVENT(RADIO_EVENTS_DISABLED)
+        OP_EVENT(RADIO_EVENTS_DEVMATCH)
+        OP_EVENT(RADIO_EVENTS_DEVMISS)
+        OP_EVENT(RADIO_EVENTS_RSSIEND)
+        OP_EVENT(RADIO_EVENTS_BCMATCH)
+        OP_EVENT(RADIO_EVENTS_CRCOK)
+        OP_EVENT(RADIO_EVENTS_CRCERROR)
 
     case 0x200: // SHORTS
         OP_RETURN_REG(radio->shorts.value, WORD);

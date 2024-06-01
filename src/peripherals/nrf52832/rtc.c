@@ -23,20 +23,6 @@ typedef union
 
 static_assert(sizeof(inten_t) == 4);
 
-enum
-{
-    TASKS_START = 0x000,
-    TASKS_STOP = 0x004,
-    TASKS_CLEAR = 0x008,
-    TASKS_TRIGOVRFLW = 0x00C,
-    EVENTS_TICK = 0x100,
-    EVENTS_OVRFLW = 0x104,
-    EVENTS_COMPARE0 = 0x140,
-    EVENTS_COMPARE1 = 0x144,
-    EVENTS_COMPARE2 = 0x148,
-    EVENTS_COMPARE3 = 0x14C,
-};
-
 struct RTC_inst_t
 {
     cpu_t **cpu;
@@ -75,19 +61,19 @@ void rtc_tick(void *userdata)
 
         rtc->counter++;
 
-        ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_TICK), rtc->inten.TICK);
+        ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_TICK), rtc->inten.TICK);
 
         if (rtc->counter == (1 << 24))
         {
             rtc->counter = 0;
 
-            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_OVRFLW), rtc->inten.OVRFLW);
+            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_OVRFLW), rtc->inten.OVRFLW);
         }
 
         for (size_t i = 0; i < rtc->cc_num; i++)
         {
             if (rtc->counter == rtc->cc[i])
-                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(EVENTS_COMPARE0) + i, rtc->inten.COMPARE & (1 << i));
+                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_COMPARE0) + i, rtc->inten.COMPARE & (1 << i));
         }
     }
 }
@@ -112,15 +98,15 @@ OPERATION(rtc)
 
     switch (offset)
     {
-        OP_TASK(TASKS_START)
-        OP_TASK(TASKS_STOP)
-        OP_TASK(TASKS_CLEAR)
-        OP_EVENT(EVENTS_TICK)
-        OP_EVENT(EVENTS_OVRFLW)
-        OP_EVENT(EVENTS_COMPARE0)
-        OP_EVENT(EVENTS_COMPARE1)
-        OP_EVENT(EVENTS_COMPARE2)
-        OP_EVENT(EVENTS_COMPARE3)
+        OP_TASK(RTC_TASKS_START)
+        OP_TASK(RTC_TASKS_STOP)
+        OP_TASK(RTC_TASKS_CLEAR)
+        OP_EVENT(RTC_EVENTS_TICK)
+        OP_EVENT(RTC_EVENTS_OVRFLW)
+        OP_EVENT(RTC_EVENTS_COMPARE0)
+        OP_EVENT(RTC_EVENTS_COMPARE1)
+        OP_EVENT(RTC_EVENTS_COMPARE2)
+        OP_EVENT(RTC_EVENTS_COMPARE3)
 
         OP_INTENSET(rtc)
         OP_INTENCLR(rtc)
@@ -167,7 +153,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
 
     switch (task)
     {
-    case TASK_ID(TASKS_START):
+    case TASK_ID(RTC_TASKS_START):
         if (!rtc->running)
         {
             ticker_add(rtc->ticker, rtc_tick, rtc, TICK_INTERVAL);
@@ -179,7 +165,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
         }
         break;
 
-    case TASK_ID(TASKS_STOP):
+    case TASK_ID(RTC_TASKS_STOP):
         if (rtc->running)
         {
             ticker_remove(rtc->ticker, rtc_tick);
@@ -188,7 +174,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
         }
         break;
 
-    case TASK_ID(TASKS_CLEAR):
+    case TASK_ID(RTC_TASKS_CLEAR):
         rtc->counter = 0;
         rtc->prescaler_counter = 0;
         break;
