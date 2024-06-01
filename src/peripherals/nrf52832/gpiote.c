@@ -79,7 +79,7 @@ typedef union
 struct GPIOTE_inst_t
 {
     pins_t *pins;
-    
+
     inten_t inten;
     config_t config[8];
 
@@ -166,11 +166,16 @@ NRF52_PERIPHERAL_CONSTRUCTOR(GPIOTE, gpiote)
 
 void gpiote_step(GPIOTE_t *gpiote)
 {
+    if (!gpiote->inten.PORT)
+        return;
+
     uint32_t new_latch = pins_get_latch(gpiote->pins);
 
     if (new_latch != gpiote->latch_old)
     {
         gpiote->latch_old = new_latch;
+
+        pins_set_latch(gpiote->pins, 0); // TODO: Should we do this ourselves?
 
         ppi_fire_event(current_ppi, INSTANCE_GPIOTE, EVENT_ID(EVENTS_PORT), gpiote->inten.PORT);
     }
