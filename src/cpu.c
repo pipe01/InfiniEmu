@@ -173,6 +173,7 @@ struct cpu_inst_t
     exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
     arm_exception running_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
     size_t running_exception_count;
+    int execution_priority;
 
 #if ASSERT_EXCEPTION_REGISTERS
     uint32_t exception_regs[sizeof(check_exc_registers) / sizeof(arm_reg)][MAX_EXECUTING_EXCEPTIONS];
@@ -453,7 +454,7 @@ static bool cpu_is_privileged(cpu_t *cpu)
     return cpu->mode == ARM_MODE_HANDLER || !cpu->control.nPRIV;
 }
 
-static int cpu_execution_priority(cpu_t *cpu)
+static int cpu_calculate_execution_priority(cpu_t *cpu)
 {
     int64_t highestpri = 256;
     int64_t boostedpri = 256;
@@ -497,6 +498,11 @@ static int cpu_execution_priority(cpu_t *cpu)
         return boostedpri;
 
     return highestpri;
+}
+
+static void cpu_update_execution_priority(cpu_t *cpu)
+{
+    cpu->execution_priority = cpu_calculate_execution_priority(cpu);
 }
 
 static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool sync)
@@ -551,7 +557,6 @@ static arm_exception cpu_exception_get_pending(cpu_t *cpu)
 
     int16_t min_priority = ARM_MAX_PRIORITY;
     arm_exception min_ex = 0;
-    int16_t current_priority = cpu_execution_priority(cpu);
 
     for (arm_exception i = 1; i < cpu->exception_count; i++)
     {
@@ -564,7 +569,7 @@ static arm_exception cpu_exception_get_pending(cpu_t *cpu)
         }
     }
 
-    if (min_priority >= current_priority)
+    if (min_priority >= cpu->execution_priority)
         return 0;
 
     return min_ex;
@@ -589,6 +594,20 @@ bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex)
 bool cpu_exception_is_active(cpu_t *cpu, arm_exception ex)
 {
     return cpu->exceptions[ex].active;
+}
+
+static void cpu_exception_set_active(cpu_t *cpu, arm_exception ex, bool active)
+{
+    if (cpu->exceptions[ex].active == active)
+        return;
+
+    cpu->exceptions[ex].active = active;
+    cpu_update_execution_priority(cpu);
+
+    if (active)
+        cpu->running_exceptions[cpu->running_exception_count++] = ex;
+    else
+        cpu->running_exception_count--;
 }
 
 void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
@@ -791,8 +810,7 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
     cpu->control.FPCA = 0;
     cpu->control.SPSEL = 0;
 
-    cpu->exceptions[ex].active = true;
-    cpu->running_exceptions[cpu->running_exception_count++] = ex;
+    cpu_exception_set_active(cpu, ex, true);
 
     // TODO: SCS_UpdateStatusRegs
 }
@@ -859,8 +877,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
         break;
     }
 
-    cpu->exceptions[returning_exception_number].active = false;
-    cpu->running_exception_count--;
+    cpu_exception_set_active(cpu, returning_exception_number, false);
 
     if (cpu->xpsr.ipsr != 2)
         cpu->faultmask = 0;
@@ -889,6 +906,8 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
             abort();
     }
 #endif
+
+    cpu_update_execution_priority(cpu);
 
     arm_exception pending = cpu_exception_get_pending(cpu);
     if (pending != 0)
@@ -1207,6 +1226,8 @@ void cpu_reset(cpu_t *cpu)
     cpu->exceptions[ARM_EXC_SYSTICK].enabled = true;
     cpu->exceptions[ARM_EXC_SYSTICK].fixed_enabled = true;
 
+    cpu_update_execution_priority(cpu);
+
     cpu_jump_exception(cpu, ARM_EXC_RESET);
 
     if (cpu->runlog)
@@ -1505,9 +1526,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
                 if ((detail->cps_flag & ARM_CPSFLAG_I) != 0)
                     SET(cpu->primask, 0);
 
-                if ((detail->cps_flag & ARM_CPSFLAG_F) != 0 && cpu_execution_priority(cpu) > -1)
+                if ((detail->cps_flag & ARM_CPSFLAG_F) != 0 && cpu->execution_priority > -1)
                     SET(cpu->faultmask, 0);
             }
+
+            cpu_update_execution_priority(cpu);
         }
         break;
 
@@ -2744,14 +2767,17 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
 
     case ARM_SYSREG_FAULTMASK:
         cpu->faultmask = value;
+        cpu_update_execution_priority(cpu);
         break;
 
     case ARM_SYSREG_BASEPRI:
         cpu->basepri = value;
+        cpu_update_execution_priority(cpu);
         break;
 
     case ARM_SYSREG_PRIMASK:
         cpu->primask = value;
+        cpu_update_execution_priority(cpu);
         break;
 
     default:
@@ -2799,4 +2825,5 @@ void cpu_set_exception_priority(cpu_t *cpu, arm_exception ex, int16_t priority)
         abort();
 
     cpu->exceptions[ex].priority = priority;
+    cpu->execution_priority = cpu_calculate_execution_priority(cpu);
 }
