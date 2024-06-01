@@ -1,6 +1,10 @@
 /*.bin
 /*.dis
 /*.out
+/*.so
 obj
 infiniemu
 tests.out
+
+screen*.raw
+screen*.png

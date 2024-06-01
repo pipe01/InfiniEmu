@@ -11,7 +11,7 @@ SDIR = src
 TDIR = test
 
 CC = gcc
-CFLAGS = -I$(IDIR) -I$(LDIR) -static -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
+CFLAGS = -I$(IDIR) -I$(LDIR) -fPIC -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
 
 ifeq ($(DEBUG), 1)
 	CFLAGS += -g
@@ -46,7 +46,10 @@ $(ODIR)/%.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 infiniemu: $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+	$(CC) -o $@ $^ -static $(CFLAGS) $(LIBS)
+
+libinfiniemu.so: $(OBJ)
+	$(CC) -o $@ $^ -shared $(CFLAGS) $(LIBS)
 
 dumps/%.h: dumps/%.bin
 	xxd -i $< > $@
@@ -64,7 +67,7 @@ build-test: obj/src/cpu.o obj/src/memory.o obj/src/runlog.o obj/src/fault.o $(pa
 .PHONY: build-test
 
 clean:
-	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ $(TEST_BIN) $(TDIR)/main.o
+	rm -rf $(ODIR) *~ core $(INCDIR)/*~ $(TEST_BIN) $(TDIR)/main.o
 .PHONY: clean
 
 dumps: $(DUMPS)
