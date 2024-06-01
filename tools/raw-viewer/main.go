@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"log"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/AllenDang/imgui-go"
@@ -149,8 +150,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	pt := C.pinetime_new((*C.uchar)(&program[0]), C.ulong(len(program)), false)
+	var pinner runtime.Pinner
+	pinner.Pin(&program)
+
+	pt := C.pinetime_new((*C.uchar)(&program[0]), C.ulong(len(program)), true)
 	C.pinetime_reset(pt)
+
+	pinner.Unpin()
 
 	sched := C.create_sched(pt, baseFrequencyHZ)
 
@@ -174,7 +180,7 @@ func main() {
 
 	var instPerSecond uint64
 	go func() {
-		interval := 1000 * time.Millisecond
+		interval := 500 * time.Millisecond
 
 		var lastCounter uint64
 
@@ -360,29 +366,33 @@ func main() {
 
 			imgui.Text(fmt.Sprintf("Instructions per second: %d", instPerSecond))
 
-			if imgui.Checkbox("Disable scheduler", &noScheduler) {
-				if noScheduler {
-					C.scheduler_stop(sched)
-
-					//TODO: Wait for scheduler to stop
-					time.Sleep(100 * time.Millisecond)
-
-					go C.loop(pt)
-				} else {
-					C.stop_loop = true
-
-					//TODO: Wait for loop to stop
-					time.Sleep(100 * time.Millisecond)
-
-					go C.scheduler_run(sched)
-				}
-			}
-
-			imgui.BeginDisabled(noScheduler)
+			imgui.BeginDisabled(*runGDB)
 			{
-				if imgui.SliderFloat("Speed", &speed, 0, 2) {
-					C.scheduler_set_frequency(sched, C.ulong(speed*baseFrequencyHZ))
+				if imgui.Checkbox("Disable scheduler", &noScheduler) {
+					if noScheduler {
+						C.scheduler_stop(sched)
+
+						//TODO: Wait for scheduler to stop
+						time.Sleep(100 * time.Millisecond)
+
+						go C.loop(pt)
+					} else {
+						C.stop_loop = true
+
+						//TODO: Wait for loop to stop
+						time.Sleep(100 * time.Millisecond)
+
+						go C.scheduler_run(sched)
+					}
 				}
+
+				imgui.BeginDisabled(noScheduler)
+				{
+					if imgui.SliderFloat("Speed", &speed, 0, 2) {
+						C.scheduler_set_frequency(sched, C.ulong(speed*baseFrequencyHZ))
+					}
+				}
+				imgui.EndDisabled()
 			}
 			imgui.EndDisabled()
 		}
