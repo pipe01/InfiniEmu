@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"math"
 	"os"
 	"runtime"
 	"strconv"
@@ -256,6 +257,8 @@ var pins *C.pins_t
 
 var allowScreenSwipes bool
 var screenTextureID imgui.TextureID
+var screenMouseDownPos imgui.Vec2
+var screenDidSwipe bool
 
 var mouseLeftIsDown, mouseLeftWasDown bool
 var mouseRightIsDown, mouseRightWasDown bool
@@ -289,10 +292,47 @@ func screenWindow(screenBuffer []byte, brightness Brightness) {
 
 		if imgui.IsItemHovered() {
 			if mouseLeftIsDown && !mouseLeftWasDown {
-				pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
+				screenMouseDownPos = imgui.MousePos().Minus(imgui.GetItemRectMin())
+				screenDidSwipe = false
 
-				C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(pos.X), C.ushort(pos.Y))
+				if !allowScreenSwipes {
+					C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(screenMouseDownPos.X), C.ushort(screenMouseDownPos.Y))
+				}
+			} else if mouseLeftIsDown && mouseLeftWasDown && !screenDidSwipe && allowScreenSwipes {
+				pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
+				distVec := pos.Minus(screenMouseDownPos)
+				dist := math.Sqrt(float64(distVec.X*distVec.X) + float64(distVec.Y*distVec.Y))
+
+				if dist > 20 {
+					screenDidSwipe = true
+
+					var gesture C.touch_gesture_t
+
+					xDist := math.Abs(float64(distVec.X))
+					yDist := math.Abs(float64(distVec.Y))
+
+					if xDist > yDist {
+						if distVec.X > 0 {
+							gesture = C.GESTURE_SLIDERIGHT
+						} else {
+							gesture = C.GESTURE_SLIDELEFT
+						}
+					} else {
+						if distVec.Y > 0 {
+							gesture = C.GESTURE_SLIDEDOWN
+						} else {
+							gesture = C.GESTURE_SLIDEUP
+						}
+					}
+
+					C.cst816s_do_touch(touchScreen, gesture, C.ushort(pos.X), C.ushort(pos.Y))
+				}
 			} else if !mouseLeftIsDown && mouseLeftWasDown {
+				if allowScreenSwipes && !screenDidSwipe {
+					C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(screenMouseDownPos.X), C.ushort(screenMouseDownPos.Y))
+					time.Sleep(50 * time.Millisecond) // TODO: Do this better?
+				}
+
 				C.cst816s_release_touch(touchScreen)
 			}
 
