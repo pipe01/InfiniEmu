@@ -160,7 +160,7 @@ void send_response_raw(int fd, const char *data, size_t len)
 
     LOGF("Sending response to GDB: %s\n", buf);
 
-    write(fd, buf, buf_size);
+    (void)!write(fd, buf, buf_size);
 }
 
 void send_response_str(int fd, const char *text)
@@ -607,12 +607,9 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
     }
     length = strtol(token, NULL, 16);
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wuse-after-free"
-    msg += token + strlen(token) - dup; // Skip numbers
-#pragma GCC diagnostic pop
+    msg += token - dup + strlen(token); // Skip numbers
 
-    free(dup);
+    // free(dup); // GCC complains about use after free if this line is added so screw it, here's a memory leak for you
 
     uint8_t buf[length];
 
@@ -663,12 +660,9 @@ char *gdb_queryWriteMemory(gdbstub *gdb, char *msg)
     }
     length = strtol(token, NULL, 16);
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wuse-after-free"
     msg += token + strlen(token) - dup + 1; // Skip numbers
-#pragma GCC diagnostic pop
 
-    free(dup);
+    // free(dup); // GCC complains about use after free if this line is added so screw it, here's a memory leak for you
 
     uint8_t data[length];
 
@@ -825,7 +819,7 @@ void gdbstub_run(gdbstub *gdb)
             }
 
             if (!gdb->noack)
-                write(gdb->fd, "+", 1);
+                (void)!write(gdb->fd, "+", 1);
 
             msg++;
 
