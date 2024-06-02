@@ -169,12 +169,37 @@ func NewCPUVariable(pt *C.pinetime_t, program *Program, name string) *CPUVariabl
 	}
 }
 
-func (v *CPUVariable) Read() uint32 {
+func (v *CPUVariable) Read() uint64 {
 	if v.sym == nil {
 		return 0
 	}
 
-	return uint32(C.memreg_read(v.mem, C.uint(v.sym.Start)))
+	switch v.sym.Length {
+	case 1:
+		return uint64(C.memreg_read_byte(v.mem, C.uint(v.sym.Start)))
+	case 2:
+		return uint64(C.memreg_read_halfword(v.mem, C.uint(v.sym.Start)))
+	case 4:
+		return uint64(C.memreg_read(v.mem, C.uint(v.sym.Start)))
+	case 8:
+		return uint64(C.memreg_read(v.mem, C.uint(v.sym.Start))) | (uint64(C.memreg_read(v.mem, C.uint(v.sym.Start+4))) << 32)
+	default:
+		panic("unsupported length")
+	}
+}
+
+func (v *CPUVariable) Write(value uint64) {
+	if v.sym == nil {
+		return
+	}
+
+	switch v.sym.Length {
+	case 1, 2, 4:
+		C.memreg_write(v.mem, C.uint(v.sym.Start), C.uint(value), C.byte_size_t(v.sym.Length))
+	case 8:
+		C.memreg_write(v.mem, C.uint(v.sym.Start), C.uint(value), C.SIZE_WORD)
+		C.memreg_write(v.mem, C.uint(v.sym.Start+4), C.uint(value>>32), C.SIZE_WORD)
+	}
 }
 
 func constCheckbox(id string, state bool) {
@@ -270,6 +295,9 @@ func main() {
 	}
 
 	freertosFreeBytesRemaining := NewCPUVariable(pt, program, "xFreeBytesRemaining")
+
+	NewCPUVariable(pt, program, "NoInit_MagicWord").Write(0xDEAD0000)
+	NewCPUVariable(pt, program, "NoInit_BackUpTime").Write(uint64(time.Now().UnixNano()))
 
 	// Active low pins with pull ups
 	C.pins_set(pins, pinCharging)
