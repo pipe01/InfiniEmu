@@ -255,7 +255,7 @@ var lcd *C.st7789_t
 var touchScreen *C.cst816s_t
 var pins *C.pins_t
 
-var allowScreenSwipes bool = true
+var allowScreenSwipes = true
 var screenTextureID imgui.TextureID
 var screenMouseDownPos imgui.Vec2
 var screenDidSwipe bool
