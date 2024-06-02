@@ -2059,6 +2059,24 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
     }
 
+    case ARM_INS_SMLAL:
+    {
+        assert(detail->op_count == 4);
+
+        op0 = OPERAND_REG(2);
+        op1 = OPERAND_REG(3);
+
+        int64_t acc_lo = OPERAND_REG(0);
+        int64_t acc_hi = OPERAND_REG(1);
+
+        uint64_t result = (int64_t)(int32_t)op0 * (int64_t)(int32_t)op1 + ((acc_hi << 32) | acc_lo);
+
+        cpu_reg_write(cpu, detail->operands[0].reg, result & x(FFFF, FFFF));
+        cpu_reg_write(cpu, detail->operands[1].reg, result >> 32);
+
+        break;
+    }
+
     case ARM_INS_SMULBB:
     case ARM_INS_SMULBT:
     case ARM_INS_SMULTB:
