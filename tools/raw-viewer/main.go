@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/AllenDang/imgui-go"
@@ -156,6 +157,26 @@ func (r *RTCTracker) Update(updateInterval time.Duration) {
 	r.lastTicks = ticks
 }
 
+type CPUVariable struct {
+	mem *C.memreg_t
+	sym *Symbol
+}
+
+func NewCPUVariable(pt *C.pinetime_t, program *Program, name string) *CPUVariable {
+	return &CPUVariable{
+		mem: C.cpu_mem(C.nrf52832_get_cpu(C.pinetime_get_nrf52832(pt))),
+		sym: program.FindSymbol(name),
+	}
+}
+
+func (v *CPUVariable) Read() uint32 {
+	if v.sym == nil {
+		return 0
+	}
+
+	return uint32(C.memreg_read(v.mem, C.uint(v.sym.Start)))
+}
+
 func constCheckbox(id string, state bool) {
 	imgui.Checkbox(id, &state)
 }
@@ -172,6 +193,34 @@ func pinCheckbox(id string, pins *C.pins_t, pin int32) {
 	}
 }
 
+func loadFlash(filePath string) (*Program, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var program *Program
+
+	program, err = LoadELF(f, true)
+	if err != nil {
+		if strings.Contains(err.Error(), "bad magic number") {
+			f.Seek(0, 0)
+
+			program, err = LoadBinary(f)
+			if err != nil {
+				return nil, fmt.Errorf("load binary file: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("load elf file: %w", err)
+		}
+	}
+
+	fmt.Printf("Loaded %d symbols\n", len(program.Symbols))
+
+	return program, nil
+}
+
 func main() {
 	var noScheduler bool
 
@@ -185,15 +234,17 @@ func main() {
 
 	blackScreenImage = image.NewRGBA(image.Rect(0, 0, displayWidth, displayHeight))
 
-	program, err := os.ReadFile(flag.Arg(0))
+	program, err := loadFlash(flag.Arg(0))
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	flash := program.Flatten()
+
 	var pinner runtime.Pinner
 	pinner.Pin(&program)
 
-	pt := C.pinetime_new((*C.uchar)(&program[0]), C.ulong(len(program)), true)
+	pt := C.pinetime_new((*C.uchar)(&flash[0]), C.ulong(len(flash)), true)
 	C.pinetime_reset(pt)
 
 	pinner.Unpin()
@@ -217,6 +268,8 @@ func main() {
 		NewRTCTracker((*C.RTC_t)(C.nrf52832_get_peripheral(C.pinetime_get_nrf52832(pt), C.INSTANCE_RTC1))),
 		NewRTCTracker((*C.RTC_t)(C.nrf52832_get_peripheral(C.pinetime_get_nrf52832(pt), C.INSTANCE_RTC2))),
 	}
+
+	freertosFreeBytesRemaining := NewCPUVariable(pt, program, "xFreeBytesRemaining")
 
 	// Active low pins with pull ups
 	C.pins_set(pins, pinCharging)
@@ -447,6 +500,12 @@ func main() {
 				imgui.EndDisabled()
 			}
 			imgui.EndDisabled()
+		}
+		imgui.End()
+
+		imgui.Begin("FreeRTOS")
+		{
+			imgui.Text(fmt.Sprintf("Free heap bytes: %d", freertosFreeBytesRemaining.Read()))
 		}
 		imgui.End()
 
