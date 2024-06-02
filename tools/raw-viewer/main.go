@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -491,13 +492,16 @@ func main() {
 				}
 
 				imgui.Text(fmt.Sprintf("RTC%d (%s)", i, status))
-				imgui.Text(fmt.Sprintf("Ticks per second: %d", rtc.TicksPerSecond))
-				imgui.Text(fmt.Sprintf("Target ticks per second: %d", rtc.TargetTicksPerSecond))
+
+				if rtc.Running {
+					imgui.LabelText(fmt.Sprint(rtc.TicksPerSecond), "Ticks per second")
+					imgui.LabelText(fmt.Sprint(rtc.TargetTicksPerSecond), "Target ticks per second")
+				}
 
 				imgui.Separator()
 			}
 
-			imgui.Text(fmt.Sprintf("Instructions per second: %d", instPerSecond))
+			imgui.LabelText(fmt.Sprint(instPerSecond), "Instructions per second")
 
 			imgui.BeginDisabled(*runGDB)
 			{
@@ -532,8 +536,8 @@ func main() {
 		imgui.End()
 
 		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 330}, imgui.ConditionOnce, imgui.Vec2{})
-		if imgui.Begin("FreeRTOS") {
-			imgui.Text(fmt.Sprintf("Free heap bytes: %d", freertosFreeBytesRemaining.Read()))
+		if imgui.BeginV("FreeRTOS", nil, imgui.WindowFlagsAlwaysAutoResize) {
+			imgui.LabelText(strconv.FormatUint(freertosFreeBytesRemaining.Read(), 10), "Free heap bytes")
 		}
 		imgui.End()
 
