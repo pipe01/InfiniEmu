@@ -255,7 +255,7 @@ var lcd *C.st7789_t
 var touchScreen *C.cst816s_t
 var pins *C.pins_t
 
-var allowScreenSwipes bool
+var allowScreenSwipes bool = true
 var screenTextureID imgui.TextureID
 var screenMouseDownPos imgui.Vec2
 var screenDidSwipe bool
@@ -609,7 +609,8 @@ func main() {
 		}
 		imgui.End()
 
-		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 350}, imgui.ConditionOnce, imgui.Vec2{})
+		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 500}, imgui.ConditionOnce, imgui.Vec2{})
+		imgui.SetNextWindowSizeV(imgui.Vec2{X: 500, Y: 300}, imgui.ConditionOnce)
 		if imgui.BeginV("FreeRTOS", nil, 0) {
 			freeHeap := freertosFreeBytesRemaining.Read()
 
