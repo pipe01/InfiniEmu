@@ -359,8 +359,8 @@ func main() {
 
 	var releaseTouchTime time.Time
 
-	mouseWasDown := false
-	mouseIsDown := false
+	var mouseLeftIsDown, mouseLeftWasDown bool
+	var mouseRightIsDown, mouseRightWasDown bool
 	brightness := BrightnessOff
 
 	var speed float32 = 1
@@ -368,7 +368,8 @@ func main() {
 	for !p.ShouldStop() {
 		<-t
 
-		mouseIsDown = imgui.IsMouseDown(0)
+		mouseLeftIsDown = imgui.IsMouseDown(0)
+		mouseRightIsDown = imgui.IsMouseDown(1)
 
 		if !releaseTouchTime.IsZero() && time.Now().After(releaseTouchTime) {
 			releaseTouchTime = time.Time{}
@@ -414,12 +415,18 @@ func main() {
 			imgui.Image(texid, imgui.Vec2{X: displayWidth, Y: displayHeight})
 
 			if imgui.IsItemHovered() {
-				if mouseIsDown && !mouseWasDown {
+				if mouseLeftIsDown && !mouseLeftWasDown {
 					pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
 
 					C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(pos.X), C.ushort(pos.Y))
-				} else if !mouseIsDown && mouseWasDown {
+				} else if !mouseLeftIsDown && mouseLeftWasDown {
 					C.cst816s_release_touch(touchScreen)
+				}
+
+				if mouseRightIsDown && !mouseRightWasDown {
+					C.pins_set(pins, pinButton)
+				} else if !mouseRightIsDown && mouseRightWasDown {
+					C.pins_clear(pins, pinButton)
 				}
 			}
 
@@ -433,9 +440,9 @@ func main() {
 		if imgui.BeginV("Inputs", nil, imgui.WindowFlagsAlwaysAutoResize) {
 			imgui.Button("Side button")
 			if imgui.IsItemHovered() {
-				if mouseIsDown && !mouseWasDown {
+				if mouseLeftIsDown && !mouseLeftWasDown {
 					C.pins_set(pins, pinButton)
-				} else if !mouseIsDown && mouseWasDown {
+				} else if !mouseLeftIsDown && mouseLeftWasDown {
 					C.pins_clear(pins, pinButton)
 				}
 			}
@@ -547,6 +554,7 @@ func main() {
 		r.Render(p.DisplaySize(), p.FramebufferSize(), imgui.RenderedDrawData())
 		p.PostRender()
 
-		mouseWasDown = mouseIsDown
+		mouseLeftWasDown = mouseLeftIsDown
+		mouseRightWasDown = mouseRightIsDown
 	}
 }
