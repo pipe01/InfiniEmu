@@ -1,3 +1,5 @@
 *.so
 __debug_bin*
 imgui.ini
+*.AppImage
+AppDir/usr
