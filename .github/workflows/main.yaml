@@ -36,10 +36,12 @@ jobs:
       - name: Build AppImage
         run: |
           wget -q -O appimagetool.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool.AppImage
           cd tools/raw-viewer
           mkdir -p AppDir/usr/bin AppDir/usr/lib
           cp raw-viewer AppDir/usr/bin
           cp /usr/lib/libcapstone.so.5 AppDir/usr/lib
+          ./appimagetool.AppImage AppDir/
 
       - uses: actions/upload-artifact@v4
         with:
