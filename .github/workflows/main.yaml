@@ -5,6 +5,9 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y wget gcc g++ make pkg-config libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libopengl-dev libglx-dev libglu1-mesa-dev freeglut3-dev libxxf86vm-dev
       
