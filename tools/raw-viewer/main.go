@@ -630,7 +630,7 @@ func main() {
 		}
 		imgui.End()
 
-		imgui.Render() // This call only creates the draw data list. Actual rendering to framebuffer is done below.
+		imgui.Render()
 
 		renderer.PreRender(clearColor)
 		renderer.Render(platform.DisplaySize(), platform.FramebufferSize(), imgui.RenderedDrawData())
