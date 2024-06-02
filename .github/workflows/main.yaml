@@ -16,6 +16,12 @@ jobs:
           wget https://go.dev/dl/go1.22.3.linux-amd64.tar.gz
           sudo tar -C /usr/local -xzf go1.22.3.linux-amd64.tar.gz
 
+      - name: Install appimagetool
+        uses: AnimMouse/setup-appimage@v1
+        with:
+          name: appimagetool
+          url: https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          
       - name: Install capstone
         run: |
           cd /tmp
@@ -35,13 +41,11 @@ jobs:
 
       - name: Build AppImage
         run: |
-          wget -q -O /tmp/appimagetool.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x /tmp/appimagetool.AppImage
           cd tools/raw-viewer
           mkdir -p AppDir/usr/bin AppDir/usr/lib
           cp raw-viewer AppDir/usr/bin
           cp /usr/lib/libcapstone.so.5 AppDir/usr/lib
-          /tmp/appimagetool.AppImage AppDir/
+          appimagetool AppDir/
 
       - uses: actions/upload-artifact@v4
         with:
