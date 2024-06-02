@@ -247,6 +247,71 @@ func loadFlash(filePath string) (*Program, error) {
 	return program, nil
 }
 
+var platform *imgui.GLFW
+var renderer *imgui.OpenGL3
+
+var lcd *C.st7789_t
+var touchScreen *C.cst816s_t
+var pins *C.pins_t
+
+var allowScreenSwipes bool
+var screenTextureID imgui.TextureID
+
+var mouseLeftIsDown, mouseLeftWasDown bool
+var mouseRightIsDown, mouseRightWasDown bool
+
+func screenWindow(screenBuffer []byte, brightness Brightness) {
+	var err error
+
+	flags := imgui.WindowFlagsNoResize | imgui.WindowFlagsAlwaysAutoResize
+	if allowScreenSwipes {
+		flags |= imgui.WindowFlagsNoMove
+	}
+
+	imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 20}, imgui.ConditionOnce, imgui.Vec2{})
+	if imgui.BeginV("Display", nil, flags) {
+		renderer.ReleaseImage(screenTextureID)
+		var img *image.RGBA
+
+		if C.st7789_is_sleeping(lcd) || brightness == BrightnessOff {
+			img = blackScreenImage
+		} else {
+			C.st7789_read_screen(lcd, (*C.uchar)(&screenBuffer[0]), displayWidth, displayHeight)
+			img = convertImage(screenBuffer)
+		}
+
+		screenTextureID, err = renderer.LoadImage(img)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		imgui.Image(screenTextureID, imgui.Vec2{X: displayWidth, Y: displayHeight})
+
+		if imgui.IsItemHovered() {
+			if mouseLeftIsDown && !mouseLeftWasDown {
+				pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
+
+				C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(pos.X), C.ushort(pos.Y))
+			} else if !mouseLeftIsDown && mouseLeftWasDown {
+				C.cst816s_release_touch(touchScreen)
+			}
+
+			if mouseRightIsDown && !mouseRightWasDown {
+				C.pins_set(pins, pinButton)
+			} else if !mouseRightIsDown && mouseRightWasDown {
+				C.pins_clear(pins, pinButton)
+			}
+		}
+
+		imgui.Checkbox("Allow swiping with mouse", &allowScreenSwipes)
+
+		imgui.Separator()
+
+		imgui.Text(fmt.Sprintf("Brightness: %s", brightness.String()))
+	}
+	imgui.End()
+}
+
 func main() {
 	var noScheduler bool
 
@@ -286,9 +351,9 @@ func main() {
 		go C.scheduler_run(sched)
 	}
 
-	lcd := C.pinetime_get_st7789(pt)
-	touchScreen := C.pinetime_get_cst816s(pt)
-	pins := C.nrf52832_get_pins(C.pinetime_get_nrf52832(pt))
+	lcd = C.pinetime_get_st7789(pt)
+	touchScreen = C.pinetime_get_cst816s(pt)
+	pins = C.nrf52832_get_pins(C.pinetime_get_nrf52832(pt))
 	rtcs := []*RTCTracker{
 		NewRTCTracker((*C.RTC_t)(C.nrf52832_get_peripheral(C.pinetime_get_nrf52832(pt), C.INSTANCE_RTC0))),
 		NewRTCTracker((*C.RTC_t)(C.nrf52832_get_peripheral(C.pinetime_get_nrf52832(pt), C.INSTANCE_RTC1))),
@@ -327,9 +392,7 @@ func main() {
 		}
 	}()
 
-	screen := make([]byte, displayWidth*displayHeight*displayBytesPerPixel)
-
-	var texid imgui.TextureID
+	screenBuffer := make([]byte, displayWidth*displayHeight*displayBytesPerPixel)
 
 	context := imgui.CreateContext(nil)
 	defer context.Destroy()
@@ -337,19 +400,19 @@ func main() {
 	io := imgui.CurrentIO()
 	io.Fonts().AddFontDefault()
 
-	p, err := imgui.NewGLFW(io, "InfiniEmu", 600, 600, 0)
+	platform, err = imgui.NewGLFW(io, "InfiniEmu", 600, 600, 0)
 	if err != nil {
 		panic(err)
 	}
-	defer p.Dispose()
+	defer platform.Dispose()
 
-	r, err := imgui.NewOpenGL3(io, 1.0)
+	renderer, err = imgui.NewOpenGL3(io, 1.0)
 	if err != nil {
 		panic(err)
 	}
-	defer r.Dispose()
+	defer renderer.Dispose()
 
-	r.SetFontTexture(io.Fonts().TextureDataRGBA32())
+	renderer.SetFontTexture(io.Fonts().TextureDataRGBA32())
 
 	clearColor := [4]float32{0.7, 0.7, 0.7, 1.0}
 
@@ -359,13 +422,11 @@ func main() {
 
 	var releaseTouchTime time.Time
 
-	var mouseLeftIsDown, mouseLeftWasDown bool
-	var mouseRightIsDown, mouseRightWasDown bool
 	brightness := BrightnessOff
 
 	var speed float32 = 1
 
-	for !p.ShouldStop() {
+	for !platform.ShouldStop() {
 		<-t
 
 		mouseLeftIsDown = imgui.IsMouseDown(0)
@@ -376,9 +437,9 @@ func main() {
 			C.cst816s_release_touch(touchScreen)
 		}
 
-		p.ProcessEvents()
+		platform.ProcessEvents()
 
-		p.NewFrame()
+		platform.NewFrame()
 		imgui.NewFrame()
 
 		lcdLow := bool(C.pins_is_set(pins, pinLcdBacklightLow))
@@ -395,46 +456,7 @@ func main() {
 			brightness = BrightnessOff
 		}
 
-		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 20}, imgui.ConditionOnce, imgui.Vec2{})
-		if imgui.BeginV("Display", nil, imgui.WindowFlagsNoResize|imgui.WindowFlagsAlwaysAutoResize) {
-			r.ReleaseImage(texid)
-			var img *image.RGBA
-
-			if C.st7789_is_sleeping(lcd) || brightness == BrightnessOff {
-				img = blackScreenImage
-			} else {
-				C.st7789_read_screen(lcd, (*C.uchar)(&screen[0]), displayWidth, displayHeight)
-				img = convertImage(screen)
-			}
-
-			texid, err = r.LoadImage(img)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			imgui.Image(texid, imgui.Vec2{X: displayWidth, Y: displayHeight})
-
-			if imgui.IsItemHovered() {
-				if mouseLeftIsDown && !mouseLeftWasDown {
-					pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
-
-					C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(pos.X), C.ushort(pos.Y))
-				} else if !mouseLeftIsDown && mouseLeftWasDown {
-					C.cst816s_release_touch(touchScreen)
-				}
-
-				if mouseRightIsDown && !mouseRightWasDown {
-					C.pins_set(pins, pinButton)
-				} else if !mouseRightIsDown && mouseRightWasDown {
-					C.pins_clear(pins, pinButton)
-				}
-			}
-
-			imgui.Separator()
-
-			imgui.Text(fmt.Sprintf("Brightness: %s", brightness.String()))
-		}
-		imgui.End()
+		screenWindow(screenBuffer, brightness)
 
 		imgui.SetNextWindowPosV(imgui.Vec2{X: 300, Y: 20}, imgui.ConditionOnce, imgui.Vec2{})
 		if imgui.BeginV("Inputs", nil, imgui.WindowFlagsAlwaysAutoResize) {
@@ -542,7 +564,7 @@ func main() {
 		}
 		imgui.End()
 
-		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 330}, imgui.ConditionOnce, imgui.Vec2{})
+		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 350}, imgui.ConditionOnce, imgui.Vec2{})
 		if imgui.BeginV("FreeRTOS", nil, imgui.WindowFlagsAlwaysAutoResize) {
 			imgui.LabelText(strconv.FormatUint(freertosFreeBytesRemaining.Read(), 10), "Free heap bytes")
 		}
@@ -550,9 +572,9 @@ func main() {
 
 		imgui.Render() // This call only creates the draw data list. Actual rendering to framebuffer is done below.
 
-		r.PreRender(clearColor)
-		r.Render(p.DisplaySize(), p.FramebufferSize(), imgui.RenderedDrawData())
-		p.PostRender()
+		renderer.PreRender(clearColor)
+		renderer.Render(platform.DisplaySize(), platform.FramebufferSize(), imgui.RenderedDrawData())
+		platform.PostRender()
 
 		mouseLeftWasDown = mouseLeftIsDown
 		mouseRightWasDown = mouseRightIsDown
