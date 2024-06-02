@@ -365,6 +365,7 @@ func main() {
 			brightness = BrightnessOff
 		}
 
+		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 20}, imgui.ConditionOnce, imgui.Vec2{})
 		if imgui.BeginV("Display", nil, imgui.WindowFlagsNoResize|imgui.WindowFlagsAlwaysAutoResize) {
 			r.ReleaseImage(texid)
 			var img *image.RGBA
@@ -399,7 +400,8 @@ func main() {
 		}
 		imgui.End()
 
-		if imgui.Begin("Inputs") {
+		imgui.SetNextWindowPosV(imgui.Vec2{X: 300, Y: 20}, imgui.ConditionOnce, imgui.Vec2{})
+		if imgui.BeginV("Inputs", nil, imgui.WindowFlagsAlwaysAutoResize) {
 			imgui.Button("Side button")
 			if imgui.IsItemHovered() {
 				if mouseIsDown && !mouseWasDown {
@@ -452,6 +454,7 @@ func main() {
 		}
 		imgui.End()
 
+		imgui.SetNextWindowPosV(imgui.Vec2{X: 300, Y: 230}, imgui.ConditionOnce, imgui.Vec2{})
 		if imgui.BeginV("Performance", nil, imgui.WindowFlagsAlwaysAutoResize) {
 			for i, rtc := range rtcs {
 				status := "off"
@@ -500,6 +503,7 @@ func main() {
 		}
 		imgui.End()
 
+		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 330}, imgui.ConditionOnce, imgui.Vec2{})
 		if imgui.Begin("FreeRTOS") {
 			imgui.Text(fmt.Sprintf("Free heap bytes: %d", freertosFreeBytesRemaining.Read()))
 		}
