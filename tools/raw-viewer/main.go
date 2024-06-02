@@ -72,9 +72,35 @@ const (
 	pinTwiSda             = 6
 )
 
+type Brightness int
+
+const (
+	BrightnessOff Brightness = iota
+	BrightnessLow
+	BrightnessMedium
+	BrightnessHigh
+)
+
+func (b Brightness) String() string {
+	switch b {
+	case BrightnessOff:
+		return "off"
+	case BrightnessLow:
+		return "low"
+	case BrightnessMedium:
+		return "medium"
+	case BrightnessHigh:
+		return "high"
+	default:
+		return "unknown"
+	}
+}
+
 const baseFrequencyHZ = 18_000_000
 
 const touchDuration = 200 * time.Millisecond
+
+var blackScreenImage *image.RGBA
 
 func convertImage(raw []byte) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, displayWidth, displayHeight))
@@ -134,6 +160,18 @@ func constCheckbox(id string, state bool) {
 	imgui.Checkbox(id, &state)
 }
 
+func pinCheckbox(id string, pins *C.pins_t, pin int32) {
+	state := bool(C.pins_is_set(pins, C.int(pin)))
+
+	if imgui.Checkbox(id, &state) {
+		if state {
+			C.pins_set(pins, C.int(pin))
+		} else {
+			C.pins_clear(pins, C.int(pin))
+		}
+	}
+}
+
 func main() {
 	var noScheduler bool
 
@@ -144,6 +182,8 @@ func main() {
 	if flag.NArg() != 1 {
 		log.Fatal("Usage: infiniemu [options] <firmware.bin>")
 	}
+
+	blackScreenImage = image.NewRGBA(image.Rect(0, 0, displayWidth, displayHeight))
 
 	program, err := os.ReadFile(flag.Arg(0))
 	if err != nil {
@@ -177,6 +217,10 @@ func main() {
 		NewRTCTracker((*C.RTC_t)(C.nrf52832_get_peripheral(C.pinetime_get_nrf52832(pt), C.INSTANCE_RTC1))),
 		NewRTCTracker((*C.RTC_t)(C.nrf52832_get_peripheral(C.pinetime_get_nrf52832(pt), C.INSTANCE_RTC2))),
 	}
+
+	// Active low pins with pull ups
+	C.pins_set(pins, pinCharging)
+	C.pins_set(pins, pinPowerPresent)
 
 	var instPerSecond uint64
 	go func() {
@@ -235,6 +279,7 @@ func main() {
 
 	mouseWasDown := false
 	mouseIsDown := false
+	brightness := BrightnessOff
 
 	var speed float32 = 1
 
@@ -257,37 +302,48 @@ func main() {
 		lcdMedium := bool(C.pins_is_set(pins, pinLcdBacklightMedium))
 		lcdHigh := bool(C.pins_is_set(pins, pinLcdBacklightHigh))
 
-		imgui.BeginV("Display", nil, imgui.WindowFlagsNoResize)
-		{
-			if C.st7789_is_sleeping(lcd) {
-				imgui.Text("Display is off")
+		if !lcdLow && lcdMedium && lcdHigh {
+			brightness = BrightnessLow
+		} else if !lcdLow && !lcdMedium && lcdHigh {
+			brightness = BrightnessMedium
+		} else if !lcdLow && !lcdMedium && !lcdHigh {
+			brightness = BrightnessHigh
+		} else {
+			brightness = BrightnessOff
+		}
 
-				if imgui.Button("Tap") {
-					C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, displayWidth/2, displayHeight/2)
-					releaseTouchTime = time.Now().Add(touchDuration)
-				}
+		imgui.BeginV("Display", nil, imgui.WindowFlagsNoResize|imgui.WindowFlagsAlwaysAutoResize)
+		{
+			r.ReleaseImage(texid)
+			var img *image.RGBA
+
+			if C.st7789_is_sleeping(lcd) || brightness == BrightnessOff {
+				img = blackScreenImage
 			} else {
 				C.st7789_read_screen(lcd, (*C.uchar)(&screen[0]), displayWidth, displayHeight)
-				img := convertImage(screen)
+				img = convertImage(screen)
+			}
 
-				r.ReleaseImage(texid)
-				texid, err = r.LoadImage(img)
-				if err != nil {
-					log.Fatal(err)
-				}
+			texid, err = r.LoadImage(img)
+			if err != nil {
+				log.Fatal(err)
+			}
 
-				imgui.Image(texid, imgui.Vec2{X: displayWidth, Y: displayHeight})
+			imgui.Image(texid, imgui.Vec2{X: displayWidth, Y: displayHeight})
 
-				if imgui.IsItemHovered() {
-					if mouseIsDown && !mouseWasDown {
-						pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
+			if imgui.IsItemHovered() {
+				if mouseIsDown && !mouseWasDown {
+					pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
 
-						C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(pos.X), C.ushort(pos.Y))
-					} else if !mouseIsDown && mouseWasDown {
-						C.cst816s_release_touch(touchScreen)
-					}
+					C.cst816s_do_touch(touchScreen, C.GESTURE_SINGLETAP, C.ushort(pos.X), C.ushort(pos.Y))
+				} else if !mouseIsDown && mouseWasDown {
+					C.cst816s_release_touch(touchScreen)
 				}
 			}
+
+			imgui.Separator()
+
+			imgui.Text(fmt.Sprintf("Brightness: %s", brightness.String()))
 		}
 		imgui.End()
 
@@ -337,15 +393,11 @@ func main() {
 				imgui.EndDisabled()
 			}
 			imgui.EndTable()
-		}
-		imgui.End()
 
-		imgui.BeginV("LCD", nil, imgui.WindowFlagsAlwaysAutoResize)
-		{
-			constCheckbox("Low", !lcdLow && lcdMedium && lcdHigh)
-			constCheckbox("Medium", !lcdLow && !lcdMedium && lcdHigh)
-			constCheckbox("High", !lcdLow && !lcdMedium && !lcdHigh)
-			constCheckbox("Off", lcdLow && lcdMedium && lcdHigh)
+			imgui.Separator()
+
+			pinCheckbox("Charging (active low)", pins, pinCharging)
+			pinCheckbox("Power present (active low)", pins, pinPowerPresent)
 		}
 		imgui.End()
 
