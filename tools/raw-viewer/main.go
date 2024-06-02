@@ -437,10 +437,13 @@ func main() {
 	context := imgui.CreateContext(nil)
 	defer context.Destroy()
 
+	imgui.ImPlotCreateContext()
+	defer imgui.ImPlotDestroyContext()
+
 	io := imgui.CurrentIO()
 	io.Fonts().AddFontDefault()
 
-	platform, err = imgui.NewGLFW(io, "InfiniEmu", 600, 600, 0)
+	platform, err = imgui.NewGLFW(io, "InfiniEmu", 600, 750, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -465,6 +468,8 @@ func main() {
 	brightness := BrightnessOff
 
 	var speed float32 = 1
+
+	freeHeapHistory := make([]float64, 0)
 
 	for !platform.ShouldStop() {
 		<-t
@@ -605,8 +610,23 @@ func main() {
 		imgui.End()
 
 		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 350}, imgui.ConditionOnce, imgui.Vec2{})
-		if imgui.BeginV("FreeRTOS", nil, imgui.WindowFlagsAlwaysAutoResize) {
-			imgui.LabelText(strconv.FormatUint(freertosFreeBytesRemaining.Read(), 10), "Free heap bytes")
+		if imgui.BeginV("FreeRTOS", nil, 0) {
+			freeHeap := freertosFreeBytesRemaining.Read()
+
+			freeHeapHistory = append(freeHeapHistory, float64(freeHeap))
+			for len(freeHeapHistory) > 500 {
+				freeHeapHistory = freeHeapHistory[1:]
+			}
+
+			imgui.LabelText(strconv.FormatUint(freeHeap, 10), "Free heap bytes")
+
+			winSize := imgui.WindowSize()
+
+			if imgui.ImPlotBegin("Free heap", "", "", imgui.Vec2{X: winSize.X - 20, Y: winSize.Y - 70}, 0, imgui.ImPlotAxisFlags_AutoFit, imgui.ImPlotAxisFlags_AutoFit, 0, 0, "", "") {
+				imgui.ImPlotLine("", freeHeapHistory, 1, 0, 0)
+
+				imgui.ImPlotEnd()
+			}
 		}
 		imgui.End()
 
