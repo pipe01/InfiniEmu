@@ -6,7 +6,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: apt-get update && apt-get install -y wget gcc g++ make pkg-config libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libopengl-dev libglx-dev libglu1-mesa-dev freeglut3-dev libxxf86vm-dev
+        run: sudo apt-get update && apt-get install -y wget gcc g++ make pkg-config libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libopengl-dev libglx-dev libglu1-mesa-dev freeglut3-dev libxxf86vm-dev
       
       - name: Install Go
         run: |
@@ -20,7 +20,7 @@ jobs:
           tar xf capstone.tar.gz
           rm capstone.tar.gz
           cd capstone*
-          CAPSTONE_ARCHS=arm ./make.sh install
+          sudo CAPSTONE_ARCHS=arm ./make.sh install
 
       - name: Build libinfiniemu
         run: make -j$(nproc) libinfiniemu.o
