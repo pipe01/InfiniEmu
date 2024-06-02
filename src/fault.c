@@ -17,6 +17,8 @@ void fault_clear_jmp()
 
 void fault_take_(fault_type_t t)
 {
+    fflush(NULL);
+
     if (current_jmp)
         longjmp(*current_jmp, t);
     else
