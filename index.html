@@ -9,14 +9,14 @@
 
 <body>
     <input id="programPicker" type="file" onchange="loadProgramFile(this.files[0])">
-    <button onclick="myWorker.postMessage({type: 'loadScreen'})">Refresh screen</button>
 
     <canvas id="display" width="240" height="240" style="background-color: red;"></canvas>
 
     <div id="performance"></div>
 
     <div>
-        <button onclick="myWorker.postMessage({type: 'doTouch', gesture: 0x02, x: 120, y: 120, duration: 200})">Swipe up</button>
+        <button onclick="myWorker.postMessage({type: 'doTouch', gesture: 0x02, x: 120, y: 120, duration: 200})">Swipe
+            up</button>
     </div>
 
     <script>
@@ -26,6 +26,74 @@
         function loadProgramFile(file) {
             myWorker.postMessage({ type: "loadProgramFile", file });
         }
+
+        let isMouseDown = false, isButtonDown = false;
+        let hasSwiped = false;
+        let mouseDownX, mouseDownY;
+
+        display.addEventListener("contextmenu", e => {
+            e.preventDefault();
+        });
+
+        display.addEventListener("mousedown", e => {
+            e.preventDefault();
+
+            if (e.button == 0) {
+                isMouseDown = true;
+
+                mouseDownX = e.offsetX;
+                mouseDownY = e.offsetY;
+            } else if (e.button == 2) {
+                isButtonDown = true;
+
+                myWorker.postMessage({ type: "pressButton" });
+            }
+        });
+        display.addEventListener("mousemove", e => {
+            if (!isMouseDown) {
+                return;
+            }
+
+            e.preventDefault();
+
+            const distX = e.offsetX - mouseDownX;
+            const distY = e.offsetY - mouseDownY;
+            const dist = Math.sqrt(distX * distX + distY * distY);
+
+            if (dist > 50 && !hasSwiped) {
+                hasSwiped = true;
+
+                let gesture;
+
+                if (Math.abs(distX) > Math.abs(distY)) {
+                    gesture = distX > 0 ? 0x04 : 0x03;
+                } else {
+                    gesture = distY > 0 ? 0x01 : 0x02;
+                }
+
+                myWorker.postMessage({ type: "doTouch", gesture, x: e.offsetX, y: e.offsetY });
+            }
+        });
+        display.addEventListener("mouseup", e => {
+            e.preventDefault();
+
+            if (isButtonDown) {
+                isButtonDown = false;
+
+                myWorker.postMessage({ type: "releaseButton" });
+            }
+
+            if (isMouseDown) {
+                isMouseDown = false;
+
+                if (hasSwiped) {
+                    hasSwiped = false;
+                    myWorker.postMessage({ type: "clearTouch" });
+                } else {
+                    myWorker.postMessage({ type: "doTouch", gesture: 0x05, x: e.offsetX, y: e.offsetY, duration: 200 });
+                }
+            }
+        });
 
         myWorker.onmessage = function (e) {
             const { type, data } = e.data;
