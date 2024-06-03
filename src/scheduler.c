@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <sys/time.h>
 
+#include "ie_time.h"
+
 #define SCHEDULER_HZ 50
 
 struct scheduler_t
@@ -35,7 +37,6 @@ scheduler_t *scheduler_new(scheduler_cb_t cb, void *userdata, size_t target_hz)
 
 void scheduler_run(scheduler_t *sched)
 {
-    struct timeval tv;
     struct timespec ts_rem, ts_req = {0};
 
     sched->stop = false;
@@ -46,8 +47,7 @@ void scheduler_run(scheduler_t *sched)
         size_t iteration_count = sched->iteration_count;
         size_t should_take_ns = sched->should_take_ns;
 
-        gettimeofday(&tv, NULL);
-        size_t start = tv.tv_sec * 1e6 + tv.tv_usec;
+        uint64_t start = microseconds_now();
 
         for (size_t i = 0; i < iteration_count; i++)
         {
@@ -55,8 +55,7 @@ void scheduler_run(scheduler_t *sched)
         }
         sched->counter += iteration_count;
 
-        gettimeofday(&tv, NULL);
-        size_t end = tv.tv_sec * 1e6 + tv.tv_usec;
+        size_t end = microseconds_now();
         size_t elapsed_ns = (end - start) * 1e3;
 
         if (elapsed_ns < should_take_ns)

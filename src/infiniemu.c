@@ -7,6 +7,7 @@
 #include "config.h"
 #include "pinetime.h"
 #include "gdb.h"
+#include "ie_time.h"
 
 int main(int argc, char **argv)
 {
@@ -101,8 +102,8 @@ int main(int argc, char **argv)
     else
     {
 #if ENABLE_MEASUREMENT
-        struct timeval tv_start, tv_now;
-        gettimeofday(&tv_start, NULL);
+        uint64_t start, now;
+        start = microseconds_now();
 
         size_t inst_counter = 0;
 #endif
@@ -114,11 +115,11 @@ int main(int argc, char **argv)
 #ifdef ENABLE_MEASUREMENT
             if (++inst_counter == 1000000)
             {
-                gettimeofday(&tv_now, NULL);
+                now = microseconds_now();
 
-                long elapsed = (tv_now.tv_sec - tv_start.tv_sec) * 1000000 + (tv_now.tv_usec - tv_start.tv_usec);
+                uint64_t elapsed = now - start;
 
-                tv_start = tv_now;
+                start = now;
 
                 printf("Elapsed: %lu us\n", elapsed);
                 printf("Instructions ran: %lu\n", inst_counter);

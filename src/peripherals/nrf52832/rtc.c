@@ -3,8 +3,8 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/time.h>
 
+#include "ie_time.h"
 #include "peripherals/nrf52832/ppi.h"
 
 #define TICK_INTERVAL 100
@@ -36,7 +36,6 @@ struct RTC_inst_t
 
     size_t tick_interval_us;
     size_t last_check_us;
-    struct timeval timeval;
 
     inten_t inten, evten;
     uint32_t prescaler, counter, prescaler_counter;
@@ -46,8 +45,7 @@ void rtc_tick(void *userdata)
 {
     RTC_t *rtc = userdata;
 
-    gettimeofday(&rtc->timeval, NULL);
-    size_t now = rtc->timeval.tv_sec * 1e6 + rtc->timeval.tv_usec;
+    size_t now = microseconds_now();
 
     size_t elapsed = now - rtc->last_check_us;
     size_t elapsed_ticks = elapsed / rtc->tick_interval_us;
@@ -158,8 +156,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
         {
             ticker_add(rtc->ticker, rtc_tick, rtc, TICK_INTERVAL, true);
 
-            gettimeofday(&rtc->timeval, NULL);
-            rtc->last_check_us = rtc->timeval.tv_sec * 1e6 + rtc->timeval.tv_usec;
+            rtc->last_check_us = microseconds_now();
 
             rtc->running = true;
         }
