@@ -79,7 +79,7 @@ void rtt_flush_buffers(rtt_t *rtt)
         return;
 
     uint32_t data_size = wrOff - rdOff;
-    char *data = (char *)malloc(data_size + 1);
+    char *data = malloc(data_size + 1);
     data[data_size] = 0;
 
     for (uint32_t i = rdOff; i < wrOff; i++)
@@ -91,6 +91,8 @@ void rtt_flush_buffers(rtt_t *rtt)
     if (data[data_size - 1] != '\n')
         putchar('\n');
     fflush(stdout);
+
+    free(data);
 
     memreg_write(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 16), wrOff, SIZE_WORD);
 

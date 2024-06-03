@@ -51,8 +51,10 @@ void pinetime_free(pinetime_t *pt)
 
 void pinetime_reset(pinetime_t *pt)
 {
+#ifdef ENABLE_SEGGER_RTT
     pt->rtt_counter = 0;
     pt->rtt_found = false;
+#endif
 
     nrf52832_reset(pt->nrf);
 }
