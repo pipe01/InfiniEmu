@@ -98,7 +98,7 @@ struct gdb_t
     pthread_mutex_t conn_lock;
     bool has_connected;
 
-    bool is_running;
+    _Atomic bool is_running;
     pthread_t run_thread;
     volatile bool want_break;
 

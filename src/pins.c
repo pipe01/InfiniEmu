@@ -20,7 +20,7 @@ struct pins_t
     pin_t pins[PINS_COUNT];
 
     uint32_t latch;
-    static_assert(PINS_COUNT == 32);
+    static_assert(PINS_COUNT == 32, "PINS_COUNT is not 32");
 };
 
 pins_t *pins_new()

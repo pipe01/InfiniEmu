@@ -85,6 +85,8 @@ void bma425_reset(void *userdata)
     bma425_t *bma425 = (bma425_t *)userdata;
     memset(bma425, 0, sizeof(bma425_t));
 
+    memcpy(bma425->features_in, features_default, sizeof(features_default));
+
     bma425->pwr_conf = 0x03;
     bma425->init_ctrl = 0x90;
 }

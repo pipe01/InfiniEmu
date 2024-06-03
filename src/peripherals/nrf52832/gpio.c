@@ -22,7 +22,7 @@ typedef union
     };
     uint32_t value;
 } pincnf_t;
-static_assert(sizeof(pincnf_t) == 4);
+static_assert(sizeof(pincnf_t) == 4, "pincnf_t size is not 4 bytes");
 
 struct GPIO_inst_t
 {

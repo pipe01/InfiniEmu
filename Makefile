@@ -1,17 +1,29 @@
 DEBUG := 0
 OPTIMIZE := 1
 PROFILE := 0
+WASM := 0
 
 DUMPS = $(patsubst dumps/%.bin, dumps/%.h, $(wildcard dumps/*.bin))
 
-IDIR = include
+IDIR = ./include
 ODIR = obj
 LDIR = lib
 SDIR = src
 TDIR = test
 
 CC = gcc
-CFLAGS = -I$(IDIR) -I$(LDIR) -fPIC -Werror -Wall -Wextra -Wno-unused-parameter -pedantic
+CFLAGS = -I$(IDIR) -I$(LDIR) -fPIC -Werror -Wall -Wextra -Wno-unused-parameter
+
+LIBS = -lm
+
+WASM_FUNCS = malloc pinetime_new pinetime_step pinetime_loop pinetime_get_st7789 st7789_read_screen st7789_is_sleeping memset_test
+
+ifeq ($(WASM), 1)
+	CFLAGS += -I/usr/include/capstone
+else
+	CFLAGS += -pedantic
+	LIBS += -lcapstone
+endif
 
 ifeq ($(DEBUG), 1)
 	CFLAGS += -g
@@ -27,8 +39,6 @@ ifeq ($(PROFILE), 1)
 	CFLAGS += -pg
 endif
 
-LIBS = -lm -lcapstone
-
 DEPS = $(shell find $(IDIR) -type f -name '*.h')
 
 _OBJ = $(patsubst %.c,%.o,$(shell find $(SDIR) -type f -name '*.c' ! -name "infiniemu.c"))
@@ -36,6 +46,11 @@ _OBJ += $(LDIR)/tiny-AES-c/aes.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 TEST_BIN = ./tests.out
+
+comma := ,
+empty :=
+space := $(empty) $(empty)
+_WASM_FUNCS := $(subst $(space),$(comma),$(patsubst %,_%,$(WASM_FUNCS)))
 
 $(ODIR)/$(LDIR)/%.o: $(LDIR)/%.c $(DEPS)
 	mkdir -p $(shell dirname $@)
@@ -47,6 +62,9 @@ $(ODIR)/%.o: %.c $(DEPS)
 
 infiniemu: $(OBJ) obj/src/infiniemu.o
 	$(CC) -o $@ $^ -static $(CFLAGS) $(LIBS)
+
+infiniemu.wasm: $(OBJ)
+	$(CC) -o infiniemu.js -sTOTAL_STACK=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=ccall,cwrap -sEXPORTED_FUNCTIONS=$(_WASM_FUNCS) capstone-5.0.1/libcapstone.a $^
 
 libinfiniemu.o: $(OBJ)
 	ld -relocatable -static $^ -o $@

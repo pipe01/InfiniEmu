@@ -25,7 +25,7 @@ typedef union
     uint32_t value;
 } SCB_CCR_t;
 
-static_assert(sizeof(SCB_CCR_t) == 4);
+static_assert(sizeof(SCB_CCR_t) == 4, "SCB_CCR_t size is incorrect");
 
 PERIPHERAL(SCB, scb, cpu_t *cpu)
 

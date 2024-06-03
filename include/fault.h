@@ -38,5 +38,5 @@ typedef enum
     } while (0)
 
 void fault_set_jmp(jmp_buf *buf);
-void fault_clear_jmp();
-void fault_take_(fault_type_t t) __THROW __attribute__((__noreturn__));
+void fault_clear_jmp(void);
+void fault_take_(fault_type_t t) __attribute__((__nothrow__, __leaf__, __noreturn__));

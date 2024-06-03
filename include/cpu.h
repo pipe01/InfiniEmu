@@ -2,7 +2,7 @@
 
 #include <setjmp.h>
 #include <stdint.h>
-#include <capstone/capstone.h>
+#include "capstone_inc.h"
 
 #include "arm.h"
 #include "memory.h"

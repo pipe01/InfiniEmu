@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <input id="programPicker" type="file" onchange="loadProgramFile(this.files[0])">
+    <button onclick="myWorker.postMessage({type: 'loadScreen'})">Refresh screen</button>
+
+    <canvas id="display" width="240" height="240" style="background-color: red;"></canvas>
+
+    <script>
+        const myWorker = new Worker("infiniemu.worker.js");
+        const display = document.getElementById("display");
+
+        function loadProgramFile(file) {
+            myWorker.postMessage({ type: "loadProgramFile", file });
+        }
+
+        myWorker.onmessage = function (e) {
+            const { type, data } = e.data;
+
+            if (type === "screenLoaded") {
+                const ctx = display.getContext("2d");
+                const imageData = ctx.createImageData(240, 240);
+
+                const dv = new DataView(data.buffer);
+
+                for (let x = 0; x < 240; x++) {
+                    for (let y = 0; y < 240; y++) {
+                        const pixelIndex = (y * 240 + x) * 2;
+                        const pixel16 = dv.getUint16((y * 240 + x) * 2, false);
+
+                        const r = (pixel16 >> 11) & 0x1f;
+                        const g = (pixel16 >> 5) & 0x3f;
+                        const b = pixel16 & 0x1f;
+
+                        const r8 = Math.floor((r * 527 + 23) >> 6);
+                        const g8 = Math.floor((g * 259 + 33) >> 6);
+                        const b8 = Math.floor((b * 527 + 23) >> 6);
+
+                        const pixelIndex4 = (y * 240 + x) * 4;
+                        imageData.data[pixelIndex4 + 0] = r8;
+                        imageData.data[pixelIndex4 + 1] = g8;
+                        imageData.data[pixelIndex4 + 2] = b8;
+                        imageData.data[pixelIndex4 + 3] = 255;
+                    }
+                }
+                ctx.putImageData(imageData, 0, 0);
+            }
+        };
+    </script>
+</body>
+
+</html>

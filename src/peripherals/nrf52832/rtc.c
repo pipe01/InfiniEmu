@@ -21,7 +21,7 @@ typedef union
     uint32_t value;
 } inten_t;
 
-static_assert(sizeof(inten_t) == 4);
+static_assert(sizeof(inten_t) == 4, "inten_t size is incorrect");
 
 struct RTC_inst_t
 {

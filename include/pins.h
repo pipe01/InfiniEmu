@@ -14,7 +14,7 @@ typedef enum
     SENSE_LOW = 3
 } pinsense_t;
 
-pins_t *pins_new();
+pins_t *pins_new(void);
 void pins_free(pins_t *);
 
 void pins_reset(pins_t *);

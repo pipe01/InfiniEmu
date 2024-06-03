@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include <capstone/capstone.h>
+#include "capstone_inc.h"
 
 uint32_t AddWithCarry(uint32_t x, uint32_t y, bool *carry, bool *overflow)
 {

@@ -84,7 +84,7 @@ PPI_TASK_HANDLER(ecb_task_handler)
     case TASK_ID(TASKS_STARTECB):
     {
         ecbdata_t ecbdata;
-        static_assert(sizeof(ecbdata.cleartext) == AES_BLOCKLEN);
+        static_assert(sizeof(ecbdata.cleartext) == AES_BLOCKLEN, "ecbdata.cleartext size is not AES_BLOCKLEN bytes");
 
         dma_read(ecb->dma, ecb->ecbdataptr, sizeof(ecbdata_t), (uint8_t *)&ecbdata);
 

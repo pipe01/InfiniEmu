@@ -118,7 +118,7 @@ typedef union
     uint64_t value;
 } vreg_t;
 
-static_assert(sizeof(vreg_t) == 8);
+static_assert(sizeof(vreg_t) == 8, "vreg_t size is not 8 bytes");
 
 #if ASSERT_EXCEPTION_REGISTERS
 arm_reg check_exc_registers[] = {
@@ -837,16 +837,9 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
     assert(cpu->mode == ARM_MODE_HANDLER);
 
     arm_exception returning_exception_number = cpu->xpsr.ipsr;
-    uint32_t nested_activation = 0;
 
     if (cpu->runlog)
         runlog_exception_exit(cpu->runlog, returning_exception_number);
-
-    for (size_t i = 0; i < cpu->exception_count; i++)
-    {
-        if (cpu->exceptions[i].active)
-            nested_activation++;
-    }
 
     assert(cpu->exceptions[returning_exception_number].active);
 
@@ -1081,7 +1074,7 @@ static void cpu_add_arm_memregs(cpu_t *cpu, size_t priority_bits)
     NEW_PERIPH(cpu, DWT, dwt, dwt, x(E000, 1000), 0x1000);
     NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90, cpu);
     NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110);
-    NEW_PERIPH(cpu, SCB_FP, scb_fp, scb_fp, x(E000, EF00), 0x90, cpu);
+    NEW_PERIPH(cpu, SCB_FP, scb_fp, scb_fp, x(E000, EF00), 0x90);
     NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF, cpu, priority_bits);
 }
 

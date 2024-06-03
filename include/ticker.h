@@ -7,7 +7,7 @@ typedef struct ticker_t ticker_t;
 
 typedef void (*ticker_cb_t)(void *);
 
-ticker_t *ticker_new();
+ticker_t *ticker_new(void);
 void ticker_free(ticker_t *);
 void ticker_reset(ticker_t *);
 void ticker_tick(ticker_t *);
