@@ -14,7 +14,7 @@ TDIR = test
 CC = gcc
 CFLAGS = -I$(IDIR) -I$(LDIR) -fPIC -Werror -Wall -Wextra -Wno-unused-parameter
 
-LIBS = -lm
+LIBS = $(LDFLAGS) -lm
 
 WASM_FUNCS = malloc pinetime_new pinetime_step pinetime_loop pinetime_get_st7789 st7789_read_screen st7789_is_sleeping memset_test
 
