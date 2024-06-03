@@ -27,6 +27,13 @@ RUN cd /tmp && \
     CAPSTONE_ARCHS=arm ./make.sh install && \
     rm -r capstone*
 
+RUN cd /opt && \
+    git clone https://github.com/emscripten-core/emsdk.git && \
+    cd emsdk && \
+    ./emsdk install latest && \
+    ./emsdk activate latest && \
+    echo "source /opt/emsdk/emsdk_env.sh" >> /etc/profile
+
 ENV NRFX_PATH /opt/nrfx
 ENV NRF5_SDK_PATH /opt/nRF5_SDK_15.3.0_59ac345
 ENV ARM_TOOLCHAIN_PATH /opt/arm-gnu-toolchain
