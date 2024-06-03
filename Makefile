@@ -16,10 +16,13 @@ CFLAGS = -I$(IDIR) -I$(LDIR) -fPIC -Werror -Wall -Wextra -Wno-unused-parameter
 
 LIBS = -lm
 
-WASM_FUNCS = malloc pinetime_new pinetime_step pinetime_loop pinetime_get_st7789 st7789_read_screen st7789_is_sleeping memset_test
+WASM_FUNCS = malloc pinetime_new pinetime_step pinetime_loop
+WASM_FUNCS += pinetime_get_st7789 st7789_read_screen st7789_is_sleeping st7789_get_write_count
+WASM_FUNCS += pinetime_get_cst816s cst816s_do_touch cst816s_release_touch
 
 ifeq ($(WASM), 1)
 	CFLAGS += -I/usr/include/capstone
+	CC = emcc
 else
 	CFLAGS += -pedantic
 	LIBS += -lcapstone
@@ -64,7 +67,7 @@ infiniemu: $(OBJ) obj/src/infiniemu.o
 	$(CC) -o $@ $^ -static $(CFLAGS) $(LIBS)
 
 infiniemu.wasm: $(OBJ)
-	$(CC) -o infiniemu.js -sTOTAL_STACK=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=ccall,cwrap -sEXPORTED_FUNCTIONS=$(_WASM_FUNCS) capstone-5.0.1/libcapstone.a $^
+	$(CC) -o infiniemu.js -O3 -sTOTAL_STACK=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=ccall,cwrap -sEXPORTED_FUNCTIONS=$(_WASM_FUNCS) capstone-5.0.1/libcapstone.a $^
 
 libinfiniemu.o: $(OBJ)
 	ld -relocatable -static $^ -o $@

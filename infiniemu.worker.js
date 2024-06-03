@@ -1,51 +1,43 @@
+console.log("hello");
+
 var Module = {
     preRun: [],
     onRuntimeInitialized() {
         console.log("InfiniEmu initialized");
+
+        postMessage({ type: "ready" });
     },
 };
 
 importScripts("infiniemu.js");
 
-const pinetime_new = Module.cwrap("pinetime_new", "any", ["array", "number", "boolean"]);
-const pinetime_get_st7789 = Module.cwrap("pinetime_get_st7789", "any", ["any"]);
+const iterations = 1000000;
 
-const st7789_read_screen = Module.cwrap("st7789_read_screen", "any", ["any", "number", "number", "number"]);
-const st7789_is_sleeping = Module.cwrap("st7789_is_sleeping", "boolean", ["any"]);
-
-const memset_test = Module.cwrap("memset_test", null, ["any", "number"]);
-
-const iterations = 5000000;
-
-var pt, lcd;
-
-// let instCounter = 0;
-
-// setInterval(() => {
-//     console.log(instCounter);
-//     instCounter = 0;
-// }, 1000);
+var pt, lcd, touch;
 
 var displayBufferPointer;
 
+function sendScreenUpdate() {
+    Module._st7789_read_screen(lcd, displayBufferPointer, 240, 240);
+
+    const arr = new Uint8Array(Module.HEAPU8.buffer, displayBufferPointer, 240 * 240 * 2);
+
+    postMessage({
+        type: "screenLoaded",
+        data: arr,
+    });
+}
+
 onmessage = (e) => {
-    console.log("Message received from main script", e.data);
-
+    console.log(e);
+    
     switch (e.data.type) {
-        case "loadScreen":
-            Module._st7789_read_screen(lcd, displayBufferPointer, 240, 240);
-            
-            const arr = new Uint8Array(Module.HEAPU8.buffer, displayBufferPointer, 240 * 240 * 2);
-            console.log(arr.filter((v) => v !== 0).length, arr.length);
+        case "doTouch":
+            Module._cst816s_do_touch(touch, e.data.gesture, e.data.x, e.data.y);
+            setTimeout(() => Module._cst816s_release_touch(touch), e.data.duration);
 
-            postMessage({
-                type: "screenLoaded",
-                data: arr,
-            });
-
-            console.log("load screen", arr);
             break;
-
+        
         case "loadProgramFile":
             if (pt) {
                 console.error("Pinetime already loaded");
@@ -56,19 +48,42 @@ onmessage = (e) => {
             reader.onload = function (e) {
                 const program = new Uint8Array(e.target.result);
 
-                pt = pinetime_new(program, program.length, true);
-                lcd = pinetime_get_st7789(pt);
+                pt = Module.ccall("pinetime_new", "any", ["array", "number", "boolean"], [program, program.length, true]);
+                lcd = Module._pinetime_get_st7789(pt);
+                touch = Module._pinetime_get_cst816s(pt);
 
                 displayBufferPointer = Module._malloc(240 * 240 * 2);
 
-                setInterval(() => {
+                let screenUpdated = false;
+
+                const displayInterval = setInterval(() => {
+                    if (screenUpdated) {
+                        sendScreenUpdate();
+                        screenUpdated = false;
+                    }
+                }, 1000 / 30);
+
+                const interval = setInterval(() => {
                     const start = new Date().valueOf();
 
-                    Module._pinetime_loop(pt, iterations);
+                    try {
+                        if (Module._pinetime_loop(pt, iterations))
+                            screenUpdated = true;
+                    } catch (error) {
+                        clearInterval(displayInterval);
+                        clearInterval(interval);
+                        throw error;
+                    }
 
                     const end = new Date().valueOf();
 
-                    // console.log("Instructions per second", iterations / ((end - start) / 1000));
+                    postMessage({
+                        type: "performance",
+                        data: {
+                            loopTime: end - start,
+                            ips: iterations / ((end - start) / 1000)
+                        },
+                    });
                 }, 1);
             }
             reader.readAsArrayBuffer(e.data.file);
