@@ -15,6 +15,7 @@ const iterations = 700000;
 
 var pt, lcd, touch, pins;
 
+var isLcdSleeping = false;
 var displayBufferPointer;
 
 function sendScreenUpdate() {
@@ -90,6 +91,16 @@ onmessage = (e) => {
                     }
 
                     const end = new Date().valueOf();
+
+                    const lcdSleepingNow = Module._st7789_is_sleeping(lcd);
+                    if (lcdSleepingNow !== isLcdSleeping) {
+                        isLcdSleeping = lcdSleepingNow;
+
+                        postMessage({
+                            type: "lcdSleeping",
+                            data: isLcdSleeping,
+                        });
+                    }
 
                     postMessage({
                         type: "performance",

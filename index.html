@@ -5,26 +5,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <style>
+        #sleepCover {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 240px;
+            height: 240px;
+            background-color: black;
+            display: none;
+            pointer-events: none;
+        }
+    </style>
 </head>
 
 <body>
     <input id="programPicker" type="file" onchange="loadProgramFile(this.files[0])">
 
-    <canvas id="display" width="240" height="240" style="background-color: red;"></canvas>
+    <div style="position: relative">
+        <canvas id="display" width="240" height="240" style="background-color: red;"></canvas>
+        <div id="sleepCover"></div>
+    </div>
 
     <div id="performance"></div>
 
-    <div>
-        <button onclick="myWorker.postMessage({type: 'doTouch', gesture: 0x02, x: 120, y: 120, duration: 200})">Swipe
-            up</button>
-    </div>
-
     <script>
         const myWorker = new Worker("infiniemu.worker.js");
+        const programPicker = document.getElementById("programPicker");
         const display = document.getElementById("display");
+        const sleepCover = document.getElementById("sleepCover");
 
         function loadProgramFile(file) {
             myWorker.postMessage({ type: "loadProgramFile", file });
+            programPicker.remove();
         }
 
         let isMouseDown = false, isButtonDown = false;
@@ -101,6 +114,11 @@
             switch (type) {
                 case "performance":
                     document.getElementById("performance").innerText = data.ips.toFixed(0) + " instructions per second";
+                    break;
+
+                case "lcdSleeping":
+                    console.log("sleeping", data);
+                    sleepCover.style.display = data ? "block" : "none";
                     break;
 
                 case "screenLoaded":
