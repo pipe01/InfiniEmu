@@ -122,6 +122,10 @@ type CPUVariable struct {
 	sym *Symbol
 }
 
+func (v *CPUVariable) Available() bool {
+	return v.sym != nil
+}
+
 func (v *CPUVariable) Read() uint64 {
 	if v.sym == nil {
 		return 0

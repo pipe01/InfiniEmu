@@ -399,21 +399,27 @@ func main() {
 		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 500}, imgui.ConditionOnce, imgui.Vec2{})
 		imgui.SetNextWindowSizeV(imgui.Vec2{X: 500, Y: 300}, imgui.ConditionOnce)
 		if imgui.BeginV("FreeRTOS", nil, 0) {
-			freeHeap := freertosFreeBytesRemaining.Read()
+			if !freertosFreeBytesRemaining.Available() {
+				imgui.PushTextWrapPos()
+				imgui.Text("FreeRTOS data not available, try loading an ELF file with FreeRTOS symbols")
+				imgui.PopTextWrapPos()
+			} else {
+				freeHeap := freertosFreeBytesRemaining.Read()
 
-			freeHeapHistory = append(freeHeapHistory, float64(freeHeap))
-			for len(freeHeapHistory) > 500 {
-				freeHeapHistory = freeHeapHistory[1:]
-			}
+				freeHeapHistory = append(freeHeapHistory, float64(freeHeap))
+				for len(freeHeapHistory) > 500 {
+					freeHeapHistory = freeHeapHistory[1:]
+				}
 
-			imgui.LabelText(strconv.FormatUint(freeHeap, 10), "Free heap bytes")
+				imgui.LabelText(strconv.FormatUint(freeHeap, 10), "Free heap bytes")
 
-			winSize := imgui.WindowSize()
+				winSize := imgui.WindowSize()
 
-			if imgui.ImPlotBegin("Free heap", "", "", imgui.Vec2{X: winSize.X - 20, Y: winSize.Y - 70}, 0, imgui.ImPlotAxisFlags_AutoFit, imgui.ImPlotAxisFlags_AutoFit, 0, 0, "", "") {
-				imgui.ImPlotLine("", freeHeapHistory, 1, 0, 0)
+				if imgui.ImPlotBegin("Free heap", "", "", imgui.Vec2{X: winSize.X - 20, Y: winSize.Y - 70}, 0, imgui.ImPlotAxisFlags_AutoFit, imgui.ImPlotAxisFlags_AutoFit, 0, 0, "", "") {
+					imgui.ImPlotLine("", freeHeapHistory, 1, 0, 0)
 
-				imgui.ImPlotEnd()
+					imgui.ImPlotEnd()
+				}
 			}
 		}
 		imgui.End()
