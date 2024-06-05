@@ -160,7 +160,7 @@ func screenWindow(screenBuffer []byte, emulator *Emulator) {
 				distVec := pos.Minus(screenMouseDownPos)
 				dist := math.Sqrt(float64(distVec.X*distVec.X) + float64(distVec.Y*distVec.Y))
 
-				if dist > 20 {
+				if dist > 40 {
 					screenDidSwipe = true
 
 					var gesture TouchGesture

@@ -31,6 +31,7 @@ import "C"
 
 import (
 	"context"
+	"encoding/binary"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -162,6 +163,8 @@ func (v *CPUVariable) Write(value uint64) {
 type Emulator struct {
 	program *Program
 
+	initialSP uint32
+
 	pt          *C.pinetime_t
 	nrf52       *C.NRF52832_t
 	cpu         *C.cpu_t
@@ -219,6 +222,8 @@ func NewEmulator(program *Program) *Emulator {
 		pt:      pt,
 		sched:   C.create_sched(pt, baseFrequencyHZ),
 
+		initialSP: binary.LittleEndian.Uint32(flash),
+
 		cpu:         C.nrf52832_get_cpu(nrf52),
 		nrf52:       nrf52,
 		lcd:         C.pinetime_get_st7789(pt),
@@ -260,31 +265,6 @@ func (e *Emulator) perfLoop() {
 
 		e.instPerSecond = (1e6 * (instCounter - lastCounter)) / uint64(interval.Microseconds())
 		lastCounter = instCounter
-	}
-}
-
-func (e *Emulator) Brightness() Brightness {
-	lcdLow := bool(C.pins_is_set(e.pins, pinLcdBacklightLow))
-	lcdMedium := bool(C.pins_is_set(e.pins, pinLcdBacklightMedium))
-	lcdHigh := bool(C.pins_is_set(e.pins, pinLcdBacklightHigh))
-
-	if !lcdLow && lcdMedium && lcdHigh {
-		return BrightnessLow
-	} else if !lcdLow && !lcdMedium && lcdHigh {
-		return BrightnessMedium
-	} else if !lcdLow && !lcdMedium && !lcdHigh {
-		return BrightnessHigh
-	} else if lcdLow && lcdMedium && lcdHigh {
-		return BrightnessOff
-	}
-
-	return BrightnessInvalid
-}
-
-func (e *Emulator) Variable(name string) *CPUVariable {
-	return &CPUVariable{
-		mem: C.cpu_mem(e.cpu),
-		sym: e.program.FindSymbol(name),
 	}
 }
 
@@ -346,6 +326,31 @@ func (e *Emulator) RTCTrackers() []*RTCTracker {
 
 func (e *Emulator) SetFrequency(hz uint) {
 	C.scheduler_set_frequency(e.sched, C.size_t(hz))
+}
+
+func (e *Emulator) Brightness() Brightness {
+	lcdLow := bool(C.pins_is_set(e.pins, pinLcdBacklightLow))
+	lcdMedium := bool(C.pins_is_set(e.pins, pinLcdBacklightMedium))
+	lcdHigh := bool(C.pins_is_set(e.pins, pinLcdBacklightHigh))
+
+	if !lcdLow && lcdMedium && lcdHigh {
+		return BrightnessLow
+	} else if !lcdLow && !lcdMedium && lcdHigh {
+		return BrightnessMedium
+	} else if !lcdLow && !lcdMedium && !lcdHigh {
+		return BrightnessHigh
+	} else if lcdLow && lcdMedium && lcdHigh {
+		return BrightnessOff
+	}
+
+	return BrightnessInvalid
+}
+
+func (e *Emulator) Variable(name string) *CPUVariable {
+	return &CPUVariable{
+		mem: C.cpu_mem(e.cpu),
+		sym: e.program.FindSymbol(name),
+	}
 }
 
 func (e *Emulator) DoTouch(gesture TouchGesture, x, y int) {
