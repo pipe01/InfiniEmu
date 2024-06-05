@@ -30,6 +30,7 @@ static scheduler_t *create_sched(pinetime_t *pt, size_t freq)
 import "C"
 
 import (
+	"context"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -165,11 +166,16 @@ type Emulator struct {
 	pins        *C.pins_t
 	rtcs        []*C.RTC_t
 
+	rtcTrackers []*RTCTracker
+
 	sched          *C.scheduler_t
 	isRunning      atomic.Bool
 	currentRunMode RunMode
 
 	instPerSecond uint64
+
+	perfLoopCtx    context.Context
+	perfLoopCancel func()
 }
 
 func NewEmulator(program *Program) *Emulator {
@@ -191,6 +197,19 @@ func NewEmulator(program *Program) *Emulator {
 	C.pins_set(pins, pinCharging)
 	C.pins_set(pins, pinPowerPresent)
 
+	rtcs := []*C.RTC_t{
+		(*C.RTC_t)(C.nrf52832_get_peripheral(nrf52, C.INSTANCE_RTC0)),
+		(*C.RTC_t)(C.nrf52832_get_peripheral(nrf52, C.INSTANCE_RTC1)),
+		(*C.RTC_t)(C.nrf52832_get_peripheral(nrf52, C.INSTANCE_RTC2)),
+	}
+
+	rtcTrackers := make([]*RTCTracker, len(rtcs))
+	for i := range rtcs {
+		rtcTrackers[i] = &RTCTracker{
+			rtc: rtcs[i],
+		}
+	}
+
 	return &Emulator{
 		program: program,
 		pt:      pt,
@@ -201,11 +220,8 @@ func NewEmulator(program *Program) *Emulator {
 		lcd:         C.pinetime_get_st7789(pt),
 		touchScreen: C.pinetime_get_cst816s(pt),
 		pins:        pins,
-		rtcs: []*C.RTC_t{
-			(*C.RTC_t)(C.nrf52832_get_peripheral(nrf52, C.INSTANCE_RTC0)),
-			(*C.RTC_t)(C.nrf52832_get_peripheral(nrf52, C.INSTANCE_RTC1)),
-			(*C.RTC_t)(C.nrf52832_get_peripheral(nrf52, C.INSTANCE_RTC2)),
-		},
+		rtcs:        rtcs,
+		rtcTrackers: rtcTrackers,
 	}
 }
 
@@ -214,17 +230,20 @@ func (e *Emulator) perfLoop() {
 
 	var lastCounter uint64
 
-	rtcs := make([]*RTCTracker, len(e.rtcs))
-	for i := range e.rtcs {
-		rtcs[i] = e.CreateRTCTracker(i)
-	}
+	t := time.Tick(interval)
 
-	for range time.Tick(interval) {
+	for {
+		select {
+		case <-t:
+		case <-e.perfLoopCtx.Done():
+			return
+		}
+
 		if !e.isRunning.Load() {
 			break
 		}
 
-		for _, rtc := range rtcs {
+		for _, rtc := range e.rtcTrackers {
 			rtc.update(interval)
 		}
 
@@ -237,12 +256,6 @@ func (e *Emulator) perfLoop() {
 
 		e.instPerSecond = (1e6 * (instCounter - lastCounter)) / uint64(interval.Microseconds())
 		lastCounter = instCounter
-	}
-}
-
-func (e *Emulator) CreateRTCTracker(rtcNum int) *RTCTracker {
-	return &RTCTracker{
-		rtc: e.rtcs[rtcNum],
 	}
 }
 
@@ -277,6 +290,7 @@ func (e *Emulator) Start(mode RunMode) {
 	}
 
 	e.currentRunMode = mode
+	e.perfLoopCtx, e.perfLoopCancel = context.WithCancel(context.Background())
 
 	switch mode {
 	case RunModeLoop:
@@ -289,12 +303,16 @@ func (e *Emulator) Start(mode RunMode) {
 		gdb := C.gdb_new(e.pt, true)
 		go C.gdb_start(gdb)
 	}
+
+	go e.perfLoop()
 }
 
 func (e *Emulator) Stop() {
 	if !e.isRunning.CompareAndSwap(true, false) {
 		return
 	}
+
+	e.perfLoopCancel()
 
 	switch e.currentRunMode {
 	case RunModeLoop:
@@ -312,6 +330,14 @@ func (e *Emulator) Stop() {
 
 func (e *Emulator) InstructionsPerSecond() uint64 {
 	return e.instPerSecond
+}
+
+func (e *Emulator) NumRTC() int {
+	return len(e.rtcs)
+}
+
+func (e *Emulator) RTCTrackers() []*RTCTracker {
+	return e.rtcTrackers
 }
 
 func (e *Emulator) SetFrequency(hz uint) {

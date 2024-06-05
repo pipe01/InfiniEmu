@@ -229,12 +229,6 @@ func main() {
 
 	emulator := NewEmulator(program)
 
-	rtcs := []*RTCTracker{
-		emulator.CreateRTCTracker(0),
-		emulator.CreateRTCTracker(1),
-		emulator.CreateRTCTracker(2),
-	}
-
 	freertosFreeBytesRemaining := emulator.Variable("xFreeBytesRemaining")
 
 	emulator.Variable("NoInit_MagicWord").Write(0xDEAD0000)
@@ -360,7 +354,7 @@ func main() {
 
 		imgui.SetNextWindowPosV(imgui.Vec2{X: 300, Y: 230}, imgui.ConditionOnce, imgui.Vec2{})
 		if imgui.BeginV("Performance", nil, imgui.WindowFlagsAlwaysAutoResize) {
-			for i, rtc := range rtcs {
+			for i, rtc := range emulator.RTCTrackers() {
 				status := "off"
 				if rtc.Running {
 					status = "running"
