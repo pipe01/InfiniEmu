@@ -20,7 +20,13 @@
 </head>
 
 <body>
-    <input id="programPicker" type="file" onchange="loadProgramFile(this.files[0])">
+    <div id="pickerForm">
+        <input id="programPicker" type="file" onchange="loadProgramFile(this.files[0])">
+        <h3>
+            Try using 
+            <a href="https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin">this</a> InfiniTime build
+        </h3>
+    </div>
 
     <div style="position: relative">
         <canvas id="display" width="240" height="240" style="background-color: red;"></canvas>
@@ -31,13 +37,12 @@
 
     <script>
         const myWorker = new Worker("infiniemu.worker.js");
-        const programPicker = document.getElementById("programPicker");
         const display = document.getElementById("display");
         const sleepCover = document.getElementById("sleepCover");
 
         function loadProgramFile(file) {
             myWorker.postMessage({ type: "loadProgramFile", file });
-            programPicker.remove();
+            document.getElementById("pickerForm").remove();
         }
 
         let isMouseDown = false, isButtonDown = false;

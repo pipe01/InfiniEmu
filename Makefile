@@ -17,7 +17,7 @@ CFLAGS = -I$(IDIR) -I$(LDIR) -fPIC -Werror -Wall -Wextra -Wno-unused-parameter
 LIBS = $(LDFLAGS) -lm
 
 WASM_FUNCS = malloc pinetime_new pinetime_step pinetime_loop
-WASM_FUNCS += pinetime_get_st7789 st7789_read_screen st7789_is_sleeping st7789_get_write_count
+WASM_FUNCS += pinetime_get_st7789 st7789_read_screen st7789_is_sleeping st7789_get_write_count st7789_is_sleeping
 WASM_FUNCS += pinetime_get_cst816s cst816s_do_touch cst816s_release_touch
 WASM_FUNCS += pinetime_get_nrf52832 nrf52832_get_pins pins_set pins_clear
 
