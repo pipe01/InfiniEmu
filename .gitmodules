@@ -4,3 +4,7 @@
 [submodule "lib/tiny-AES-c"]
 	path = lib/tiny-AES-c
 	url = git@github.com:kokke/tiny-AES-c.git
+[submodule "lib/capstone"]
+	path = lib/capstone
+	url = git@github.com:capstone-engine/capstone.git
+	branch = 5.0.1
