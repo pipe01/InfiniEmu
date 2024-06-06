@@ -79,8 +79,11 @@
         cpu_reg_write(cpu, detail->operands[op_n].reg, address); \
     }
 
+#define IS_DOUBLE(op) ((op).reg >= ARM_REG_D0 && (op).reg <= ARM_REG_D31)
+
 #define MAX_EXECUTING_EXCEPTIONS 64
-#define HAS_FP false
+
+static_assert(__STDC_IEC_559__, "Floating point operations are not IEEE 754 compliant");
 
 typedef struct
 {
@@ -119,6 +122,16 @@ typedef union
 } vreg_t;
 
 static_assert(sizeof(vreg_t) == 8, "vreg_t size is not 8 bytes");
+
+typedef union
+{
+    float f;
+    uint32_t i;
+} float32_t;
+static_assert(sizeof(float32_t) == 4, "float32_t size is not 4 bytes");
+
+#define FLOAT32_F(val) ((float32_t){.f = (val)})
+#define FLOAT32_I(val) ((float32_t){.i = (val)})
 
 #if ASSERT_EXCEPTION_REGISTERS
 arm_reg check_exc_registers[] = {
@@ -2397,7 +2410,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             }
             else
             {
-                assert(detail->operands[n].reg >= ARM_REG_D0 && detail->operands[n].reg <= ARM_REG_D31);
+                assert(IS_DOUBLE(detail->operands[n]));
 
                 uint32_t word1 = memreg_read(cpu->mem, address);
                 uint32_t word2 = memreg_read(cpu->mem, address + 4);
@@ -2434,7 +2447,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         }
         else
         {
-            assert(detail->operands[0].reg >= ARM_REG_D0 && detail->operands[0].reg <= ARM_REG_D31);
+            assert(IS_DOUBLE(detail->operands[0]));
 
             uint32_t word1 = memreg_read(cpu->mem, address);
             uint32_t word2 = memreg_read(cpu->mem, address + 4);
@@ -2475,6 +2488,30 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         scb_fp_set_fpscr(cpu->scb_fp, cpu_reg_read(cpu, detail->operands[1].reg));
         break;
+
+    case ARM_INS_VMUL:
+    {
+        assert(detail->op_count == 2 || detail->op_count == 3);
+
+        cpu_execute_fp_check(cpu);
+
+        bool is_dp = IS_DOUBLE(detail->operands[0]);
+
+        if (is_dp)
+        {
+            fault_take(FAULT_NOT_IMPLEMENTED);
+        }
+        else
+        {
+            float32_t a = FLOAT32_I(OPERAND_REG(detail->op_count == 3 ? 1 : 0));
+            float32_t b = FLOAT32_I(OPERAND_REG(detail->op_count - 1));
+            float32_t result = FLOAT32_F(a.f * b.f);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, result.i);
+        }
+
+        break;
+    }
 
     case ARM_INS_VPUSH:
     case ARM_INS_VSTMDB:
@@ -2519,7 +2556,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             }
             else
             {
-                assert(detail->operands[n].reg >= ARM_REG_D0 && detail->operands[n].reg <= ARM_REG_D31);
+                assert(IS_DOUBLE(detail->operands[n]));
 
                 memreg_write(cpu->mem, address, cpu->d[detail->operands[n].reg - ARM_REG_D0].lower, SIZE_WORD);
                 memreg_write(cpu->mem, address + 4, cpu->d[detail->operands[n].reg - ARM_REG_D0].upper, SIZE_WORD);
@@ -2548,7 +2585,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         }
         else
         {
-            assert(detail->operands[0].reg >= ARM_REG_D0 && detail->operands[0].reg <= ARM_REG_D31);
+            assert(IS_DOUBLE(detail->operands[0]));
 
             memreg_write(cpu->mem, address, cpu->d[detail->operands[0].reg - ARM_REG_D0].lower, SIZE_WORD);
             memreg_write(cpu->mem, address + 4, cpu->d[detail->operands[0].reg - ARM_REG_D0].upper, SIZE_WORD);
