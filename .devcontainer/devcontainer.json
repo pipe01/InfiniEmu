@@ -5,11 +5,13 @@
     "customizations": {
         "vscode": {
             "extensions": [
+                "ms-vscode.cmake-tools",
                 "ms-vscode.cpptools-extension-pack",
                 "ms-vscode.hexeditor",
                 "ms-vscode.makefile-tools",
                 "ms-python.python",
-                "vadimcn.vscode-lldb"
+                "vadimcn.vscode-lldb",
+                "twxs.cmake"
             ]
         }
     }
