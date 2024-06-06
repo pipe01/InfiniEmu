@@ -29,7 +29,7 @@ type Symbol struct {
 type Program struct {
 	FilePath string // only used to allow GDB to load the program from disk and can thus be left empty
 	Sections []Section
-	Symbols  []Symbol
+	Symbols  map[string]Symbol
 }
 
 func (p *Program) Flatten() []byte {
@@ -51,18 +51,10 @@ func (p *Program) Flatten() []byte {
 	return flash
 }
 
-func (p *Program) FindSymbol(name string) *Symbol {
-	for _, sym := range p.Symbols {
-		if sym.Name == name {
-			return &sym
-		}
-	}
-
-	return nil
-}
-
 func LoadELF(r io.ReaderAt, loadSymbols bool) (*Program, error) {
-	var p Program
+	p := Program{
+		Symbols: make(map[string]Symbol),
+	}
 
 	elff, err := elf.NewFile(r)
 	if err != nil {
@@ -105,13 +97,13 @@ func LoadELF(r io.ReaderAt, loadSymbols bool) (*Program, error) {
 				pretty = s.Name
 			}
 
-			p.Symbols = append(p.Symbols, Symbol{
+			p.Symbols[s.Name] = Symbol{
 				Name:       s.Name,
 				PrettyName: pretty,
 				Start:      uint32(s.Value),
 				Length:     uint32(s.Size),
 				Type:       SymbolType(symType),
-			})
+			}
 		}
 	}
 

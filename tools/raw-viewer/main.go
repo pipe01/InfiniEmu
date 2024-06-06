@@ -229,10 +229,8 @@ func main() {
 
 	emulator := NewEmulator(program)
 
-	freertosFreeBytesRemaining := emulator.Variable("xFreeBytesRemaining")
-
-	emulator.Variable("NoInit_MagicWord").Write(0xDEAD0000)
-	emulator.Variable("NoInit_BackUpTime").Write(uint64(time.Now().UnixNano()))
+	emulator.WriteVariable("NoInit_MagicWord", 0, 0xDEAD0000)
+	emulator.WriteVariable("NoInit_BackUpTime", 0, uint64(time.Now().UnixNano()))
 
 	screenBuffer := make([]byte, displayWidth*displayHeight*displayBytesPerPixel)
 
@@ -399,13 +397,13 @@ func main() {
 		imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 500}, imgui.ConditionOnce, imgui.Vec2{})
 		imgui.SetNextWindowSizeV(imgui.Vec2{X: 500, Y: 300}, imgui.ConditionOnce)
 		if imgui.BeginV("FreeRTOS", nil, 0) {
-			if !freertosFreeBytesRemaining.Available() {
+			freeHeap, ok := emulator.ReadVariable("xFreeBytesRemaining", 0)
+
+			if !ok {
 				imgui.PushTextWrapPos()
 				imgui.Text("FreeRTOS data not available, try loading an ELF file with FreeRTOS symbols")
 				imgui.PopTextWrapPos()
 			} else {
-				freeHeap := freertosFreeBytesRemaining.Read()
-
 				freeHeapHistory = append(freeHeapHistory, float64(freeHeap))
 				for len(freeHeapHistory) > 500 {
 					freeHeapHistory = freeHeapHistory[1:]

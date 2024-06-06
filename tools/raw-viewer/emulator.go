@@ -118,48 +118,6 @@ func (r *RTCTracker) update(updateInterval time.Duration) {
 	r.lastTicks = ticks
 }
 
-type CPUVariable struct {
-	mem *C.memreg_t
-	sym *Symbol
-}
-
-func (v *CPUVariable) Available() bool {
-	return v.sym != nil
-}
-
-func (v *CPUVariable) Read() uint64 {
-	if v.sym == nil {
-		return 0
-	}
-
-	switch v.sym.Length {
-	case 1:
-		return uint64(C.memreg_read_byte(v.mem, C.uint(v.sym.Start)))
-	case 2:
-		return uint64(C.memreg_read_halfword(v.mem, C.uint(v.sym.Start)))
-	case 4:
-		return uint64(C.memreg_read(v.mem, C.uint(v.sym.Start)))
-	case 8:
-		return uint64(C.memreg_read(v.mem, C.uint(v.sym.Start))) | (uint64(C.memreg_read(v.mem, C.uint(v.sym.Start+4))) << 32)
-	default:
-		panic("unsupported length")
-	}
-}
-
-func (v *CPUVariable) Write(value uint64) {
-	if v.sym == nil {
-		return
-	}
-
-	switch v.sym.Length {
-	case 1, 2, 4:
-		C.memreg_write(v.mem, C.uint(v.sym.Start), C.uint(value), C.byte_size_t(v.sym.Length))
-	case 8:
-		C.memreg_write(v.mem, C.uint(v.sym.Start), C.uint(value), C.SIZE_WORD)
-		C.memreg_write(v.mem, C.uint(v.sym.Start+4), C.uint(value>>32), C.SIZE_WORD)
-	}
-}
-
 type Emulator struct {
 	program *Program
 
@@ -168,6 +126,7 @@ type Emulator struct {
 	pt          *C.pinetime_t
 	nrf52       *C.NRF52832_t
 	cpu         *C.cpu_t
+	mem         *C.memreg_t
 	lcd         *C.st7789_t
 	touchScreen *C.cst816s_t
 	pins        *C.pins_t
@@ -226,6 +185,7 @@ func NewEmulator(program *Program) *Emulator {
 
 		cpu:         C.nrf52832_get_cpu(nrf52),
 		nrf52:       nrf52,
+		mem:         C.cpu_mem(C.nrf52832_get_cpu(nrf52)),
 		lcd:         C.pinetime_get_st7789(pt),
 		touchScreen: C.pinetime_get_cst816s(pt),
 		pins:        pins,
@@ -346,10 +306,43 @@ func (e *Emulator) Brightness() Brightness {
 	return BrightnessInvalid
 }
 
-func (e *Emulator) Variable(name string) *CPUVariable {
-	return &CPUVariable{
-		mem: C.cpu_mem(e.cpu),
-		sym: e.program.FindSymbol(name),
+func (e *Emulator) ReadVariable(name string, offset uint32) (value uint64, found bool) {
+	sym, ok := e.program.Symbols[name]
+	if !ok {
+		return 0, false
+	}
+
+	switch sym.Length {
+	case 1:
+		value = uint64(C.memreg_read_byte(e.mem, C.uint(sym.Start)))
+	case 2:
+		value = uint64(C.memreg_read_halfword(e.mem, C.uint(sym.Start)))
+	case 4:
+		value = uint64(C.memreg_read(e.mem, C.uint(sym.Start)))
+	case 8:
+		value = uint64(C.memreg_read(e.mem, C.uint(sym.Start))) | (uint64(C.memreg_read(e.mem, C.uint(sym.Start+4))) << 32)
+	default:
+		panic("unsupported length")
+	}
+
+	return value, true
+}
+
+func (e *Emulator) WriteVariable(name string, offset uint32, value uint64) {
+	sym, ok := e.program.Symbols[name]
+	if !ok {
+		return
+	}
+
+	switch sym.Length {
+	case 1, 2, 4:
+		C.memreg_write(e.mem, C.uint(sym.Start), C.uint(value), C.byte_size_t(sym.Length))
+	case 8:
+		C.memreg_write(e.mem, C.uint(sym.Start), C.uint(value), C.SIZE_WORD)
+		C.memreg_write(e.mem, C.uint(sym.Start+4), C.uint(value>>32), C.SIZE_WORD)
+
+	default:
+		panic("unsupported length")
 	}
 }
 
