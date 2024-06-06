@@ -4,7 +4,10 @@ package main
 #cgo CFLAGS: -I../../include
 #cgo LDFLAGS: libinfiniemu.a
 
+#include <setjmp.h>
+
 #include "gdb.h"
+#include "fault.h"
 #include "pinetime.h"
 #include "scheduler.h"
 
@@ -26,6 +29,43 @@ static scheduler_t *create_sched(pinetime_t *pt, size_t freq)
 {
 	return scheduler_new((scheduler_cb_t)pinetime_step, pt, freq);
 }
+
+static int run(int type, void *arg)
+{
+	jmp_buf fault_jmp;
+
+	int fault = setjmp(fault_jmp);
+
+	if (fault)
+	{
+		fault_clear_jmp();
+
+		return fault;
+	}
+	else
+	{
+		fault_set_jmp(&fault_jmp);
+
+		switch (type)
+		{
+		case 0:
+			loop((pinetime_t *)arg);
+			break;
+
+		case 1:
+			scheduler_run((scheduler_t *)arg);
+			break;
+
+		case 2:
+			gdb_start((gdb_t *)arg);
+			break;
+		}
+	}
+
+	fault_clear_jmp();
+
+	return 0;
+}
 */
 import "C"
 
@@ -33,8 +73,10 @@ import (
 	"context"
 	"encoding/binary"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 const (
@@ -200,11 +242,12 @@ func (e *Emulator) perfLoop() {
 	var lastCounter uint64
 
 	t := time.Tick(interval)
+	ctx := e.perfLoopCtx
 
 	for {
 		select {
 		case <-t:
-		case <-e.perfLoopCtx.Done():
+		case <-ctx.Done():
 			return
 		}
 
@@ -228,6 +271,8 @@ func (e *Emulator) perfLoop() {
 	}
 }
 
+var lock sync.Mutex
+
 func (e *Emulator) Start(mode RunMode) {
 	if !e.isRunning.CompareAndSwap(false, true) {
 		panic("emulator already running")
@@ -236,17 +281,26 @@ func (e *Emulator) Start(mode RunMode) {
 	e.currentRunMode = mode
 	e.perfLoopCtx, e.perfLoopCancel = context.WithCancel(context.Background())
 
-	switch mode {
-	case RunModeLoop:
-		go C.loop(e.pt)
+	go func() {
+		lock.Lock()
+		defer lock.Unlock()
 
-	case RunModeScheduled:
-		go C.scheduler_run(e.sched)
+		fault := 0
 
-	case RunModeGDB:
-		gdb := C.gdb_new(e.pt, true)
-		go C.gdb_start(gdb)
-	}
+		switch mode {
+		case RunModeLoop:
+			fault = int(C.run(0, unsafe.Pointer(e.pt)))
+
+		case RunModeScheduled:
+			fault = int(C.run(1, unsafe.Pointer(e.sched)))
+
+		case RunModeGDB:
+			gdb := C.gdb_new(e.pt, true)
+			fault = int(C.run(2, unsafe.Pointer(gdb)))
+		}
+
+		println(fault)
+	}()
 
 	go e.perfLoop()
 }

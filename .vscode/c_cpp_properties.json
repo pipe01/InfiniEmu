@@ -5,6 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/include",
                 "${workspaceFolder}/lib",
+                "${workspaceFolder}/lib/capstone/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
