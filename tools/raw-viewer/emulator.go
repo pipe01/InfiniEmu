@@ -2,7 +2,7 @@ package main
 
 /*
 #cgo CFLAGS: -I../../include
-#cgo LDFLAGS: libinfiniemu.o -lcapstone
+#cgo LDFLAGS: libinfiniemu.a
 
 #include "gdb.h"
 #include "pinetime.h"

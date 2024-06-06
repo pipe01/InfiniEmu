@@ -3,6 +3,7 @@
 /*.out
 /*.so
 /*.o
+/build
 obj
 infiniemu
 tests.out

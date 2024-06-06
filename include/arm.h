@@ -1,7 +1,7 @@
 #pragma once
 
 #include <assert.h>
-#include "capstone_inc.h"
+#include <capstone/capstone.h>
 
 #define APSR_N 31
 #define APSR_Z 30
