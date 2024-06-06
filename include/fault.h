@@ -46,11 +46,11 @@ typedef enum
         }                                                                      \
     } while (0)
 
-#define fault_take(t)                                       \
-    do                                                      \
-    {                                                       \
-        printf(__FILE__ ":%d: took fault %d", __LINE__, t); \
-        fault_take_(t);                                     \
+#define fault_take(t)                                         \
+    do                                                        \
+    {                                                         \
+        printf(__FILE__ ":%d: took fault %d\n", __LINE__, t); \
+        fault_take_(t);                                       \
     } while (0)
 
 void fault_set_jmp(jmp_buf *buf);
