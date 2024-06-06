@@ -145,8 +145,8 @@ set(SRC_FILES
 add_executable(infiniemu-cli ${SRC_FILES} infiniemu.c)
 add_library(infiniemu-lib STATIC ${SRC_FILES})
 
-target_link_libraries(infiniemu-cli PUBLIC tiny-aes capstone)
-target_link_libraries(infiniemu-lib PUBLIC tiny-aes capstone)
+target_link_libraries(infiniemu-cli PUBLIC m tiny-aes capstone)
+target_link_libraries(infiniemu-lib PUBLIC m tiny-aes capstone)
 
 set_property(TARGET infiniemu-lib PROPERTY OUTPUT_NAME infiniemu)
 

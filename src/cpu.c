@@ -13,6 +13,7 @@
 #include "peripherals/scb_fp.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -132,6 +133,19 @@ static_assert(sizeof(float32_t) == 4, "float32_t size is not 4 bytes");
 
 #define FLOAT32_F(val) ((float32_t){.f = (val)})
 #define FLOAT32_I(val) ((float32_t){.i = (val)})
+
+typedef union
+{
+    double f;
+    uint64_t i;
+} float64_t;
+static_assert(sizeof(float64_t) == 8, "float64_t size is not 8 bytes");
+
+#define FLOAT64_F(val) ((float64_t){.f = (val)})
+#define FLOAT64_I(val) ((float64_t){.i = (val)})
+
+#define ROUNDF_TO_ZERO(val) ((val) > 0 ? floorf(val) : ceilf(val))
+#define ROUNDD_TO_ZERO(val) ((val) > 0 ? floor(val) : ceil(val))
 
 #if ASSERT_EXCEPTION_REGISTERS
 arm_reg check_exc_registers[] = {
@@ -2370,6 +2384,134 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_reg_write(cpu, detail->operands[0].reg, value);
         break;
 
+    case ARM_INS_VADD:
+    {
+        assert(detail->op_count == 2 || detail->op_count == 3);
+        cpu_execute_fp_check(cpu);
+
+        if (IS_DOUBLE(detail->operands[0]))
+        {
+            fault_take(FAULT_NOT_IMPLEMENTED);
+        }
+        else
+        {
+            float32_t a = FLOAT32_I(OPERAND_REG(detail->op_count == 3 ? 1 : 0));
+            float32_t b = FLOAT32_I(OPERAND_REG(detail->op_count - 1));
+            float32_t result = FLOAT32_F(a.f + b.f);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, result.i);
+        }
+
+        break;
+    }
+
+    case ARM_INS_VCVT:
+        assert(detail->op_count == 2);
+        cpu_execute_fp_check(cpu);
+
+        switch (detail->vector_data)
+        {
+        case ARM_VECTORDATA_S32F32:
+        {
+            float32_t val_float = FLOAT32_I(OPERAND_REG(1));
+            int32_t val_int = (int32_t)ROUNDF_TO_ZERO(val_float.f);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, val_int);
+            break;
+        }
+
+        case ARM_VECTORDATA_S32F64:
+        {
+            float64_t val_float = FLOAT64_I(OPERAND_REG(1));
+            int32_t val_int = (int32_t)ROUNDD_TO_ZERO(val_float.f);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, val_int);
+            break;
+        }
+
+        case ARM_VECTORDATA_U32F32:
+        {
+            float32_t val_float = FLOAT32_I(OPERAND_REG(1));
+            uint32_t val_int = (uint32_t)ROUNDF_TO_ZERO(val_float.f);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, val_int);
+            break;
+        }
+
+        case ARM_VECTORDATA_U32F64:
+        {
+            float64_t val_float = FLOAT64_I(OPERAND_REG(1));
+            uint32_t val_int = (uint32_t)ROUNDD_TO_ZERO(val_float.f);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, val_int);
+            break;
+        }
+
+        case ARM_VECTORDATA_F32S32:
+        {
+            int32_t val_int = OPERAND_REG(1);
+            float32_t val_float = FLOAT32_F((float)val_int);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, val_float.i);
+            break;
+        }
+
+        case ARM_VECTORDATA_F32U32:
+        {
+            uint32_t val_int = OPERAND_REG(1);
+            float32_t val_float = FLOAT32_F((float)val_int);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, val_float.i);
+            break;
+        }
+
+        case ARM_VECTORDATA_F64S32:
+        {
+            int32_t val_int = OPERAND_REG(1);
+            float64_t val_float = FLOAT64_F((float)val_int);
+
+            cpu->d[detail->operands[0].reg - ARM_REG_D0].value = val_float.i;
+            break;
+        }
+
+        case ARM_VECTORDATA_F64U32:
+        {
+            uint32_t val_int = OPERAND_REG(1);
+            float64_t val_float = FLOAT64_F((float)val_int);
+
+            cpu->d[detail->operands[0].reg - ARM_REG_D0].value = val_float.i;
+            break;
+        }
+
+        default:
+            fault_take(FAULT_CPU_INVALID_INSTRUCTION);
+        }
+        break;
+
+    case ARM_INS_VFMA:
+    case ARM_INS_VFMS:
+    {
+        assert(detail->op_count == 3);
+        cpu_execute_fp_check(cpu);
+
+        if (IS_DOUBLE(detail->operands[0]))
+        {
+            fault_take(FAULT_NOT_IMPLEMENTED);
+        }
+        else
+        {
+            float32_t a = FLOAT32_I(OPERAND_REG(1));
+            float32_t b = FLOAT32_I(OPERAND_REG(2));
+            float32_t c = FLOAT32_I(OPERAND_REG(0));
+
+            float32_t result = i->id == ARM_INS_VFMA ? FLOAT32_F(a.f * b.f + c.f) : FLOAT32_F(a.f * b.f - c.f);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, result.i);
+        }
+
+        break;
+    }
+
     case ARM_INS_VLDMIA:
     case ARM_INS_VPOP:
     {
@@ -2590,6 +2732,27 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             memreg_write(cpu->mem, address, cpu->d[detail->operands[0].reg - ARM_REG_D0].lower, SIZE_WORD);
             memreg_write(cpu->mem, address + 4, cpu->d[detail->operands[0].reg - ARM_REG_D0].upper, SIZE_WORD);
         }
+        break;
+    }
+
+    case ARM_INS_VSUB:
+    {
+        assert(detail->op_count == 2 || detail->op_count == 3);
+        cpu_execute_fp_check(cpu);
+
+        if (IS_DOUBLE(detail->operands[0]))
+        {
+            fault_take(FAULT_NOT_IMPLEMENTED);
+        }
+        else
+        {
+            float32_t a = FLOAT32_I(OPERAND_REG(detail->op_count == 3 ? 1 : 0));
+            float32_t b = FLOAT32_I(OPERAND_REG(detail->op_count - 1));
+            float32_t result = FLOAT32_F(a.f - b.f);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, result.i);
+        }
+
         break;
     }
 
