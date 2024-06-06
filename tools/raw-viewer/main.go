@@ -277,8 +277,13 @@ func main() {
 		emulator.Start(RunModeScheduled)
 	}
 
+	i := 0
+
 	for !platform.ShouldStop() {
 		<-t
+		i++
+
+		emulator.SetHeartrateValue(uint32(((math.Sin(float64(i)/60) + 1) / 2) * 4000))
 
 		mouseLeftIsDown = imgui.IsMouseDown(0)
 		mouseRightIsDown = imgui.IsMouseDown(1)

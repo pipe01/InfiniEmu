@@ -171,6 +171,7 @@ type Emulator struct {
 	mem         *C.memreg_t
 	lcd         *C.st7789_t
 	touchScreen *C.cst816s_t
+	hrs         *C.hrs3300_t
 	pins        *C.pins_t
 	rtcs        []*C.RTC_t
 
@@ -230,6 +231,7 @@ func NewEmulator(program *Program) *Emulator {
 		mem:         C.cpu_mem(C.nrf52832_get_cpu(nrf52)),
 		lcd:         C.pinetime_get_st7789(pt),
 		touchScreen: C.pinetime_get_cst816s(pt),
+		hrs:         C.pinetime_get_hrs3300(pt),
 		pins:        pins,
 		rtcs:        rtcs,
 		rtcTrackers: rtcTrackers,
@@ -435,4 +437,8 @@ func (e *Emulator) ReadDisplayBuffer(p []byte) {
 	pinner.Pin(&p[0])
 
 	C.st7789_read_screen(e.lcd, (*C.uchar)(&p[0]), displayWidth, displayHeight)
+}
+
+func (e *Emulator) SetHeartrateValue(val uint32) {
+	C.hrs3300_set_ch0(e.hrs, C.uint(val))
 }

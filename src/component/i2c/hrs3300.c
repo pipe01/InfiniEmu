@@ -9,13 +9,15 @@
 
 #define MAX_READ_SIZE 100
 
-typedef struct
+struct hrs3300_t
 {
     uint8_t enable, pdriver, res, hgain;
 
     uint8_t next_read[MAX_READ_SIZE];
     size_t next_read_size;
-} hrs3300_t;
+
+    uint32_t ch0, ch1;
+};
 
 void hrs3300_reset(void *userdata)
 {
@@ -35,8 +37,44 @@ void hrs3300_write(uint8_t *data, size_t data_size, void *userdata)
         RETURN_REG(hrs3300, enable);
         break;
 
+    case 0x08: // C1DATAM
+        assert_fault(data_size == 1, FAULT_I2C_INVALID_DATA);
+        hrs3300->next_read[0] = (hrs3300->ch1 >> 3) & 0xFF;
+        hrs3300->next_read_size = 1;
+        break;
+
+    case 0x09: // C0DATAM
+        assert_fault(data_size == 1, FAULT_I2C_INVALID_DATA);
+        hrs3300->next_read[0] = (hrs3300->ch0 >> 8) & 0xFF;
+        hrs3300->next_read_size = 1;
+        break;
+
+    case 0x0A: // C0DATAH
+        assert_fault(data_size == 1, FAULT_I2C_INVALID_DATA);
+        hrs3300->next_read[0] = (hrs3300->ch0 >> 4) & 0xF;
+        hrs3300->next_read_size = 1;
+        break;
+
     case 0x0C: // PDRIVER
         RETURN_REG(hrs3300, pdriver);
+        break;
+
+    case 0x0D: // C1DATAH
+        assert_fault(data_size == 1, FAULT_I2C_INVALID_DATA);
+        hrs3300->next_read[0] = (hrs3300->ch1 >> 11) & 0x7F;
+        hrs3300->next_read_size = 1;
+        break;
+
+    case 0x0E: // C1DATAL
+        assert_fault(data_size == 1, FAULT_I2C_INVALID_DATA);
+        hrs3300->next_read[0] = hrs3300->ch1 & 0x7;
+        hrs3300->next_read_size = 1;
+        break;
+
+    case 0x0F: // C0DATAL
+        assert_fault(data_size == 1, FAULT_I2C_INVALID_DATA);
+        hrs3300->next_read[0] = (hrs3300->ch0 & 0xF) | (((hrs3300->ch0 >> 16) & 0x3) << 4);
+        hrs3300->next_read_size = 1;
         break;
 
     case 0x16: // RES
@@ -48,6 +86,7 @@ void hrs3300_write(uint8_t *data, size_t data_size, void *userdata)
         break;
 
     default:
+        printf("hrs3300: unknown register 0x%02x\n", reg);
         fault_take(FAULT_I2C_UNKNOWN_COMMAND);
     }
 }
@@ -63,14 +102,27 @@ size_t hrs3300_read(uint8_t *data, size_t data_size, void *userdata)
     return data_size;
 }
 
-i2c_slave_t hrs3300_new()
+hrs3300_t *hrs3300_new()
 {
-    hrs3300_t *hrs3300 = (hrs3300_t *)malloc(sizeof(hrs3300_t));
+    return calloc(1, sizeof(hrs3300_t));
+}
 
+i2c_slave_t hrs3300_get_slave(hrs3300_t *hrs3300)
+{
     return (i2c_slave_t){
         .userdata = hrs3300,
         .write = hrs3300_write,
         .read = hrs3300_read,
         .reset = hrs3300_reset,
     };
+}
+
+void hrs3300_set_ch0(hrs3300_t *hrs, uint32_t value)
+{
+    hrs->ch0 = value & 0xFFFFFF;
+}
+
+void hrs3300_set_ch1(hrs3300_t *hrs, uint32_t value)
+{
+    hrs->ch1 = value & 0xFFFFFF;
 }
