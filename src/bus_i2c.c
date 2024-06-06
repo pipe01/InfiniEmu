@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "arm.h"
+#include "fault.h"
 
 #define MAX_SLAVES 256
 
@@ -46,7 +47,7 @@ void i2c_free(bus_i2c_t *i2c)
 void i2c_add_slave(bus_i2c_t *i2c, uint8_t address, i2c_slave_t slave)
 {
     if (i2c->slaves[address])
-        abort();
+        fault_take(FAULT_I2C_DUPLICATE_ADDRESS);
 
     i2c_slave_t *copy = (i2c_slave_t *)malloc(sizeof(i2c_slave_t));
     memcpy(copy, &slave, sizeof(i2c_slave_t));
@@ -57,12 +58,12 @@ void i2c_add_slave(bus_i2c_t *i2c, uint8_t address, i2c_slave_t slave)
 void i2c_write(bus_i2c_t *i2c, uint8_t address, uint32_t data_address, size_t data_size)
 {
     if (!i2c->slaves[address])
-        abort();
+        fault_take(FAULT_I2C_UNKNOWN_ADDRESS);
 
     if (data_address < ARM_SRAM_START || data_address >= ARM_SRAM_END) // TODO: Check end too
     {
         printf("Invalid EasyDMA address 0x%08X\n", data_address);
-        abort();
+        fault_take(FAULT_DMA_INVALID_ADDRESS);
     }
 
     uint32_t offset = data_address - ARM_SRAM_START;
@@ -73,12 +74,12 @@ void i2c_write(bus_i2c_t *i2c, uint8_t address, uint32_t data_address, size_t da
 size_t i2c_read(bus_i2c_t *i2c, uint8_t address, uint32_t data_address, size_t data_size)
 {
     if (!i2c->slaves[address])
-        abort();
+        fault_take(FAULT_I2C_UNKNOWN_ADDRESS);
 
     if (data_address < ARM_SRAM_START || data_address >= ARM_SRAM_END) // TODO: Check end too
     {
         printf("Invalid EasyDMA address 0x%08X\n", data_address);
-        abort();
+        fault_take(FAULT_DMA_INVALID_ADDRESS);
     }
 
     uint32_t offset = data_address - ARM_SRAM_START;

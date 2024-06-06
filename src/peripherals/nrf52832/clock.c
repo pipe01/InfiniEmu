@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "fault.h"
 #include "memory.h"
 #include "nrf52832.h"
 #include "peripherals/nrf52832/ppi.h"
@@ -136,7 +137,7 @@ PPI_TASK_HANDLER(clock_task_handler)
         break;
 
     default:
-        abort();
+        fault_take(FAULT_NOT_IMPLEMENTED);
     }
 }
 

@@ -8,6 +8,7 @@
 
 #include "bus_i2c.h"
 #include "config.h"
+#include "fault.h"
 
 #define CHIPID 0x13
 
@@ -223,7 +224,7 @@ void bma425_write(uint8_t *data, size_t data_size, void *userdata)
         break;
 
     default:
-        abort();
+        fault_take(FAULT_I2C_UNKNOWN_COMMAND);
     }
 }
 

@@ -4,6 +4,7 @@
 
 #include "byte_util.h"
 #include "cpu.h"
+#include "fault.h"
 #include "memory.h"
 
 struct SCB_inst_t
@@ -92,7 +93,7 @@ OPERATION(scb)
             if ((*value & x(FFFF, 0000)) != x(05FA, 0000))
                 return MEMREG_RESULT_INVALID_ACCESS;
 
-            abort(); // TODO: Implement
+            fault_take(FAULT_NOT_IMPLEMENTED); // TODO: Implement
         }
 
         return MEMREG_RESULT_OK;

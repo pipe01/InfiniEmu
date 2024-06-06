@@ -8,6 +8,7 @@
 
 #include "arm.h"
 #include "byte_util.h"
+#include "fault.h"
 #include "peripherals/nrf52832/gpio.h"
 
 #define MAX_SLAVES 32
@@ -85,7 +86,7 @@ spi_result_t spi_write(bus_spi_t *spi, uint32_t address, size_t size)
     if (address < ARM_SRAM_START || address >= ARM_SRAM_END) // TODO: Check end too
     {
         printf("Invalid EasyDMA address 0x%08X\n", address);
-        abort();
+        fault_take(FAULT_DMA_INVALID_ADDRESS);
     }
 
     uint32_t offset = address - ARM_SRAM_START;
@@ -108,7 +109,7 @@ size_t spi_read(bus_spi_t *spi, uint32_t address, size_t size)
     if (address < ARM_SRAM_START || address >= ARM_SRAM_END) // TODO: Check end too
     {
         printf("Invalid EasyDMA address 0x%08X\n", address);
-        abort();
+        fault_take(FAULT_DMA_INVALID_ADDRESS);
     }
 
     uint32_t offset = address - ARM_SRAM_START;

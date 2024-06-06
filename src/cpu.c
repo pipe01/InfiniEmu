@@ -258,7 +258,7 @@ static inline runlog_register_t runlog_reg(arm_reg arm_reg)
     case ARM_REG_PC:
         return RUNLOG_REG_PC;
     default:
-        abort();
+        fault_take(FAULT_UNKNOWN);
     }
 }
 
@@ -323,7 +323,7 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
     }
     default:
         fprintf(stderr, "Unhandled operand type %d\n", op->type);
-        abort();
+        fault_take(FAULT_CPU_INVALID_INSTRUCTION);
     }
 }
 
@@ -449,7 +449,7 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
 
     default:
         fprintf(stderr, "Unhandled condition code %d\n", cc);
-        abort();
+        fault_take(FAULT_CPU_INVALID_CC);
     }
 }
 
@@ -617,7 +617,7 @@ static void cpu_exception_set_active(cpu_t *cpu, arm_exception ex, bool active)
 void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
 {
     if (cpu->exceptions[ex].fixed_enabled)
-        abort();
+        fault_take(FAULT_CPU_FIXED_EXCEPTION);
 
     cpu->exceptions[ex].enabled = enabled;
 }
@@ -870,8 +870,7 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
         break;
 
     default:
-        abort();
-        break;
+        fault_take(FAULT_CPU_INVALID_EXCEPTION_RETURN);
     }
 
     cpu_exception_set_active(cpu, returning_exception_number, false);
@@ -1245,7 +1244,7 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
             if (n == 0)
             {
                 fprintf(stderr, "Failed to disassemble code at 0x%08X\n", pc);
-                abort();
+                fault_take(FAULT_CPU_INVALID_INSTRUCTION);
             }
         }
 
@@ -1263,7 +1262,7 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
     if (n == 0)
     {
         fprintf(stderr, "Failed to disassemble code at 0x%08X\n", pc);
-        abort();
+        fault_take(FAULT_CPU_INVALID_INSTRUCTION);
     }
 
     assert(n == 1);
@@ -2578,7 +2577,7 @@ void cpu_step(cpu_t *cpu)
     if (i == NULL)
     {
         fprintf(stderr, "Failed to find instruction at 0x%08X\n", cpu->core_regs[ARM_REG_PC]);
-        abort();
+        fault_take(FAULT_CPU_INVALID_INSTRUCTION);
     }
 
     if (cpu->runlog)
@@ -2651,7 +2650,7 @@ uint32_t cpu_reg_read(cpu_t *cpu, arm_reg reg)
         }
 
         if (reg >= ARM_REG_D0 && reg <= ARM_REG_D31)
-            abort();
+            fault_take(FAULT_CPU_INVALID_FP_REGISTER);
 
         return cpu->core_regs[reg];
     }
@@ -2700,7 +2699,7 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
                 cpu->d[n / 2].upper = value;
         }
         else if (reg >= ARM_REG_D0 && reg <= ARM_REG_D31)
-            abort();
+            fault_take(FAULT_CPU_INVALID_FP_REGISTER);
         else
             cpu->core_regs[reg] = value;
 
@@ -2745,7 +2744,7 @@ uint32_t cpu_sysreg_read(cpu_t *cpu, arm_sysreg reg)
 
     default:
         fprintf(stderr, "Unhandled system register %d\n", reg);
-        abort();
+        fault_take(FAULT_CPU_INVALID_SYSREG);
     }
 }
 
@@ -2799,7 +2798,7 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
 
     default:
         fprintf(stderr, "Unhandled system register %d\n", reg);
-        abort();
+        fault_take(FAULT_CPU_INVALID_SYSREG);
     }
 }
 
@@ -2839,7 +2838,7 @@ int16_t cpu_get_exception_priority(cpu_t *cpu, arm_exception ex)
 void cpu_set_exception_priority(cpu_t *cpu, arm_exception ex, int16_t priority)
 {
     if (cpu->exceptions[ex].fixed_priority)
-        abort();
+        fault_take(FAULT_CPU_FIXED_EXCEPTION);
 
     cpu->exceptions[ex].priority = priority;
     cpu->execution_priority = cpu_calculate_execution_priority(cpu);

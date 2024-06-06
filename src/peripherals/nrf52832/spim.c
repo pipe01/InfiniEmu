@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "fault.h"
 #include "peripherals/nrf52832/easydma.h"
 #include "peripherals/nrf52832/ppi.h"
 
@@ -75,7 +76,7 @@ PPI_TASK_HANDLER(spim_task_handler)
         if (result == SPI_RESULT_OK)
             ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDTX), spim->inten.ENDTX);
         else
-            abort(); // TODO: Handle better
+            fault_take(FAULT_NOT_IMPLEMENTED); // TODO: Handle better
     }
     else if (spim->rx.ptr)
     {

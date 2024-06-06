@@ -93,7 +93,7 @@ struct st7789_t
 
 size_t st7789_read(uint8_t *data, size_t data_size, void *userdata)
 {
-    abort(); // TODO: Implement
+    fault_take(FAULT_NOT_IMPLEMENTED);
 }
 
 void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
@@ -198,7 +198,7 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
                 break;
 
             default:
-                abort();
+                fault_take(FAULT_UNKNOWN);
             }
             break;
 
@@ -224,7 +224,7 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
                 break;
 
             default:
-                abort();
+                fault_take(FAULT_UNKNOWN);
             }
             break;
 
@@ -244,12 +244,12 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
                 break;
 
             default:
-                abort();
+                fault_take(FAULT_UNKNOWN);
             }
             break;
 
         default:
-            abort();
+            fault_take(FAULT_SPI_UNKNOWN_COMMAND);
         }
 
         st7789->expecting_data--;

@@ -6,6 +6,7 @@
 
 #include "byte_util.h"
 #include "cpu.h"
+#include "fault.h"
 #include "nrf52832.h"
 #include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/rtc.h"
@@ -245,7 +246,7 @@ void ppi_add_peripheral(PPI_t *ppi, uint8_t id, ppi_task_cb_t cb, void *userdata
     peripheral_t *peripheral = ppi->peripherals[id];
 
     if (peripheral)
-        abort();
+        fault_take(FAULT_PPI_DUPLICATE_PERIPHERAL);
 
     peripheral = malloc(sizeof(peripheral_t));
     peripheral->cb = cb;

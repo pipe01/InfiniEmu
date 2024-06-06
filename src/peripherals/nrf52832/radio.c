@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include "fault.h"
 #include "peripherals/nrf52832/ppi.h"
 
 #define STATE_CHANGE_DELAY_INST 10000
@@ -276,7 +277,7 @@ PPI_TASK_HANDLER(radio_task_handler)
     case TASK_ID(RADIO_TASKS_RSSISTOP):
     case TASK_ID(RADIO_TASKS_BCSTART):
     case TASK_ID(RADIO_TASKS_BCSTOP):
-        abort();
+        fault_take(FAULT_NOT_IMPLEMENTED);
     }
 
     if (radio->next_state != radio->state)

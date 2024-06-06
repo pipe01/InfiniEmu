@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "fault.h"
 #include "peripherals/nrf52832/ppi.h"
 
 #define TICK_INTERVAL 20
@@ -66,7 +67,7 @@ void timer_increase_counter(TIMER_t *timer)
         mask = 0xFFFFFFFF;
         break;
     default:
-        abort();
+        fault_take(FAULT_NOT_IMPLEMENTED);
     }
 
     uint32_t counter = timer->counter & mask;

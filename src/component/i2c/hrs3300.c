@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "fault.h"
+
 #define MAX_READ_SIZE 100
 
 typedef struct
@@ -46,7 +48,7 @@ void hrs3300_write(uint8_t *data, size_t data_size, void *userdata)
         break;
 
     default:
-        abort();
+        fault_take(FAULT_I2C_UNKNOWN_COMMAND);
     }
 }
 

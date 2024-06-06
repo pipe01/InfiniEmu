@@ -227,8 +227,7 @@ void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32
 
     default:
         printf("Unknown error on memory operation at 0x%08X\n", addr);
-        abort();
-        break;
+        fault_take(FAULT_UNKNOWN);
     }
 }
 

@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "fault.h"
 
 #ifdef ENABLE_LOG_SPI_FLASH
 #define LOGF(...) printf(__VA_ARGS__)
@@ -82,7 +83,7 @@ void spinorflash_write(const uint8_t *data, size_t data_size, void *userdata)
     if (data_size > MAX_COMMAND_SIZE)
     {
         printf("SPI flash command too long: %zu\n", data_size);
-        abort();
+        fault_take(FAULT_SPI_COMMAND_TOO_LONG);
     }
 
 #ifdef ENABLE_LOG_SPI_FLASH
@@ -149,7 +150,7 @@ void spinorflash_write(const uint8_t *data, size_t data_size, void *userdata)
 
     default:
         printf("Unknown SPI flash write command: %02X\n", data[0]);
-        abort();
+        fault_take(FAULT_SPI_UNKNOWN_COMMAND);
     }
 }
 
@@ -199,7 +200,7 @@ size_t spinorflash_read(uint8_t *data, size_t data_size, void *userdata)
     }
 
     printf("Unknown SPI flash command: %02X\n", flash->last_command[0]);
-    abort();
+    fault_take(FAULT_SPI_UNKNOWN_COMMAND);
 }
 
 void spinorflash_reset(void *userdata)
