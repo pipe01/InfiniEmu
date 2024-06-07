@@ -72,6 +72,7 @@ import "C"
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -301,7 +302,9 @@ func (e *Emulator) Start(mode RunMode) {
 			fault = int(C.run(2, unsafe.Pointer(gdb)))
 		}
 
-		println(fault)
+		pc := C.cpu_reg_read(e.cpu, C.ARM_REG_PC) - 4
+
+		fmt.Printf("Execution stopped at PC = 0x%08x with fault %d\n", pc, fault)
 	}()
 
 	go e.perfLoop()
