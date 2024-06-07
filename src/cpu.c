@@ -2700,6 +2700,23 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
     }
 
+    case ARM_INS_VNMUL:
+    {
+        assert(detail->op_count == 2 || detail->op_count == 3);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+        assert(detail->vector_data == ARM_VECTORDATA_F32); // TODO: Support F64
+
+        cpu_execute_fp_check(cpu);
+
+        float32_t v1 = FLOAT32_I(OPERAND_REG(detail->op_count == 3 ? 1 : 0));
+        float32_t v2 = FLOAT32_I(OPERAND_REG(detail->op_count - 1));
+        float32_t result = FLOAT32_F(-(v1.f * v2.f));
+
+        cpu_reg_write(cpu, detail->operands[0].reg, result.i);
+        break;
+    }
+
     case ARM_INS_VPUSH:
     case ARM_INS_VSTMDB:
     case ARM_INS_VSTMIA:
@@ -2758,6 +2775,21 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             }
         }
 
+        break;
+    }
+
+    case ARM_INS_VSQRT:
+    {
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_REG);
+
+        cpu_execute_fp_check(cpu);
+
+        float32_t val = FLOAT32_I(OPERAND_REG(1));
+        float32_t result = FLOAT32_F(sqrtf(val.f));
+
+        cpu_reg_write(cpu, detail->operands[0].reg, result.i);
         break;
     }
 
