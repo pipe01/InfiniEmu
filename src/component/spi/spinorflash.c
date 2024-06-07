@@ -69,6 +69,8 @@ struct spinorflash_t
     uint8_t *data;
     size_t size, sector_size;
 
+    bool should_free_data;
+
     size_t write_count;
 
     statusreg_t statusreg;
@@ -231,6 +233,7 @@ spinorflash_t *spinorflash_new(size_t size, size_t sector_size)
 {
     spinorflash_t *flash = malloc(sizeof(spinorflash_t));
     flash->data = (uint8_t *)malloc(size);
+    flash->should_free_data = true;
     flash->size = size;
     flash->sector_size = sector_size;
 
@@ -253,17 +256,11 @@ size_t spinorflash_get_write_count(spinorflash_t *flash)
     return flash->write_count;
 }
 
-void spinorflash_read(spinorflash_t *flash, size_t offset, uint8_t *data, size_t data_size)
+void spinorflash_set_buffer(spinorflash_t *flash, uint8_t *data)
 {
-    assert(offset + data_size <= flash->size);
+    if (flash->should_free_data)
+        free(flash->data);
 
-    memcpy(data, flash->data + offset, data_size);
-}
-
-void spinorflash_write(spinorflash_t *flash, size_t offset, const uint8_t *data, size_t data_size)
-{
-    assert(offset + data_size <= flash->size);
-
-    memcpy(flash->data + offset, data, data_size);
-    flash->write_count++;
+    flash->should_free_data = false;
+    flash->data = data;
 }

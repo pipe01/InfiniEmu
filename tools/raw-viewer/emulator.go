@@ -198,6 +198,8 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 	var pinner runtime.Pinner
 	defer pinner.Unpin()
 
+	var longPinner runtime.Pinner
+
 	pinner.Pin(&flash[0])
 
 	// The C code makes a copy of the flash contents, so we can unpin it after
@@ -209,13 +211,13 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 	extflash := C.pinetime_get_spinorflash(pt)
 
 	extflashContents := make([]byte, C.PINETIME_EXTFLASH_SIZE)
+	longPinner.Pin(&extflashContents[0])
 
 	if len(spiFlash) > 0 {
-		pinner.Pin(&spiFlash[0])
-
-		C.spinorflash_write(extflash, 0, (*C.uchar)(&spiFlash[0]), C.ulong(len(spiFlash)))
 		copy(extflashContents, spiFlash)
 	}
+
+	C.spinorflash_set_buffer(extflash, (*C.uchar)(&extflashContents[0]))
 
 	// Active low pins with pull ups
 	C.pins_set(pins, pinCharging)
@@ -234,7 +236,7 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 		}
 	}
 
-	return &Emulator{
+	emulator := &Emulator{
 		program: program,
 		pt:      pt,
 		sched:   C.create_sched(pt, baseFrequencyHZ),
@@ -254,6 +256,11 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 
 		extflashContents: extflashContents,
 	}
+	runtime.SetFinalizer(emulator, func(e *Emulator) {
+		longPinner.Unpin()
+	})
+
+	return emulator
 }
 
 func (e *Emulator) perfLoop() {
@@ -469,13 +476,6 @@ func (e *Emulator) ReadSPIFlash() (data []byte, changed bool) {
 	if newWriteCount != e.extflashWriteCount {
 		e.extflashWriteCount = newWriteCount
 		changed = true
-
-		var pinner runtime.Pinner
-		defer pinner.Unpin()
-
-		pinner.Pin(&e.extflashContents[0])
-
-		C.spinorflash_read(e.extflash, 0, (*C.uchar)(&e.extflashContents[0]), C.ulong(len(e.extflashContents)))
 	}
 
 	return e.extflashContents, changed
