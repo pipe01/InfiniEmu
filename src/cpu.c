@@ -2488,6 +2488,27 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         }
         break;
 
+    case ARM_INS_VDIV:
+    {
+        assert(detail->op_count == 3);
+        cpu_execute_fp_check(cpu);
+
+        if (IS_DOUBLE(detail->operands[0]))
+        {
+            fault_take(FAULT_NOT_IMPLEMENTED);
+        }
+        else
+        {
+            float32_t a = FLOAT32_I(OPERAND_REG(1));
+            float32_t b = FLOAT32_I(OPERAND_REG(2));
+            float32_t result = FLOAT32_F(a.f / b.f);
+
+            cpu_reg_write(cpu, detail->operands[0].reg, result.i);
+        }
+
+        break;
+    }
+
     case ARM_INS_VFMA:
     case ARM_INS_VFMS:
     {
