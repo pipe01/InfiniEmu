@@ -20,7 +20,6 @@ Many things are yet to be implemented, including but not limited to:
 * Adjusting battery voltage input
 * Sending heartrate data
 * Bluetooth
-* Saving and loading the contents of the SPI flash
 
 # Screenshots
 

@@ -173,8 +173,12 @@ type Emulator struct {
 	lcd         *C.st7789_t
 	touchScreen *C.cst816s_t
 	hrs         *C.hrs3300_t
+	extflash    *C.spinorflash_t
 	pins        *C.pins_t
 	rtcs        []*C.RTC_t
+
+	extflashContents   []byte
+	extflashWriteCount uint64
 
 	rtcTrackers []*RTCTracker
 
@@ -188,7 +192,7 @@ type Emulator struct {
 	perfLoopCancel func()
 }
 
-func NewEmulator(program *Program) *Emulator {
+func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 	flash := program.Flatten()
 
 	var pinner runtime.Pinner
@@ -202,6 +206,16 @@ func NewEmulator(program *Program) *Emulator {
 
 	nrf52 := C.pinetime_get_nrf52832(pt)
 	pins := C.nrf52832_get_pins(nrf52)
+	extflash := C.pinetime_get_spinorflash(pt)
+
+	extflashContents := make([]byte, C.PINETIME_EXTFLASH_SIZE)
+
+	if len(spiFlash) > 0 {
+		pinner.Pin(&spiFlash[0])
+
+		C.spinorflash_write(extflash, 0, (*C.uchar)(&spiFlash[0]), C.ulong(len(spiFlash)))
+		copy(extflashContents, spiFlash)
+	}
 
 	// Active low pins with pull ups
 	C.pins_set(pins, pinCharging)
@@ -233,9 +247,12 @@ func NewEmulator(program *Program) *Emulator {
 		lcd:         C.pinetime_get_st7789(pt),
 		touchScreen: C.pinetime_get_cst816s(pt),
 		hrs:         C.pinetime_get_hrs3300(pt),
+		extflash:    extflash,
 		pins:        pins,
 		rtcs:        rtcs,
 		rtcTrackers: rtcTrackers,
+
+		extflashContents: extflashContents,
 	}
 }
 
@@ -444,4 +461,22 @@ func (e *Emulator) ReadDisplayBuffer(p []byte) {
 
 func (e *Emulator) SetHeartrateValue(val uint32) {
 	C.hrs3300_set_ch0(e.hrs, C.uint(val))
+}
+
+func (e *Emulator) ReadSPIFlash() (data []byte, changed bool) {
+	newWriteCount := uint64(C.spinorflash_get_write_count(e.extflash))
+
+	if newWriteCount != e.extflashWriteCount {
+		e.extflashWriteCount = newWriteCount
+		changed = true
+
+		var pinner runtime.Pinner
+		defer pinner.Unpin()
+
+		pinner.Pin(&e.extflashContents[0])
+
+		C.spinorflash_read(e.extflash, 0, (*C.uchar)(&e.extflashContents[0]), C.ulong(len(e.extflashContents)))
+	}
+
+	return e.extflashContents, changed
 }

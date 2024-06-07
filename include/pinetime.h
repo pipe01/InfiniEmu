@@ -1,6 +1,7 @@
 #pragma once
 
 #include "nrf52832.h"
+#include "components/spi/spinorflash.h"
 #include "components/spi/st7789.h"
 #include "components/i2c/cst816s.h"
 #include "components/i2c/hrs3300.h"
@@ -26,3 +27,4 @@ NRF52832_t *pinetime_get_nrf52832(pinetime_t *);
 st7789_t *pinetime_get_st7789(pinetime_t *);
 cst816s_t *pinetime_get_cst816s(pinetime_t *);
 hrs3300_t *pinetime_get_hrs3300(pinetime_t *);
+spinorflash_t *pinetime_get_spinorflash(pinetime_t *pt);
