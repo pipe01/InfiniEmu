@@ -64,10 +64,12 @@ typedef union
     uint8_t value;
 } securityreg_t;
 
-typedef struct
+struct spinorflash_t
 {
     uint8_t *data;
     size_t size, sector_size;
+
+    size_t write_count;
 
     statusreg_t statusreg;
     securityreg_t securityreg;
@@ -76,9 +78,9 @@ typedef struct
     size_t last_command_size;
 
     uint32_t pp_address;
-} spinorflash_t;
+};
 
-void spinorflash_write(const uint8_t *data, size_t data_size, void *userdata)
+void spinorflash_write_internal(const uint8_t *data, size_t data_size, void *userdata)
 {
     if (data_size > MAX_COMMAND_SIZE)
     {
@@ -102,6 +104,7 @@ void spinorflash_write(const uint8_t *data, size_t data_size, void *userdata)
     if (flash->statusreg.WIP)
     {
         memcpy(flash->data + flash->pp_address, data, data_size);
+        flash->write_count++;
         return;
     }
 
@@ -138,6 +141,7 @@ void spinorflash_write(const uint8_t *data, size_t data_size, void *userdata)
         assert(addr <= flash->size - flash->sector_size);
 
         memset(flash->data + addr, 0xFF, flash->sector_size);
+        flash->write_count++;
         break;
     }
 
@@ -154,7 +158,7 @@ void spinorflash_write(const uint8_t *data, size_t data_size, void *userdata)
     }
 }
 
-size_t spinorflash_read(uint8_t *data, size_t data_size, void *userdata)
+size_t spinorflash_read_internal(uint8_t *data, size_t data_size, void *userdata)
 {
     spinorflash_t *flash = (spinorflash_t *)userdata;
 
@@ -210,6 +214,7 @@ void spinorflash_reset(void *userdata)
     flash->statusreg.value = 0;
     flash->securityreg.value = 0;
     flash->last_command_size = 0;
+    flash->write_count = 0;
 }
 
 void spinorflash_cs_changed(bool selected, void *userdata)
@@ -222,18 +227,43 @@ void spinorflash_cs_changed(bool selected, void *userdata)
     }
 }
 
-spi_slave_t spinorflash_new(size_t size, size_t sector_size)
+spinorflash_t *spinorflash_new(size_t size, size_t sector_size)
 {
-    spinorflash_t *flash = (spinorflash_t *)malloc(sizeof(spinorflash_t));
+    spinorflash_t *flash = malloc(sizeof(spinorflash_t));
     flash->data = (uint8_t *)malloc(size);
     flash->size = size;
     flash->sector_size = sector_size;
 
+    return flash;
+}
+
+spi_slave_t spinorflash_get_slave(spinorflash_t *flash)
+{
     return (spi_slave_t){
         .userdata = flash,
-        .read = spinorflash_read,
-        .write = spinorflash_write,
+        .read = spinorflash_read_internal,
+        .write = spinorflash_write_internal,
         .reset = spinorflash_reset,
         .cs_changed = spinorflash_cs_changed,
     };
+}
+
+size_t spinorflash_get_write_count(spinorflash_t *flash)
+{
+    return flash->write_count;
+}
+
+void spinorflash_read(spinorflash_t *flash, size_t offset, uint8_t *data, size_t data_size)
+{
+    assert(offset + data_size <= flash->size);
+
+    memcpy(data, flash->data + offset, data_size);
+}
+
+void spinorflash_write(spinorflash_t *flash, size_t offset, const uint8_t *data, size_t data_size)
+{
+    assert(offset + data_size <= flash->size);
+
+    memcpy(flash->data + offset, data, data_size);
+    flash->write_count++;
 }
