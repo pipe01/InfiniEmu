@@ -470,13 +470,17 @@ func (e *Emulator) SetHeartrateValue(val uint32) {
 	C.hrs3300_set_ch0(e.hrs, C.uint(val))
 }
 
-func (e *Emulator) ReadSPIFlash() (data []byte, changed bool) {
+func (e *Emulator) DidSPIFlashChange() bool {
 	newWriteCount := uint64(C.spinorflash_get_write_count(e.extflash))
 
 	if newWriteCount != e.extflashWriteCount {
 		e.extflashWriteCount = newWriteCount
-		changed = true
+		return true
 	}
 
-	return e.extflashContents, changed
+	return false
+}
+
+func (e *Emulator) SPIFlash() []byte {
+	return e.extflashContents
 }

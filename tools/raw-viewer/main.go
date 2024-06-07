@@ -290,9 +290,9 @@ func main() {
 
 		emulator.SetHeartrateValue(uint32(((math.Sin(float64(i)/60) + 1) / 2) * 4000))
 
-		if flash, changed := emulator.ReadSPIFlash(); changed {
+		if emulator.DidSPIFlashChange() {
 			fmt.Println("External SPI flash contents changed")
-			os.WriteFile("spiflash.bin", flash, os.ModePerm)
+			os.WriteFile("spiflash.bin", emulator.SPIFlash(), os.ModePerm)
 		}
 
 		mouseLeftIsDown = imgui.IsMouseDown(0)
