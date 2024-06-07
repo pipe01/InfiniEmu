@@ -2678,9 +2678,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_VPUSH:
     case ARM_INS_VSTMDB:
+    case ARM_INS_VSTMIA:
     {
         arm_reg reg_base;
         size_t list_start;
+        bool add;
 
         if (i->id == ARM_INS_VPUSH)
         {
@@ -2688,6 +2690,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
             reg_base = ARM_REG_SP;
             list_start = 0;
+            add = false;
         }
         else
         {
@@ -2696,6 +2699,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
             reg_base = detail->operands[0].reg;
             list_start = 1;
+            add = i->id == ARM_INS_VSTMIA;
         }
 
         cpu_execute_fp_check(cpu);
@@ -2704,10 +2708,12 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         bool single_regs = detail->operands[list_start].reg >= ARM_REG_S0 && detail->operands[list_start].reg <= ARM_REG_S31;
 
-        uint32_t address = cpu_reg_read(cpu, reg_base) - (single_regs ? 4 : 8) * reg_count;
+        uint32_t base = cpu_reg_read(cpu, reg_base);
+        uint32_t offset = (single_regs ? 4 : 8) * reg_count;
+        uint32_t address = base - (add ? 0 : offset);
 
         if (detail->writeback || i->id == ARM_INS_VPUSH)
-            cpu_reg_write(cpu, reg_base, address);
+            cpu_reg_write(cpu, reg_base, base + (add ? offset : -offset));
 
         for (size_t n = list_start; n < reg_count; n++)
         {
