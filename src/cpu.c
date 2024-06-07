@@ -119,9 +119,14 @@ typedef union
         uint32_t lower : 32;
         uint32_t upper : 32;
     };
+    struct
+    {
+        float f_lower;
+        float f_upper;
+    };
     uint64_t value;
+    double f_value;
 } vreg_t;
-
 static_assert(sizeof(vreg_t) == 8, "vreg_t size is not 8 bytes");
 
 typedef union
@@ -1574,6 +1579,25 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         cpu_reg_write(cpu, detail->operands[0].reg, value);
 
         UPDATE_NZC;
+        break;
+
+    case ARM_INS_FCONSTS:
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_FP);
+
+        if (detail->vector_data == ARM_VECTORDATA_F64)
+        {
+            cpu->d[detail->operands[0].reg - ARM_REG_D0].f_value = detail->operands[1].fp;
+        }
+        else
+        {
+            assert(detail->vector_data == ARM_VECTORDATA_F32);
+
+            float32_t value = FLOAT32_F(detail->operands[1].fp);
+            cpu_reg_write(cpu, detail->operands[0].reg, value.i);
+        }
+
         break;
 
     case ARM_INS_IT:
