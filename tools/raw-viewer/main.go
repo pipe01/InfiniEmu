@@ -9,6 +9,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -116,6 +117,8 @@ var screenTextureID, heapTextureID imgui.TextureID
 var screenMouseDownPos imgui.Vec2
 var screenDidSwipe bool
 
+var heapSize int32 = 1
+
 var mouseLeftIsDown, mouseLeftWasDown bool
 var mouseRightIsDown, mouseRightWasDown bool
 
@@ -213,37 +216,59 @@ func heapWindow(heap *HeapTracker) {
 	if imgui.BeginV("Heap", nil, imgui.WindowFlagsAlwaysAutoResize) {
 		renderer.ReleaseImage(heapTextureID)
 
-		img := buildHeapImage(*heap)
+		img := buildHeapImage(*heap, int(heapSize))
 		if img != nil {
 			heapTextureID, _ = renderer.LoadImage(img)
 			imgui.Image(heapTextureID, imgui.Vec2{X: float32(img.Bounds().Dx()), Y: float32(img.Bounds().Dy())})
 		}
 
 		allocs := heap.GetInUse()
-		var usedBytes uint
+		slices.SortFunc(allocs, func(i, j HeapAllocation) int {
+			if i.Address < j.Address {
+				return -1
+			} else if i.Address > j.Address {
+				return 1
+			}
 
-		for _, alloc := range allocs {
+			return 0
+		})
+
+		var usedBytes uint
+		var holeBytes uint
+
+		for i, alloc := range allocs {
 			usedBytes += alloc.Size
+
+			if i > 0 {
+				prevAlloc := &allocs[i-1]
+				holeSize := int32(alloc.Address) - int32(prevAlloc.Address+uint32(prevAlloc.Size))
+
+				if holeSize > 0 {
+					holeBytes += uint(holeSize)
+				}
+			}
 		}
 
-		imgui.Text(fmt.Sprintf("Used heap: %d out of %d bytes (free: %d bytes)", usedBytes, heap.HeapSize(), heap.HeapSize()-usedBytes))
+		imgui.Text(fmt.Sprintf("Used heap: %d out of %d bytes (%d bytes free)", usedBytes, heap.HeapSize(), heap.HeapSize()-usedBytes))
+		imgui.Text(fmt.Sprintf("Bytes lost to fragmentation: %d bytes", holeBytes))
+
+		imgui.SliderInt("Size", &heapSize, 1, 5)
 	}
 	imgui.End()
 }
 
-func buildHeapImage(heap HeapTracker) *image.RGBA {
+func buildHeapImage(heap HeapTracker, pixelsPerByte int) *image.RGBA {
 	if heap.HeapSize() == 0 {
 		return nil
 	}
 
 	const bytesPerRow = 512
-	const pixelsPerByte = 1
 
 	rows := uint32((heap.heapSize + bytesPerRow - 1) / bytesPerRow) // Round up
 
-	img := image.NewRGBA(image.Rect(0, 0, bytesPerRow*pixelsPerByte, int(rows*pixelsPerByte)))
+	img := image.NewRGBA(image.Rect(0, 0, bytesPerRow*pixelsPerByte, int(rows)*pixelsPerByte))
 
-	allocs := heap.GetInUse()
+	allocs := heap.GetAll()
 
 	for y := uint32(0); y < rows; y++ {
 		for x := uint32(0); x < bytesPerRow; x++ {
@@ -254,11 +279,15 @@ func buildHeapImage(heap HeapTracker) *image.RGBA {
 			}
 
 			byteUsed := false
+			byteFreed := false
 
 			for _, alloc := range allocs {
 				if byteIndex >= alloc.Address && byteIndex < alloc.Address+uint32(alloc.Size) {
-					byteUsed = true
-					break
+					if alloc.Freed {
+						byteFreed = true
+					} else {
+						byteUsed = true
+					}
 				}
 			}
 
@@ -266,13 +295,17 @@ func buildHeapImage(heap HeapTracker) *image.RGBA {
 				for px := 0; px < pixelsPerByte; px++ {
 					var clr color.RGBA
 
-					if byteUsed {
-						clr = color.RGBA{0xff, 0, 0, 0xff}
+					if byteUsed && byteFreed {
+						clr = color.RGBA{0, 0x50, 0xa0, 0xff}
+					} else if byteUsed {
+						clr = color.RGBA{0xa0, 0, 0, 0xff}
+					} else if byteFreed {
+						clr = color.RGBA{0, 0xa0, 0, 0xff}
 					} else {
-						clr = color.RGBA{0xff, 0xff, 0xff, 0xff}
+						clr = color.RGBA{0, 0, 0, 0xff}
 					}
 
-					img.Set(int(x*pixelsPerByte)+px, int(y*pixelsPerByte)+py, clr)
+					img.Set(int(x)*pixelsPerByte+px, int(y)*pixelsPerByte+py, clr)
 				}
 			}
 		}

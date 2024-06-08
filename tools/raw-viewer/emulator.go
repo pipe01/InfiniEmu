@@ -140,8 +140,8 @@ func (h *HeapTracker) HeapSize() uint {
 }
 
 func (h *HeapTracker) getAllocAt(addr uint32) (*HeapAllocation, bool) {
-	for i := range h.mallocs {
-		if h.mallocs[i].Address == addr {
+	for i := len(h.mallocs) - 1; i >= 0; i-- {
+		if h.mallocs[i].Address <= addr && addr < h.mallocs[i].Address+uint32(h.mallocs[i].Size) {
 			return &h.mallocs[i], true
 		}
 	}
@@ -159,6 +159,10 @@ func (h *HeapTracker) GetInUse() []HeapAllocation {
 	}
 
 	return inUse
+}
+
+func (h *HeapTracker) GetAll() []HeapAllocation {
+	return h.mallocs
 }
 
 type Emulator struct {
