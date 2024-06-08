@@ -389,6 +389,10 @@ func (e *Emulator) Brightness() Brightness {
 	return BrightnessInvalid
 }
 
+func (e *Emulator) ReadMemory(addr uint32) uint32 {
+	return uint32(C.memreg_read(e.mem, C.uint(addr)))
+}
+
 func (e *Emulator) ReadVariable(name string, offset uint32) (value uint64, found bool) {
 	sym, ok := e.program.Symbols[name]
 	if !ok {

@@ -103,7 +103,7 @@ func loadFlash(filePath string) (*Program, error) {
 		}
 	}
 
-	fmt.Printf("Loaded %d symbols\n", len(program.Symbols))
+	fmt.Printf("Loaded %d symbols and %d functions\n", len(program.Symbols), len(program.Functions))
 
 	return program, nil
 }
