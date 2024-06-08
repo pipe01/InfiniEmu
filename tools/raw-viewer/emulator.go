@@ -11,61 +11,12 @@ package main
 #include "pinetime.h"
 #include "scheduler.h"
 
-volatile unsigned long inst_counter = 0;
-volatile bool stop_loop = false;
+extern unsigned long inst_counter;
+extern bool stop_loop;
 
-static void loop(pinetime_t *pt)
-{
-	stop_loop = false;
-
-	while (!stop_loop)
-	{
-		pinetime_step(pt);
-		inst_counter++;
-	}
-}
-
-static scheduler_t *create_sched(pinetime_t *pt, size_t freq)
-{
-	return scheduler_new((scheduler_cb_t)pinetime_step, pt, freq);
-}
-
-static int run(int type, void *arg)
-{
-	jmp_buf fault_jmp;
-
-	int fault = setjmp(fault_jmp);
-
-	if (fault)
-	{
-		fault_clear_jmp();
-
-		return fault;
-	}
-	else
-	{
-		fault_set_jmp(&fault_jmp);
-
-		switch (type)
-		{
-		case 0:
-			loop((pinetime_t *)arg);
-			break;
-
-		case 1:
-			scheduler_run((scheduler_t *)arg);
-			break;
-
-		case 2:
-			gdb_start((gdb_t *)arg);
-			break;
-		}
-	}
-
-	fault_clear_jmp();
-
-	return 0;
-}
+scheduler_t *create_sched(pinetime_t *pt, size_t freq);
+int run(int type, void *arg);
+void set_cpu_branch_cb(cpu_t *cpu, void *userdata);
 */
 import "C"
 
@@ -73,6 +24,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -161,6 +113,54 @@ func (r *RTCTracker) update(updateInterval time.Duration) {
 	r.lastTicks = ticks
 }
 
+type HeapAllocation struct {
+	PC      uint32
+	Address uint32
+	Size    uint
+	Freed   bool
+}
+
+type HeapTracker struct {
+	heapStart uint32
+	heapSize  uint
+
+	pendingMalloc         bool
+	pendingMallocSize     uint
+	pendingMallocReturnPC uint32
+
+	mallocs []HeapAllocation
+}
+
+func (h *HeapTracker) HeapStart() uint32 {
+	return h.heapStart
+}
+
+func (h *HeapTracker) HeapSize() uint {
+	return h.heapSize
+}
+
+func (h *HeapTracker) getAllocAt(addr uint32) (*HeapAllocation, bool) {
+	for i := range h.mallocs {
+		if h.mallocs[i].Address == addr {
+			return &h.mallocs[i], true
+		}
+	}
+
+	return nil, false
+}
+
+func (h *HeapTracker) GetInUse() []HeapAllocation {
+	var inUse []HeapAllocation
+
+	for i := range h.mallocs {
+		if !h.mallocs[i].Freed {
+			inUse = append(inUse, h.mallocs[i])
+		}
+	}
+
+	return inUse
+}
+
 type Emulator struct {
 	program *Program
 
@@ -190,7 +190,49 @@ type Emulator struct {
 
 	perfLoopCtx    context.Context
 	perfLoopCancel func()
+
+	longPinner runtime.Pinner
+
+	mallocPC, freePC uint32
+	heap             HeapTracker
 }
+
+//export branch_callback
+func branch_callback(cpu *C.cpu_t, old_pc, new_pc C.uint, userdata unsafe.Pointer) {
+	emulator := emulators[*(*uint64)(userdata)]
+
+	if new_pc == C.uint(emulator.mallocPC) {
+		emulator.heap.pendingMallocReturnPC = uint32(C.cpu_reg_read(cpu, C.ARM_REG_LR)) &^ 1
+		emulator.heap.pendingMallocSize = uint(C.cpu_reg_read(cpu, C.ARM_REG_R0))
+		emulator.heap.pendingMalloc = true
+	} else if new_pc == C.uint(emulator.freePC) {
+		addr := C.cpu_reg_read(cpu, C.ARM_REG_R0)
+
+		if addr != 0 {
+			if alloc, ok := emulator.heap.getAllocAt(uint32(addr)); ok {
+				if alloc.Freed {
+					fmt.Printf("Double free of 0x%08x at 0x%x\n", addr, C.cpu_reg_read(cpu, C.ARM_REG_LR))
+				}
+
+				alloc.Freed = true
+			} else {
+				fmt.Printf("Freeing unknown address 0x%08x\n", addr)
+			}
+		}
+	} else if emulator.heap.pendingMalloc && new_pc == C.uint(emulator.heap.pendingMallocReturnPC) {
+		emulator.heap.pendingMalloc = false
+
+		addr := uint32(C.cpu_reg_read(cpu, C.ARM_REG_R0))
+
+		emulator.heap.mallocs = append(emulator.heap.mallocs, HeapAllocation{
+			PC:      uint32(new_pc),
+			Address: addr,
+			Size:    emulator.heap.pendingMallocSize,
+		})
+	}
+}
+
+var emulators = map[uint64]*Emulator{}
 
 func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 	flash := program.Flatten()
@@ -202,11 +244,12 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 
 	pinner.Pin(&flash[0])
 
-	// The C code makes a copy of the flash contents, so we can unpin it after
+	// The C code makes a copy of the flash contents, so we can safely unpin it after
 	pt := C.pinetime_new((*C.uchar)(&flash[0]), C.ulong(len(flash)), true)
 	C.pinetime_reset(pt)
 
 	nrf52 := C.pinetime_get_nrf52832(pt)
+	cpu := C.nrf52832_get_cpu(nrf52)
 	pins := C.nrf52832_get_pins(nrf52)
 	extflash := C.pinetime_get_spinorflash(pt)
 
@@ -236,16 +279,16 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 		}
 	}
 
-	emulator := &Emulator{
+	emulator := Emulator{
 		program: program,
 		pt:      pt,
 		sched:   C.create_sched(pt, baseFrequencyHZ),
 
 		initialSP: binary.LittleEndian.Uint32(flash),
 
-		cpu:         C.nrf52832_get_cpu(nrf52),
+		cpu:         cpu,
 		nrf52:       nrf52,
-		mem:         C.cpu_mem(C.nrf52832_get_cpu(nrf52)),
+		mem:         C.cpu_mem(cpu),
 		lcd:         C.pinetime_get_st7789(pt),
 		touchScreen: C.pinetime_get_cst816s(pt),
 		hrs:         C.pinetime_get_hrs3300(pt),
@@ -255,12 +298,34 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 		rtcTrackers: rtcTrackers,
 
 		extflashContents: extflashContents,
-	}
-	runtime.SetFinalizer(emulator, func(e *Emulator) {
-		longPinner.Unpin()
-	})
 
-	return emulator
+		longPinner: longPinner,
+	}
+	longPinner.Pin(&emulator)
+
+	id := rand.Uint64()
+	emulators[id] = &emulator
+
+	longPinner.Pin(&id)
+
+	C.set_cpu_branch_cb(cpu, unsafe.Pointer(&id))
+
+	if pc, ok := program.GetPCAtFunction("pvPortMalloc"); ok {
+		emulator.mallocPC = pc
+	}
+	if pc, ok := program.GetPCAtFunction("vPortFree"); ok {
+		emulator.freePC = pc
+	}
+	if sym, ok := program.Symbols["ucHeap"]; ok {
+		emulator.heap.heapStart = sym.Start
+		emulator.heap.heapSize = uint(sym.Length)
+	}
+
+	return &emulator
+}
+
+func (e *Emulator) Close() {
+	e.longPinner.Unpin()
 }
 
 func (e *Emulator) perfLoop() {

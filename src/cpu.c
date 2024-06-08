@@ -180,6 +180,9 @@ struct cpu_inst_t
 
     runlog_t *runlog;
 
+    branch_cb_t branch_cb;
+    void *branch_cb_userdata;
+
     uint32_t core_regs[ARM_REG_ENDING - 1];
     uint32_t sp_main, sp_process;
     vreg_t d[32];
@@ -947,6 +950,12 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
 void cpu_set_runlog(cpu_t *cpu, runlog_t *runlog)
 {
     cpu->runlog = runlog;
+}
+
+void cpu_set_branch_cb(cpu_t *cpu, branch_cb_t branch_cb, void *userdata)
+{
+    cpu->branch_cb = branch_cb;
+    cpu->branch_cb_userdata = userdata;
 }
 
 static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_extend)
@@ -2048,7 +2057,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op1 = cpu_reg_read(cpu, detail->operands[detail->op_count == 3 ? 2 : 1].reg);
 
         // TODO: Exception if op1 is zero
-        assert(op1 != 0);
+        assert_fault(op1 != 0, FAULT_CPU_DIVIDE_BY_ZERO);
 
         if (i->id == ARM_INS_SDIV)
             value = (int32_t)op0 / (int32_t)op1;
@@ -2958,8 +2967,12 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
             fault_take(FAULT_CPU_PC_ALIGNMENT);
         }
 
+        if (cpu->branch_cb != NULL)
+            cpu->branch_cb(cpu, cpu->core_regs[ARM_REG_PC], value & ~1, cpu->branch_cb_userdata);
+
         cpu->core_regs[ARM_REG_PC] = value & ~1;
         cpu->branched = true;
+
         break;
 
     case ARM_REG_SP:

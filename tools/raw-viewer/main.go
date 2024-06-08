@@ -112,7 +112,7 @@ var platform *imgui.GLFW
 var renderer *imgui.OpenGL3
 
 var allowScreenSwipes = true
-var screenTextureID imgui.TextureID
+var screenTextureID, heapTextureID imgui.TextureID
 var screenMouseDownPos imgui.Vec2
 var screenDidSwipe bool
 
@@ -207,6 +207,78 @@ func screenWindow(screenBuffer []byte, emulator *Emulator) {
 		imgui.Text(fmt.Sprintf("Brightness: %v", emulator.Brightness()))
 	}
 	imgui.End()
+}
+
+func heapWindow(heap *HeapTracker) {
+	if imgui.BeginV("Heap", nil, imgui.WindowFlagsAlwaysAutoResize) {
+		renderer.ReleaseImage(heapTextureID)
+
+		img := buildHeapImage(*heap)
+		if img != nil {
+			heapTextureID, _ = renderer.LoadImage(img)
+			imgui.Image(heapTextureID, imgui.Vec2{X: float32(img.Bounds().Dx()), Y: float32(img.Bounds().Dy())})
+		}
+
+		allocs := heap.GetInUse()
+		var usedBytes uint
+
+		for _, alloc := range allocs {
+			usedBytes += alloc.Size
+		}
+
+		imgui.Text(fmt.Sprintf("Used heap: %d out of %d bytes (free: %d bytes)", usedBytes, heap.HeapSize(), heap.HeapSize()-usedBytes))
+	}
+	imgui.End()
+}
+
+func buildHeapImage(heap HeapTracker) *image.RGBA {
+	if heap.HeapSize() == 0 {
+		return nil
+	}
+
+	const bytesPerRow = 512
+	const pixelsPerByte = 1
+
+	rows := uint32((heap.heapSize + bytesPerRow - 1) / bytesPerRow) // Round up
+
+	img := image.NewRGBA(image.Rect(0, 0, bytesPerRow*pixelsPerByte, int(rows*pixelsPerByte)))
+
+	allocs := heap.GetInUse()
+
+	for y := uint32(0); y < rows; y++ {
+		for x := uint32(0); x < bytesPerRow; x++ {
+			byteIndex := uint32(y*bytesPerRow+x) + heap.HeapStart()
+
+			if byteIndex-heap.HeapStart() >= uint32(heap.HeapSize()) {
+				break
+			}
+
+			byteUsed := false
+
+			for _, alloc := range allocs {
+				if byteIndex >= alloc.Address && byteIndex < alloc.Address+uint32(alloc.Size) {
+					byteUsed = true
+					break
+				}
+			}
+
+			for py := 0; py < pixelsPerByte; py++ {
+				for px := 0; px < pixelsPerByte; px++ {
+					var clr color.RGBA
+
+					if byteUsed {
+						clr = color.RGBA{0xff, 0, 0, 0xff}
+					} else {
+						clr = color.RGBA{0xff, 0xff, 0xff, 0xff}
+					}
+
+					img.Set(int(x*pixelsPerByte)+px, int(y*pixelsPerByte)+py, clr)
+				}
+			}
+		}
+	}
+
+	return img
 }
 
 func main() {
@@ -436,6 +508,8 @@ func main() {
 			}
 		}
 		imgui.End()
+
+		heapWindow(&emulator.heap)
 
 		imgui.Render()
 

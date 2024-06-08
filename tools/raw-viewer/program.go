@@ -65,6 +65,19 @@ func (p *Program) GetFunctionAtPC(pc uint32) (*Function, bool) {
 	return nil, false
 }
 
+func (p *Program) GetPCAtFunction(name string) (uint32, bool) {
+	fn, ok := p.Functions[name]
+	if !ok {
+		return 0, false
+	}
+
+	if len(fn.Definitions) == 0 {
+		return 0, false
+	}
+
+	return fn.Definitions[0].StartPC, true
+}
+
 type SourceLocation struct {
 	File         string
 	Line, Column int
