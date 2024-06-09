@@ -122,7 +122,7 @@ type HeapAllocation struct {
 
 type HeapTracker struct {
 	heapStart uint32
-	heapSize  uint
+	heapSize  int
 
 	pendingMalloc         bool
 	pendingMallocSize     uint
@@ -135,7 +135,7 @@ func (h *HeapTracker) HeapStart() uint32 {
 	return h.heapStart
 }
 
-func (h *HeapTracker) HeapSize() uint {
+func (h *HeapTracker) HeapSize() int {
 	return h.heapSize
 }
 
@@ -322,7 +322,7 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 	}
 	if sym, ok := program.Symbols["ucHeap"]; ok {
 		emulator.heap.heapStart = sym.Start
-		emulator.heap.heapSize = uint(sym.Length)
+		emulator.heap.heapSize = int(sym.Length)
 	}
 
 	return &emulator

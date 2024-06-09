@@ -65,10 +65,6 @@ func convertImage(raw []byte) *image.RGBA {
 	return img
 }
 
-func constCheckbox(id string, state bool) {
-	imgui.Checkbox(id, &state)
-}
-
 func pinCheckbox(id string, emulator *Emulator, pin int) {
 	state := emulator.IsPinSet(pin)
 
@@ -233,18 +229,18 @@ func heapWindow(heap *HeapTracker) {
 			return 0
 		})
 
-		var usedBytes uint
-		var holeBytes uint
+		var usedBytes int
+		var holeBytes int
 
 		for i, alloc := range allocs {
-			usedBytes += alloc.Size
+			usedBytes += int(alloc.Size)
 
 			if i > 0 {
 				prevAlloc := &allocs[i-1]
 				holeSize := int32(alloc.Address) - int32(prevAlloc.Address+uint32(prevAlloc.Size))
 
 				if holeSize > 0 {
-					holeBytes += uint(holeSize)
+					holeBytes += int(holeSize)
 				}
 			}
 		}
@@ -262,16 +258,19 @@ func buildHeapImage(heap HeapTracker, pixelsPerByte int) *image.RGBA {
 		return nil
 	}
 
-	const bytesPerRow = 512
+	bytesPerRow := 512
+	if pixelsPerByte >= 3 {
+		bytesPerRow = 256
+	}
 
-	rows := uint32((heap.heapSize + bytesPerRow - 1) / bytesPerRow) // Round up
+	rows := (heap.HeapSize() + bytesPerRow - 1) / bytesPerRow // Round up
 
-	img := image.NewRGBA(image.Rect(0, 0, bytesPerRow*pixelsPerByte, int(rows)*pixelsPerByte))
+	img := image.NewRGBA(image.Rect(0, 0, int(bytesPerRow)*pixelsPerByte, int(rows)*pixelsPerByte))
 
 	allocs := heap.GetAll()
 
-	for y := uint32(0); y < rows; y++ {
-		for x := uint32(0); x < bytesPerRow; x++ {
+	for y := 0; y < rows; y++ {
+		for x := 0; x < bytesPerRow; x++ {
 			byteIndex := uint32(y*bytesPerRow+x) + heap.HeapStart()
 
 			if byteIndex-heap.HeapStart() >= uint32(heap.HeapSize()) {
