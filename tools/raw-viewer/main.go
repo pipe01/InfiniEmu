@@ -267,28 +267,20 @@ func buildHeapImage(heap HeapTracker, pixelsPerByte int) *image.RGBA {
 
 	img := image.NewRGBA(image.Rect(0, 0, int(bytesPerRow)*pixelsPerByte, int(rows)*pixelsPerByte))
 
-	allocs := heap.GetAll()
+	bytes := heap.GetBytes()
 
 	for y := 0; y < rows; y++ {
 		for x := 0; x < bytesPerRow; x++ {
-			byteIndex := uint32(y*bytesPerRow+x) + heap.HeapStart()
+			byteIndex := uint32(y*bytesPerRow + x)
 
-			if byteIndex-heap.HeapStart() >= uint32(heap.HeapSize()) {
+			if byteIndex >= uint32(len(bytes)) {
 				break
 			}
 
-			byteUsed := false
-			byteFreed := false
+			byteState := bytes[byteIndex]
 
-			for _, alloc := range allocs {
-				if byteIndex >= alloc.Address && byteIndex < alloc.Address+uint32(alloc.Size) {
-					if alloc.Freed {
-						byteFreed = true
-					} else {
-						byteUsed = true
-					}
-				}
-			}
+			byteUsed := byteState&ByteStateUsed != 0
+			byteFreed := byteState&ByteStateFreed != 0
 
 			for py := 0; py < pixelsPerByte; py++ {
 				for px := 0; px < pixelsPerByte; px++ {
@@ -547,7 +539,7 @@ func main() {
 		imgui.End()
 
 		if *analyzeHeap {
-			heapWindow(&emulator.heap)
+			heapWindow(emulator.heap)
 		}
 
 		imgui.Render()

@@ -120,15 +120,33 @@ type HeapAllocation struct {
 	Freed   bool
 }
 
+type ByteState uint8
+
+const (
+	ByteStateNone ByteState = (1 << iota) >> 1
+	ByteStateUsed
+	ByteStateFreed
+)
+
 type HeapTracker struct {
 	heapStart uint32
 	heapSize  int
+
+	bytes []ByteState
 
 	pendingMalloc         bool
 	pendingMallocSize     uint
 	pendingMallocReturnPC uint32
 
 	mallocs []HeapAllocation
+}
+
+func newHeapTracker(start uint32, size int) *HeapTracker {
+	return &HeapTracker{
+		heapStart: start,
+		heapSize:  size,
+		bytes:     make([]ByteState, size),
+	}
 }
 
 func (h *HeapTracker) HeapStart() uint32 {
@@ -149,6 +167,10 @@ func (h *HeapTracker) getAllocAt(addr uint32) (*HeapAllocation, bool) {
 	return nil, false
 }
 
+func (h *HeapTracker) GetBytes() []ByteState {
+	return h.bytes
+}
+
 func (h *HeapTracker) GetInUse() []HeapAllocation {
 	var inUse []HeapAllocation
 
@@ -163,6 +185,51 @@ func (h *HeapTracker) GetInUse() []HeapAllocation {
 
 func (h *HeapTracker) GetAll() []HeapAllocation {
 	return h.mallocs
+}
+
+//export branch_callback
+func branch_callback(cpu *C.cpu_t, old_pc, new_pc C.uint, userdata unsafe.Pointer) {
+	emulator := emulators[*(*uint64)(userdata)]
+	heap := emulator.heap
+
+	if new_pc == C.uint(emulator.mallocPC) {
+		heap.pendingMallocReturnPC = uint32(C.cpu_reg_read(cpu, C.ARM_REG_LR)) &^ 1
+		heap.pendingMallocSize = uint(C.cpu_reg_read(cpu, C.ARM_REG_R0))
+		heap.pendingMalloc = true
+	} else if new_pc == C.uint(emulator.freePC) {
+		addr := uint32(C.cpu_reg_read(cpu, C.ARM_REG_R0))
+
+		if addr != 0 {
+			if alloc, ok := heap.getAllocAt(addr); ok {
+				if alloc.Freed {
+					fmt.Printf("Double free of 0x%08x at 0x%x\n", addr, C.cpu_reg_read(cpu, C.ARM_REG_LR))
+				} else {
+					for i := 0; i < int(heap.pendingMallocSize); i++ {
+						heap.bytes[addr-heap.heapStart+uint32(i)] |= ByteStateFreed
+						heap.bytes[addr-heap.heapStart+uint32(i)] &^= ByteStateUsed
+					}
+				}
+
+				alloc.Freed = true
+			} else {
+				fmt.Printf("Freeing unknown address 0x%08x\n", addr)
+			}
+		}
+	} else if heap.pendingMalloc && new_pc == C.uint(heap.pendingMallocReturnPC) {
+		heap.pendingMalloc = false
+
+		addr := uint32(C.cpu_reg_read(cpu, C.ARM_REG_R0))
+
+		for i := 0; i < int(heap.pendingMallocSize); i++ {
+			heap.bytes[addr-heap.heapStart+uint32(i)] |= ByteStateUsed
+		}
+
+		heap.mallocs = append(heap.mallocs, HeapAllocation{
+			PC:      uint32(new_pc),
+			Address: addr,
+			Size:    heap.pendingMallocSize,
+		})
+	}
 }
 
 type Emulator struct {
@@ -200,42 +267,7 @@ type Emulator struct {
 	longPinner runtime.Pinner
 
 	mallocPC, freePC uint32
-	heap             HeapTracker
-}
-
-//export branch_callback
-func branch_callback(cpu *C.cpu_t, old_pc, new_pc C.uint, userdata unsafe.Pointer) {
-	emulator := emulators[*(*uint64)(userdata)]
-
-	if new_pc == C.uint(emulator.mallocPC) {
-		emulator.heap.pendingMallocReturnPC = uint32(C.cpu_reg_read(cpu, C.ARM_REG_LR)) &^ 1
-		emulator.heap.pendingMallocSize = uint(C.cpu_reg_read(cpu, C.ARM_REG_R0))
-		emulator.heap.pendingMalloc = true
-	} else if new_pc == C.uint(emulator.freePC) {
-		addr := C.cpu_reg_read(cpu, C.ARM_REG_R0)
-
-		if addr != 0 {
-			if alloc, ok := emulator.heap.getAllocAt(uint32(addr)); ok {
-				if alloc.Freed {
-					fmt.Printf("Double free of 0x%08x at 0x%x\n", addr, C.cpu_reg_read(cpu, C.ARM_REG_LR))
-				}
-
-				alloc.Freed = true
-			} else {
-				fmt.Printf("Freeing unknown address 0x%08x\n", addr)
-			}
-		}
-	} else if emulator.heap.pendingMalloc && new_pc == C.uint(emulator.heap.pendingMallocReturnPC) {
-		emulator.heap.pendingMalloc = false
-
-		addr := uint32(C.cpu_reg_read(cpu, C.ARM_REG_R0))
-
-		emulator.heap.mallocs = append(emulator.heap.mallocs, HeapAllocation{
-			PC:      uint32(new_pc),
-			Address: addr,
-			Size:    emulator.heap.pendingMallocSize,
-		})
-	}
+	heap             *HeapTracker
 }
 
 var emulators = map[uint64]*Emulator{}
@@ -323,8 +355,7 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 		emulator.freePC = pc
 	}
 	if sym, ok := program.Symbols["ucHeap"]; ok {
-		emulator.heap.heapStart = sym.Start
-		emulator.heap.heapSize = int(sym.Length)
+		emulator.heap = newHeapTracker(sym.Start, int(sym.Length))
 	}
 
 	return &emulator
@@ -439,7 +470,9 @@ func (e *Emulator) RTCTrackers() []*RTCTracker {
 }
 
 func (e *Emulator) EnableHeapTracker() {
-	C.set_cpu_branch_cb(e.cpu, unsafe.Pointer(&e.id))
+	if e.heap != nil {
+		C.set_cpu_branch_cb(e.cpu, unsafe.Pointer(&e.id))
+	}
 }
 
 func (e *Emulator) DisableHeapTracker() {
