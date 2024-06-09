@@ -317,6 +317,7 @@ func main() {
 	var noScheduler bool
 
 	runGDB := flag.Bool("gdb", false, "")
+	analyzeHeap := flag.Bool("heap", false, "")
 	flag.BoolVar(&noScheduler, "no-sched", false, "")
 	flag.Parse()
 
@@ -337,6 +338,10 @@ func main() {
 	}
 
 	emulator := NewEmulator(program, extflashInit)
+
+	if *analyzeHeap {
+		emulator.EnableHeapTracker()
+	}
 
 	emulator.WriteVariable("NoInit_MagicWord", 0, 0xDEAD0000)
 	emulator.WriteVariable("NoInit_BackUpTime", 0, uint64(time.Now().UnixNano()))
@@ -541,7 +546,9 @@ func main() {
 		}
 		imgui.End()
 
-		heapWindow(&emulator.heap)
+		if *analyzeHeap {
+			heapWindow(&emulator.heap)
+		}
 
 		imgui.Render()
 

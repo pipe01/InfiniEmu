@@ -166,6 +166,8 @@ func (h *HeapTracker) GetAll() []HeapAllocation {
 }
 
 type Emulator struct {
+	id uint64
+
 	program *Program
 
 	initialSP uint32
@@ -283,7 +285,10 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 		}
 	}
 
+	id := rand.Uint64()
+
 	emulator := Emulator{
+		id:      id,
 		program: program,
 		pt:      pt,
 		sched:   C.create_sched(pt, baseFrequencyHZ),
@@ -307,12 +312,9 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 	}
 	longPinner.Pin(&emulator)
 
-	id := rand.Uint64()
 	emulators[id] = &emulator
 
 	longPinner.Pin(&id)
-
-	C.set_cpu_branch_cb(cpu, unsafe.Pointer(&id))
 
 	if pc, ok := program.GetPCAtFunction("pvPortMalloc"); ok {
 		emulator.mallocPC = pc
@@ -434,6 +436,14 @@ func (e *Emulator) NumRTC() int {
 
 func (e *Emulator) RTCTrackers() []*RTCTracker {
 	return e.rtcTrackers
+}
+
+func (e *Emulator) EnableHeapTracker() {
+	C.set_cpu_branch_cb(e.cpu, unsafe.Pointer(&e.id))
+}
+
+func (e *Emulator) DisableHeapTracker() {
+	C.set_cpu_branch_cb(e.cpu, nil)
 }
 
 func (e *Emulator) SetFrequency(hz uint) {

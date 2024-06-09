@@ -63,5 +63,8 @@ int run(int type, void *arg)
 
 void set_cpu_branch_cb(cpu_t *cpu, void *userdata)
 {
-	cpu_set_branch_cb(cpu, branch_callback, userdata);
+	if (userdata == NULL)
+		cpu_set_branch_cb(cpu, NULL, NULL);
+	else
+		cpu_set_branch_cb(cpu, branch_callback, userdata);
 }
