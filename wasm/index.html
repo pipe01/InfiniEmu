@@ -23,10 +23,10 @@
 <body>
     <div id="pickerForm">
         <input id="programPicker" type="file" onchange="loadProgramFile(this.files[0])">
-        <h3>
-            Try using
-            <a href="https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin">this</a> InfiniTime build
-        </h3>
+        <br>
+        <button onclick="loadSampleFile()">Load sample file</button>
+        <br>
+        <br>
     </div>
 
     <div style="position: relative">
@@ -80,6 +80,17 @@
                 document.getElementById("pickerForm").remove();
             };
             reader.readAsArrayBuffer(file);
+        }
+
+        function loadSampleFile() {
+            const sampleUrl = "https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin";
+
+            fetch(sampleUrl)
+                .then(resp => resp.arrayBuffer())
+                .then(data => {
+                    myWorker.postMessage({ type: "loadProgram", program: new Uint8Array(data) });
+                    document.getElementById("pickerForm").remove();
+                });
         }
 
         let isMouseDown = false, isButtonDown = false;
