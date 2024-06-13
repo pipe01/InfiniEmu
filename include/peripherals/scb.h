@@ -29,6 +29,7 @@ static_assert(sizeof(SCB_CCR_t) == 4, "SCB_CCR_t size is incorrect");
 
 PERIPHERAL(SCB, scb, cpu_t *cpu)
 
-uint32_t scb_get_prigroup(SCB_t *scb);
-SCB_CCR_t scb_get_ccr(SCB_t *scb);
-uint32_t scb_get_cpacr(SCB_t *scb);
+uint32_t scb_get_prigroup(SCB_t *);
+SCB_CCR_t scb_get_ccr(SCB_t *);
+uint32_t scb_get_cpacr(SCB_t *);
+uint32_t scb_get_vtor_tbloff(SCB_t *);

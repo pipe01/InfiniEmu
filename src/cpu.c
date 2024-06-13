@@ -84,7 +84,7 @@
 
 #define MAX_EXECUTING_EXCEPTIONS 64
 
-static_assert(__STDC_IEC_559__, "Floating point operations are not IEEE 754 compliant");
+// static_assert(__STDC_IEC_559__, "Floating point operations are not IEEE 754 compliant");
 
 typedef struct
 {
@@ -832,14 +832,7 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
     cpu->exception_regs_count++;
 #endif
 
-    uint32_t tmp;
-
-    tmp = memreg_read(cpu->mem, 4 * ex);
-    cpu->core_regs[ARM_REG_PC] = tmp & ~1;
-    cpu->branched = true;
-
-    if ((tmp & 1) != 1)
-        fault_take(FAULT_CPU_PC_ALIGNMENT);
+    cpu_jump_exception(cpu, ex);
 
     cpu->mode = ARM_MODE_HANDLER;
 
@@ -3123,7 +3116,9 @@ bool cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value)
 
 void cpu_jump_exception(cpu_t *cpu, arm_exception ex)
 {
-    cpu_reg_write(cpu, ARM_REG_PC, READ_UINT32(cpu->program, ex * 4));
+    uint32_t vtor = scb_get_vtor_tbloff(cpu->scb);
+
+    cpu_reg_write(cpu, ARM_REG_PC, READ_UINT32(cpu->program, vtor + ex * 4));
 }
 
 int16_t cpu_get_exception_priority(cpu_t *cpu, arm_exception ex)

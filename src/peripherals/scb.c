@@ -13,6 +13,7 @@ struct SCB_inst_t
     uint32_t prigroup;
     uint32_t scr;
     SCB_CCR_t ccr;
+    uint32_t vtor;
 
     cpu_t *cpu;
 };
@@ -28,6 +29,7 @@ OPERATION(scb)
         scb->scr = 0;
         scb->ccr.value = 0;
         scb->ccr.STKALIGN = 1;
+        scb->vtor = 0;
         return MEMREG_RESULT_OK;
     }
 
@@ -80,6 +82,9 @@ OPERATION(scb)
         }
 
         return MEMREG_RESULT_OK;
+
+    case 0x08: // VTOR
+        OP_RETURN_REG(scb->vtor, WORD);
 
     case 0x0C: // AIRCR
         OP_ASSERT_SIZE(op, WORD);
@@ -146,4 +151,9 @@ SCB_CCR_t scb_get_ccr(SCB_t *scb)
 uint32_t scb_get_cpacr(SCB_t *scb)
 {
     return scb->cpacr;
+}
+
+uint32_t scb_get_vtor_tbloff(SCB_t *scb)
+{
+    return scb->vtor & 0xFFFFFF80;
 }

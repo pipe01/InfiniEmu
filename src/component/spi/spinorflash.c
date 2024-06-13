@@ -26,7 +26,7 @@ enum
     COMMAND_RDI = 0xAB,   // Release from Deep Power-Down and Read Device ID
 };
 
-#define MAX_COMMAND_SIZE 32
+#define MAX_COMMAND_SIZE 200
 
 #define READ_UINT24(data, start) (((data)[(start)] << 16) | ((data)[(start) + 1] << 8) | (data)[(start) + 2])
 
