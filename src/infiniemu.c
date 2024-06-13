@@ -121,7 +121,7 @@ int main(int argc, char **argv)
 
                 start = now;
 
-                printf("Elapsed: %lu us\n", elapsed);
+                printf("Elapsed: %llu us\n", elapsed);
                 printf("Instructions ran: %lu\n", inst_counter);
                 printf("Instructions per second: %.0f\n", (1000000.f / elapsed) * inst_counter);
                 printf("\n");
