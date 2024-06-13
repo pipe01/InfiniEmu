@@ -54,58 +54,54 @@ onmessage = (e) => {
             Module._pins_clear(pins, 13);
             break;
 
-        case "loadProgramFile":
+        case "loadProgram":
             if (pt) {
                 console.error("Pinetime already loaded");
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const program = new Uint8Array(e.target.result);
+            const program = e.data.program;
+            console.log(program);
 
-                pt = Module.ccall("pinetime_new", "any", ["array", "number", "boolean"], [program, program.length, true]);
-                lcd = Module._pinetime_get_st7789(pt);
-                touch = Module._pinetime_get_cst816s(pt);
-                pins = Module._nrf52832_get_pins(Module._pinetime_get_nrf52832(pt));
+            pt = Module.ccall("pinetime_new", "any", ["array", "number", "boolean"], [program, program.length, true]);
+            lcd = Module._pinetime_get_st7789(pt);
+            touch = Module._pinetime_get_cst816s(pt);
+            pins = Module._nrf52832_get_pins(Module._pinetime_get_nrf52832(pt));
 
-                displayBufferPointer = Module._malloc(240 * 240 * 2);
-                rgbaBufferPointer = Module._malloc(240 * 240 * 4);
+            displayBufferPointer = Module._malloc(240 * 240 * 2);
+            rgbaBufferPointer = Module._malloc(240 * 240 * 4);
 
-                const interval = setInterval(() => {
-                    const start = new Date().valueOf();
+            const interval = setInterval(() => {
+                const start = new Date().valueOf();
 
-                    try {
-                        if (Module._pinetime_loop(pt, iterations))
-                            sendScreenUpdate();
-                    } catch (error) {
-                        clearInterval(displayInterval);
-                        clearInterval(interval);
-                        throw error;
-                    }
+                try {
+                    if (Module._pinetime_loop(pt, iterations))
+                        sendScreenUpdate();
+                } catch (error) {
+                    clearInterval(interval);
+                    throw error;
+                }
 
-                    const end = new Date().valueOf();
+                const end = new Date().valueOf();
 
-                    const lcdSleepingNow = Module._st7789_is_sleeping(lcd);
-                    if (lcdSleepingNow !== isLcdSleeping) {
-                        isLcdSleeping = lcdSleepingNow;
-
-                        postMessage({
-                            type: "lcdSleeping",
-                            data: isLcdSleeping,
-                        });
-                    }
+                const lcdSleepingNow = Module._st7789_is_sleeping(lcd);
+                if (lcdSleepingNow !== isLcdSleeping) {
+                    isLcdSleeping = lcdSleepingNow;
 
                     postMessage({
-                        type: "performance",
-                        data: {
-                            loopTime: end - start,
-                            ips: iterations / ((end - start) / 1000)
-                        },
+                        type: "lcdSleeping",
+                        data: isLcdSleeping,
                     });
-                }, 1);
-            }
-            reader.readAsArrayBuffer(e.data.file);
+                }
+
+                postMessage({
+                    type: "performance",
+                    data: {
+                        loopTime: end - start,
+                        ips: iterations / ((end - start) / 1000)
+                    },
+                });
+            }, 1);
             break;
     }
 };

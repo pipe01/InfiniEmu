@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <script src="https://cdn.jsdelivr.net/npm/@zip.js/zip.js@2.7.45/dist/zip.min.js"></script>
     <style>
         #sleepCover {
             position: absolute;
@@ -40,9 +41,56 @@
         const display = document.getElementById("display");
         const sleepCover = document.getElementById("sleepCover");
 
+        async function loadDFU(data) {
+            const zr = new zip.ZipReader(new zip.Uint8ArrayReader(data));
+
+            let entries;
+            try {
+                entries = await zr.getEntries();
+            } catch (e) {
+                console.log("Failed to read input as ZIP file", e);
+                return false;
+            }
+
+            const manifestEntry = entries.find(e => e.filename == "manifest.json");
+            if (!manifestEntry) {
+                alert("No manifest.json found in the ZIP file");
+                return;
+            }
+
+            const manifestData = await manifestEntry.getData(new zip.TextWriter());
+            const manifest = JSON.parse(manifestData);
+
+            const binFileName = manifest.manifest?.application?.bin_file;
+            if (!binFileName) {
+                alert("No bin_file specified in the manifest.json");
+                return;
+            }
+
+            const binEntry = entries.find(e => e.filename == binFileName);
+            if (!binEntry) {
+                alert(`Bin file "${binFileName}" not found in the ZIP file`);
+                return;
+            }
+
+            const binData = await binEntry.getData(new zip.Uint8ArrayWriter());
+            return binData;
+        }
+
         function loadProgramFile(file) {
-            myWorker.postMessage({ type: "loadProgramFile", file });
-            document.getElementById("pickerForm").remove();
+            const reader = new FileReader();
+            reader.onload = async e => {
+                const arr = new Uint8Array(e.target.result);
+
+                const binFile = await loadDFU(arr);
+                if (binFile) {
+                    myWorker.postMessage({ type: "loadProgram", program: binFile });
+                } else {
+                    myWorker.postMessage({ type: "loadProgram", program: arr });
+                }
+                document.getElementById("pickerForm").remove();
+            };
+            reader.readAsArrayBuffer(file);
         }
 
         let isMouseDown = false, isButtonDown = false;
