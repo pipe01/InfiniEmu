@@ -33,8 +33,8 @@ import (
 )
 
 const (
-	displayWidth         = 240
-	displayHeight        = 240
+	displayWidth         = C.PINETIME_LCD_WIDTH
+	displayHeight        = C.PINETIME_LCD_HEIGHT
 	displayBytesPerPixel = C.BYTES_PER_PIXEL
 )
 
