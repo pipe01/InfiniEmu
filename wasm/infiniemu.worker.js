@@ -45,7 +45,7 @@ onmessage = (e) => {
         case "clearTouch":
             Module._cst816s_release_touch(touch);
             break;
-        
+
         case "pressButton":
             Module._pins_set(pins, 13);
             break;
@@ -72,25 +72,12 @@ onmessage = (e) => {
                 displayBufferPointer = Module._malloc(240 * 240 * 2);
                 rgbaBufferPointer = Module._malloc(240 * 240 * 4);
 
-                let screenUpdated = false;
-
-                let lastUpdateTime = 0;
-                const displayInterval = setInterval(() => {
-                    if (screenUpdated) {
-                        sendScreenUpdate();
-                        screenUpdated = false;
-
-                        console.log("Screen updated", new Date().valueOf() - lastUpdateTime);
-                        lastUpdateTime = new Date().valueOf();
-                    }
-                }, 1000 / 60);
-
                 const interval = setInterval(() => {
                     const start = new Date().valueOf();
 
                     try {
                         if (Module._pinetime_loop(pt, iterations))
-                            screenUpdated = true;
+                            sendScreenUpdate();
                     } catch (error) {
                         clearInterval(displayInterval);
                         clearInterval(interval);
