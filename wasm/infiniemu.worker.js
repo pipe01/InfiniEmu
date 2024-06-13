@@ -14,23 +14,27 @@ const iterations = 700000;
 var pt, lcd, touch, pins;
 
 var isLcdSleeping = false;
-var displayBufferPointer;
+var displayBufferPointer, rgbaBufferPointer;
+
+let imageData, ctx2d;
 
 function sendScreenUpdate() {
-    Module._st7789_read_screen(lcd, displayBufferPointer, 240, 240);
+    Module._st7789_read_screen_rgba(lcd, displayBufferPointer, rgbaBufferPointer, 240, 240);
 
-    const arr = new Uint8Array(Module.HEAPU8.buffer, displayBufferPointer, 240 * 240 * 2);
+    const arr = new Uint8Array(Module.HEAPU8.buffer, rgbaBufferPointer, 240 * 240 * 4);
 
-    postMessage({
-        type: "screenLoaded",
-        data: arr,
-    });
+    imageData.data.set(arr);
+    ctx2d.putImageData(imageData, 0, 0);
 }
 
 onmessage = (e) => {
-    console.log(e);
-    
     switch (e.data.type) {
+        case "init":
+            const canvas = e.data.canvas;
+            ctx2d = canvas.getContext("2d");
+            imageData = ctx2d.createImageData(240, 240);
+            break;
+
         case "doTouch":
             Module._cst816s_do_touch(touch, e.data.gesture, e.data.x, e.data.y);
 
@@ -66,15 +70,20 @@ onmessage = (e) => {
                 pins = Module._nrf52832_get_pins(Module._pinetime_get_nrf52832(pt));
 
                 displayBufferPointer = Module._malloc(240 * 240 * 2);
+                rgbaBufferPointer = Module._malloc(240 * 240 * 4);
 
                 let screenUpdated = false;
 
+                let lastUpdateTime = 0;
                 const displayInterval = setInterval(() => {
                     if (screenUpdated) {
                         sendScreenUpdate();
                         screenUpdated = false;
+
+                        console.log("Screen updated", new Date().valueOf() - lastUpdateTime);
+                        lastUpdateTime = new Date().valueOf();
                     }
-                }, 1000 / 30);
+                }, 1000 / 60);
 
                 const interval = setInterval(() => {
                     const start = new Date().valueOf();

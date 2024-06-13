@@ -23,7 +23,7 @@
     <div id="pickerForm">
         <input id="programPicker" type="file" onchange="loadProgramFile(this.files[0])">
         <h3>
-            Try using 
+            Try using
             <a href="https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin">this</a> InfiniTime build
         </h3>
     </div>
@@ -113,45 +113,31 @@
             }
         });
 
+        const ipsData = [];
+
+        setInterval(() => {
+            const avg = ipsData.reduce((acc, val) => acc + val, 0) / ipsData.length;
+
+            document.getElementById("performance").innerText = avg.toFixed(0) + " instructions per second";
+        }, 500);
+
+        const offscreen = display.transferControlToOffscreen();
+
+        myWorker.postMessage({ type: "init", canvas: offscreen }, [offscreen]);
+
         myWorker.onmessage = function (e) {
             const { type, data } = e.data;
 
             switch (type) {
                 case "performance":
-                    document.getElementById("performance").innerText = data.ips.toFixed(0) + " instructions per second";
+                    ipsData.push(data.ips);
+                    if (ipsData.length > 20) {
+                        ipsData.shift();
+                    }
                     break;
 
                 case "lcdSleeping":
-                    console.log("sleeping", data);
                     sleepCover.style.display = data ? "block" : "none";
-                    break;
-
-                case "screenLoaded":
-                    const ctx = display.getContext("2d");
-                    const imageData = ctx.createImageData(240, 240);
-
-                    const dv = new DataView(data.buffer.slice(data.byteOffset, data.byteOffset + data.length));
-
-                    for (let x = 0; x < 240; x++) {
-                        for (let y = 0; y < 240; y++) {
-                            const pixel16 = dv.getUint16((y * 240 + x) * 2, false);
-
-                            const r = (pixel16 >> 11) & 0x1f;
-                            const g = (pixel16 >> 5) & 0x3f;
-                            const b = pixel16 & 0x1f;
-
-                            const r8 = Math.floor((r * 527 + 23) >> 6) & 0xFF;
-                            const g8 = Math.floor((g * 259 + 33) >> 6) & 0xFF;
-                            const b8 = Math.floor((b * 527 + 23) >> 6) & 0xFF;
-
-                            const pixelIndex4 = (y * 240 + x) * 4;
-                            imageData.data[pixelIndex4 + 0] = r8;
-                            imageData.data[pixelIndex4 + 1] = g8;
-                            imageData.data[pixelIndex4 + 2] = b8;
-                            imageData.data[pixelIndex4 + 3] = 255;
-                        }
-                    }
-                    ctx.putImageData(imageData, 0, 0);
                     break;
             }
         };
