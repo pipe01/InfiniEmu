@@ -73,16 +73,20 @@ onmessage = (e) => {
 
             const interval = setInterval(() => {
                 const start = new Date().valueOf();
+                let screenUpdated;
 
                 try {
-                    if (Module._pinetime_loop(pt, iterations))
-                        sendScreenUpdate();
+                    screenUpdated = Module._pinetime_loop(pt, iterations);
                 } catch (error) {
                     clearInterval(interval);
-                    throw error;
+                    postMessage({ type: "error", data: error.toString() });
+                    return;
                 }
 
                 const end = new Date().valueOf();
+
+                if (screenUpdated)
+                    sendScreenUpdate();
 
                 const lcdSleepingNow = Module._st7789_is_sleeping(lcd);
                 if (lcdSleepingNow !== isLcdSleeping) {

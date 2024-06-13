@@ -187,6 +187,10 @@
                 case "lcdSleeping":
                     sleepCover.style.display = data ? "block" : "none";
                     break;
+
+                case "error":
+                    alert("Emulation failed: " + data);
+                    break;
             }
         };
     </script>
