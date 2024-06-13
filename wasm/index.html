@@ -52,25 +52,14 @@
                 return false;
             }
 
-            const manifestEntry = entries.find(e => e.filename == "manifest.json");
-            if (!manifestEntry) {
-                alert("No manifest.json found in the ZIP file");
-                return;
-            }
-
-            const manifestData = await manifestEntry.getData(new zip.TextWriter());
-            const manifest = JSON.parse(manifestData);
-
-            const binFileName = manifest.manifest?.application?.bin_file;
-            if (!binFileName) {
-                alert("No bin_file specified in the manifest.json");
-                return;
-            }
-
-            const binEntry = entries.find(e => e.filename == binFileName);
+            const binEntry = entries.find(e => e.filename.endsWith(".bin"));
             if (!binEntry) {
                 alert(`Bin file "${binFileName}" not found in the ZIP file`);
                 return;
+            }
+
+            if (binEntry.filename.includes("mcuboot")) {
+                alert("MCUBoot DFU files are not supported, this probably won't work");
             }
 
             const binData = await binEntry.getData(new zip.Uint8ArrayWriter());
