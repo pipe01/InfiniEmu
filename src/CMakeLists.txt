@@ -13,7 +13,6 @@ set(SRC_FILES
     scheduler.c
     segger_rtt.c
     ticker.c
-    wasm.c
 
     component/i2c/bma425.c
     component/i2c/cst816s.c
@@ -57,13 +56,15 @@ set(WASM_EXPORTS
 set(LIBS m tiny-aes capstone)
 
 if(EMSCRIPTEN)
+    list(APPEND SRC_FILES wasm.c)
+
     add_executable(infiniemu-wasm ${SRC_FILES})
     target_link_libraries(infiniemu-wasm PUBLIC ${LIBS})
     set_property(TARGET infiniemu-wasm PROPERTY OUTPUT_NAME infiniemu)
 
     list(TRANSFORM WASM_EXPORTS PREPEND "_" OUTPUT_VARIABLE WASM_EXPORTS)
     list(JOIN WASM_EXPORTS "," WASM_EXPORTS_STR)
-    
+
     target_link_options(infiniemu-wasm PRIVATE "-sEXPORTED_FUNCTIONS=${WASM_EXPORTS_STR}")
     target_link_options(infiniemu-wasm PRIVATE -sTOTAL_STACK=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=ccall,cwrap)
 else()
