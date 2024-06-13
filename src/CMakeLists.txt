@@ -54,24 +54,26 @@ set(WASM_EXPORTS
     pinetime_get_nrf52832 nrf52832_get_pins pins_set pins_clear
 )
 
+set(LIBS m tiny-aes capstone)
+
 if(EMSCRIPTEN)
+    add_executable(infiniemu-wasm ${SRC_FILES})
+    target_link_libraries(infiniemu-wasm PUBLIC ${LIBS})
+    set_property(TARGET infiniemu-wasm PROPERTY OUTPUT_NAME infiniemu)
+
     list(TRANSFORM WASM_EXPORTS PREPEND "_" OUTPUT_VARIABLE WASM_EXPORTS)
     list(JOIN WASM_EXPORTS "," WASM_EXPORTS_STR)
+    
+    target_link_options(infiniemu-wasm PRIVATE "-sEXPORTED_FUNCTIONS=${WASM_EXPORTS_STR}")
+    target_link_options(infiniemu-wasm PRIVATE -sTOTAL_STACK=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=ccall,cwrap)
+else()
+    add_executable(infiniemu-cli ${SRC_FILES} main.c)
+    add_library(infiniemu-lib STATIC ${SRC_FILES})
 
-    add_link_options("-sEXPORTED_FUNCTIONS=${WASM_EXPORTS_STR}")
-    add_link_options(-sTOTAL_STACK=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=ccall,cwrap)
+    target_link_libraries(infiniemu-cli PUBLIC ${LIBS})
+    target_link_libraries(infiniemu-lib PUBLIC ${LIBS})
+
+    set_property(TARGET infiniemu-lib PROPERTY OUTPUT_NAME infiniemu)
+
+    bundle_static_library(infiniemu-lib infiniemu_bundle)
 endif()
-
-add_executable(infiniemu-cli ${SRC_FILES} infiniemu.c)
-add_library(infiniemu-lib STATIC ${SRC_FILES})
-
-target_link_libraries(infiniemu-cli PUBLIC m tiny-aes capstone)
-target_link_libraries(infiniemu-lib PUBLIC m tiny-aes capstone)
-
-set_property(TARGET infiniemu-lib PROPERTY OUTPUT_NAME infiniemu)
-
-if(EMSCRIPTEN)
-    set_property(TARGET infiniemu-cli PROPERTY OUTPUT_NAME infiniemu)
-endif()
-
-bundle_static_library(infiniemu-lib infiniemu_bundle)
