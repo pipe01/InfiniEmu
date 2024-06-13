@@ -86,7 +86,7 @@ struct st7789_t
     command_t command;
     size_t expecting_data;
 
-    uint8_t screen[DISPLAY_WIDTH * DISPLAY_HEIGHT * BYTES_PER_PIXEL];
+    uint8_t screen[DISPLAY_BUFFER_WIDTH * DISPLAY_BUFFER_HEIGHT * BYTES_PER_PIXEL];
     uint8_t *screen_buffer;
     size_t screen_buffer_ptr;
 };
@@ -119,10 +119,10 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
             {
                 assert_fault(st7789->xend.value >= st7789->xstart.value, FAULT_ST7789_INVALID_COORDS);
                 assert_fault(st7789->yend.value >= st7789->ystart.value, FAULT_ST7789_INVALID_COORDS);
-                assert_fault(st7789->xstart.value < DISPLAY_WIDTH, FAULT_ST7789_INVALID_COORDS);
-                assert_fault(st7789->xend.value < DISPLAY_WIDTH, FAULT_ST7789_INVALID_COORDS);
-                assert_fault(st7789->ystart.value < DISPLAY_HEIGHT, FAULT_ST7789_INVALID_COORDS);
-                assert_fault(st7789->yend.value < DISPLAY_HEIGHT, FAULT_ST7789_INVALID_COORDS);
+                assert_fault(st7789->xstart.value < DISPLAY_BUFFER_WIDTH, FAULT_ST7789_INVALID_COORDS);
+                assert_fault(st7789->xend.value < DISPLAY_BUFFER_WIDTH, FAULT_ST7789_INVALID_COORDS);
+                assert_fault(st7789->ystart.value < DISPLAY_BUFFER_HEIGHT, FAULT_ST7789_INVALID_COORDS);
+                assert_fault(st7789->yend.value < DISPLAY_BUFFER_HEIGHT, FAULT_ST7789_INVALID_COORDS);
 
                 uint16_t width = st7789->xend.value - st7789->xstart.value + 1;
                 uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
@@ -131,11 +131,11 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
                 // static int counter = 0;
                 // printf("WriteToRam %d: %d x %d starting at %d,%d\n", counter++, width, height, st7789->xstart.value, st7789->ystart.value);
 
-                size_t region_start_px = (DISPLAY_WIDTH * st7789->ystart.value) + st7789->xstart.value;
+                size_t region_start_px = (DISPLAY_BUFFER_WIDTH * st7789->ystart.value) + st7789->xstart.value;
 
                 for (size_t row = 0; row < height; row++)
                 {
-                    size_t start_px = region_start_px + row * DISPLAY_WIDTH;
+                    size_t start_px = region_start_px + row * DISPLAY_BUFFER_WIDTH;
                     size_t start = start_px * BYTES_PER_PIXEL;
 
                     assert(start + stride <= sizeof(st7789->screen));
@@ -362,10 +362,10 @@ spi_slave_t st7789_get_slave(st7789_t *st7789)
 
 void st7789_read_screen(st7789_t *st, uint8_t *data, size_t width, size_t height)
 {
-    assert(width == DISPLAY_WIDTH);
-    assert(height <= DISPLAY_HEIGHT);
+    assert(width == DISPLAY_BUFFER_WIDTH);
+    assert(height <= DISPLAY_BUFFER_HEIGHT);
 
-    size_t start = st->vertical_scroll_start.value * DISPLAY_WIDTH * BYTES_PER_PIXEL;
+    size_t start = st->vertical_scroll_start.value * DISPLAY_BUFFER_WIDTH * BYTES_PER_PIXEL;
     size_t length = width * height * BYTES_PER_PIXEL;
 
     if (start + length > sizeof(st->screen))
