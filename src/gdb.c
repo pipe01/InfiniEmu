@@ -18,7 +18,7 @@
 
 #define QUOTE(...) #__VA_ARGS__
 
-#ifdef ENABLE_LOG_GDB
+#if ENABLE_LOG_GDB
 #define LOGF(msg, ...) printf("[GDB] " msg, __VA_ARGS__)
 #define LOG(msg) printf("[GDB] " msg "\n")
 #else

@@ -8,7 +8,7 @@
 #include "config.h"
 #include "fault.h"
 
-#ifdef ENABLE_LOG_SPI_FLASH
+#if ENABLE_LOG_SPI_FLASH
 #define LOGF(...) printf(__VA_ARGS__)
 #else
 #define LOGF(...)
@@ -90,7 +90,7 @@ void spinorflash_write_internal(const uint8_t *data, size_t data_size, void *use
         fault_take(FAULT_SPI_COMMAND_TOO_LONG);
     }
 
-#ifdef ENABLE_LOG_SPI_FLASH
+#if ENABLE_LOG_SPI_FLASH
     LOGF("SPI flash got data: ");
     for (size_t i = 0; i < data_size; i++)
     {

@@ -9,7 +9,7 @@ endif()
 
 include("./cmake/bundle.cmake")
 
-include_directories(include lib)
+include_directories(include lib .)
 
 add_subdirectory(lib/tiny-AES-c)
 

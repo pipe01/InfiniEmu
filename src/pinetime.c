@@ -16,7 +16,7 @@ struct pinetime_t
     hrs3300_t *hrs;
     spinorflash_t *extflash;
 
-#ifdef ENABLE_SEGGER_RTT
+#if ENABLE_SEGGER_RTT
     rtt_t *rtt;
     bool rtt_found;
     size_t rtt_counter;
@@ -32,7 +32,7 @@ pinetime_t *pinetime_new(const uint8_t *program, size_t program_size, bool big_r
     pt->hrs = hrs3300_new();
     pt->extflash = spinorflash_new(PINETIME_EXTFLASH_SIZE, PINETIME_EXTFLASH_SECTOR_SIZE);
 
-#ifdef ENABLE_SEGGER_RTT
+#if ENABLE_SEGGER_RTT
     pt->rtt = rtt_new(cpu_mem(nrf52832_get_cpu(pt->nrf)));
     pt->rtt_counter = 0;
 #endif
@@ -55,7 +55,7 @@ void pinetime_free(pinetime_t *pt)
 
 void pinetime_reset(pinetime_t *pt)
 {
-#ifdef ENABLE_SEGGER_RTT
+#if ENABLE_SEGGER_RTT
     pt->rtt_counter = 0;
     pt->rtt_found = false;
 #endif
@@ -67,7 +67,7 @@ void pinetime_step(pinetime_t *pt)
 {
     nrf52832_step(pt->nrf);
 
-#ifdef ENABLE_SEGGER_RTT
+#if ENABLE_SEGGER_RTT
     if (pt->rtt_found || pt->rtt_counter < 1000000)
     {
         if (pt->rtt_counter % 1000 == 0)

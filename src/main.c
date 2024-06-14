@@ -112,7 +112,7 @@ int main(int argc, char **argv)
         {
             pinetime_step(pt);
 
-#ifdef ENABLE_MEASUREMENT
+#if ENABLE_MEASUREMENT
             if (++inst_counter == 1000000)
             {
                 now = microseconds_now();

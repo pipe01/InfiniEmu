@@ -57,6 +57,7 @@ set(LIBS m tiny-aes capstone)
 
 if(EMSCRIPTEN)
     list(APPEND SRC_FILES wasm.c)
+    add_compile_definitions(WASM=1)
 
     add_executable(infiniemu-wasm ${SRC_FILES})
     target_link_libraries(infiniemu-wasm PUBLIC ${LIBS})

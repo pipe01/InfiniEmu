@@ -100,7 +100,7 @@ void bma425_write(uint8_t *data, size_t data_size, void *userdata)
 
     uint8_t reg = data[0];
 
-#ifdef ENABLE_LOG_BMA425
+#if ENABLE_LOG_BMA425
     printf("BMA425 got data: ");
     for (size_t i = 0; i < data_size; i++)
     {

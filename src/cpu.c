@@ -19,13 +19,13 @@
 
 #define LOG(tag, msg, ...) printf("0x%08X: [" tag "] " msg "\n", cpu->core_regs[ARM_REG_PC], ##__VA_ARGS__)
 
-#ifdef ENABLE_LOG_CPU_EXCEPTIONS
+#if ENABLE_LOG_CPU_EXCEPTIONS
 #define LOG_CPU_EX(msg, ...) LOG("CPU_EX", msg, __VA_ARGS__)
 #else
 #define LOG_CPU_EX(...)
 #endif
 
-#ifdef ENABLE_LOG_CPU_INSTRUCTIONS
+#if ENABLE_LOG_CPU_INSTRUCTIONS
 #define LOG_CPU_INST(msg, ...) LOG("CPU_INST", msg, __VA_ARGS__)
 #else
 #define LOG_CPU_INST(...)

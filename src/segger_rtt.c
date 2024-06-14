@@ -1,8 +1,8 @@
 #include "config.h"
 
-#ifdef ENABLE_SEGGER_RTT
+#if ENABLE_SEGGER_RTT
 
-#ifdef ENABLE_LOG_SEGGER_RTT
+#if ENABLE_LOG_SEGGER_RTT
 #define LOG(msg, ...) printf("[RTT] " msg, __VA_ARGS__)
 #else
 #define LOG(...)
