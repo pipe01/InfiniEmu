@@ -63,6 +63,7 @@ OPERATION(clock)
         OP_TASK(TASKS_HFCLKSTART)
         OP_TASK(TASKS_HFCLKSTOP)
         OP_TASK(TASKS_LFCLKSTART)
+        OP_TASK(TASKS_LFCLKSTOP)
         OP_EVENT(EVENTS_HFCLKSTARTED)
         OP_EVENT(EVENTS_LFCLKSTARTED)
         OP_EVENT(EVENTS_DONE)
@@ -134,6 +135,10 @@ PPI_TASK_HANDLER(clock_task_handler)
     case TASK_ID(TASKS_LFCLKSTART):
         clock->lfclk_running = true;
         ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_LFCLKSTARTED), clock->inten.LFCLKSTARTED);
+        break;
+
+    case TASK_ID(TASKS_LFCLKSTOP):
+        clock->lfclk_running = false;
         break;
 
     default:
