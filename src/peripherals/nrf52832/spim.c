@@ -72,7 +72,7 @@ PPI_TASK_HANDLER(spim_task_handler)
 
     if (spim->tx.ptr)
     {
-        spi_result_t result = spi_write(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
+        spi_result_t result = spi_write_dma(spim->bus, spim->tx.ptr, spim->tx.maxcnt);
         if (result == SPI_RESULT_OK)
             ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDTX), spim->inten.ENDTX);
         else
@@ -80,7 +80,7 @@ PPI_TASK_HANDLER(spim_task_handler)
     }
     else if (spim->rx.ptr)
     {
-        size_t read = spi_read(spim->bus, spim->rx.ptr, spim->rx.maxcnt);
+        size_t read = spi_read_dma(spim->bus, spim->rx.ptr, spim->rx.maxcnt);
         spim->rx.amount = read;
         ppi_fire_event(ppi, peripheral, EVENT_ID(EVENTS_ENDRX), spim->inten.ENDRX);
     }

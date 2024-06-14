@@ -51,7 +51,7 @@ OPERATION(nvic)
         OP_ASSERT_SIZE(op, WORD);
 
         bool is_set = offset <= 0x40;
-        uint32_t iser_num = offset / 4;
+        uint32_t iser_num = (is_set ? offset : offset - 0x80) / 4;
 
         if (OP_IS_READ(op))
             *value = 0;

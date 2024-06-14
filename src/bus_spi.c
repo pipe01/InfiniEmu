@@ -81,7 +81,7 @@ void spi_add_slave(bus_spi_t *spi, uint8_t cs_pin, spi_slave_t slave)
     spi->slave_count++;
 }
 
-spi_result_t spi_write(bus_spi_t *spi, uint32_t address, size_t size)
+spi_result_t spi_write_dma(bus_spi_t *spi, uint32_t address, size_t size)
 {
     if (address < ARM_SRAM_START || address >= ARM_SRAM_END) // TODO: Check end too
     {
@@ -104,7 +104,7 @@ spi_result_t spi_write(bus_spi_t *spi, uint32_t address, size_t size)
     return handled ? SPI_RESULT_OK : SPI_RESULT_NO_SELECTED;
 }
 
-size_t spi_read(bus_spi_t *spi, uint32_t address, size_t size)
+size_t spi_read_dma(bus_spi_t *spi, uint32_t address, size_t size)
 {
     if (address < ARM_SRAM_START || address >= ARM_SRAM_END) // TODO: Check end too
     {
