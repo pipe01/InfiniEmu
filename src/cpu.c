@@ -391,7 +391,7 @@ static void cpu_it_advance(cpu_t *cpu)
 
 static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
 {
-    if (i->id == ARM_INS_B)
+    if (i->id == ARM_INS_B && !cpu_in_it_block(cpu))
         return i->detail->arm.cc;
 
     if (cpu->itstate.value == 0)
