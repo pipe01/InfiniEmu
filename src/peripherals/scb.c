@@ -98,7 +98,12 @@ OPERATION(scb)
             if ((*value & x(FFFF, 0000)) != x(05FA, 0000))
                 return MEMREG_RESULT_INVALID_ACCESS;
 
-            fault_take(FAULT_NOT_IMPLEMENTED); // TODO: Implement
+            scb->prigroup = (*value >> 8) & 0x7;
+
+            if (*value & MASK(2)) // SYSRESETREQ
+                cpu_reset(scb->cpu);
+
+            // TODO: Implement other bits
         }
 
         return MEMREG_RESULT_OK;
