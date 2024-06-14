@@ -580,6 +580,8 @@ arm_exception cpu_get_top_running_exception(cpu_t *cpu)
 
 void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
 {
+    assert(ex < ARM_EXC_EXTERNAL_END);
+
     if (!cpu->exceptions[ex].pending)
     {
         cpu->pending_exception_count++;
@@ -616,6 +618,8 @@ static arm_exception cpu_exception_get_pending(cpu_t *cpu)
 
 void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
 {
+    assert(ex < ARM_EXC_EXTERNAL_END);
+
     if (cpu->exceptions[ex].pending)
     {
         cpu->pending_exception_count--;
@@ -627,16 +631,22 @@ void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
 
 bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex)
 {
+    assert(ex < ARM_EXC_EXTERNAL_END);
+
     return cpu->exceptions[ex].pending;
 }
 
 bool cpu_exception_is_active(cpu_t *cpu, arm_exception ex)
 {
+    assert(ex < ARM_EXC_EXTERNAL_END);
+
     return cpu->exceptions[ex].active;
 }
 
 static void cpu_exception_set_active(cpu_t *cpu, arm_exception ex, bool active)
 {
+    assert(ex < ARM_EXC_EXTERNAL_END);
+
     if (cpu->exceptions[ex].active == active)
         return;
 
@@ -651,6 +661,8 @@ static void cpu_exception_set_active(cpu_t *cpu, arm_exception ex, bool active)
 
 void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
 {
+    assert(ex < ARM_EXC_EXTERNAL_END);
+
     if (cpu->exceptions[ex].fixed_enabled)
         fault_take(FAULT_CPU_FIXED_EXCEPTION);
 
@@ -659,6 +671,8 @@ void cpu_exception_set_enabled(cpu_t *cpu, arm_exception ex, bool enabled)
 
 bool cpu_exception_get_enabled(cpu_t *cpu, arm_exception ex)
 {
+    assert(ex < ARM_EXC_EXTERNAL_END);
+
     return cpu->exceptions[ex].enabled;
 }
 
