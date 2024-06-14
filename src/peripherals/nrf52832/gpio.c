@@ -42,6 +42,19 @@ static inline uint32_t read_gpios(pins_t *pins)
     return gpios;
 }
 
+static inline uint32_t read_dirs(pins_t *pins)
+{
+    uint32_t dirs = 0;
+
+    for (int i = 0; i < 32; i++)
+    {
+        if (!pins_is_input(pins, i))
+            dirs |= 1 << i;
+    }
+
+    return dirs;
+}
+
 OPERATION(gpio)
 {
     GPIO_t *gpio = (GPIO_t *)userdata;
@@ -162,6 +175,53 @@ OPERATION(gpio)
         OP_ASSERT_READ(op);
 
         *value = read_gpios(gpio->pins);
+        return MEMREG_RESULT_OK;
+
+    case 0x514: // DIR
+        if (OP_IS_READ(op))
+        {
+            *value = read_dirs(gpio->pins);
+        }
+        else if (OP_IS_WRITE(op))
+        {
+            for (size_t i = 0; i < 32; i++)
+            {
+                if (*value & (1 << i))
+                    pins_set_output(gpio->pins, i);
+                else
+                    pins_set_input(gpio->pins, i);
+            }
+        }
+        return MEMREG_RESULT_OK;
+
+    case 0x518: // DIRSET
+        if (OP_IS_READ(op))
+        {
+            *value = read_dirs(gpio->pins);
+        }
+        else if (OP_IS_WRITE(op))
+        {
+            for (size_t i = 0; i < 32; i++)
+            {
+                if (*value & (1 << i))
+                    pins_set_output(gpio->pins, i);
+            }
+        }
+        return MEMREG_RESULT_OK;
+
+    case 0x51C: // DIRCLR
+        if (OP_IS_READ(op))
+        {
+            *value = read_dirs(gpio->pins);
+        }
+        else if (OP_IS_WRITE(op))
+        {
+            for (size_t i = 0; i < 32; i++)
+            {
+                if (*value & (1 << i))
+                    pins_set_input(gpio->pins, i);
+            }
+        }
         return MEMREG_RESULT_OK;
 
     default:
