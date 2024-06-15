@@ -26,7 +26,7 @@ struct bus_spi_t
     pins_t *pins;
 };
 
-bus_spi_t *spi_new(pins_t *pins, uint8_t *ram, size_t ram_size)
+bus_spi_t *bus_spi_new(pins_t *pins, uint8_t *ram, size_t ram_size)
 {
     bus_spi_t *spi = (bus_spi_t *)calloc(1, sizeof(bus_spi_t));
     spi->pins = pins;
@@ -35,7 +35,7 @@ bus_spi_t *spi_new(pins_t *pins, uint8_t *ram, size_t ram_size)
     return spi;
 }
 
-void spi_reset(bus_spi_t *spi)
+void bus_spi_reset(bus_spi_t *spi)
 {
     for (size_t i = 0; i < spi->slave_count; i++)
     {
@@ -43,7 +43,7 @@ void spi_reset(bus_spi_t *spi)
     }
 }
 
-void spi_free(bus_spi_t *spi)
+void bus_spi_free(bus_spi_t *spi)
 {
     for (size_t i = 0; i < spi->slave_count; i++)
     {
@@ -53,7 +53,7 @@ void spi_free(bus_spi_t *spi)
     free(spi);
 }
 
-void spi_step(bus_spi_t *spi)
+void bus_spi_step(bus_spi_t *spi)
 {
     for (size_t i = 0; i < spi->slave_count; i++)
     {
@@ -68,7 +68,7 @@ void spi_step(bus_spi_t *spi)
     }
 }
 
-void spi_add_slave(bus_spi_t *spi, uint8_t cs_pin, spi_slave_t slave)
+void bus_spi_add_slave(bus_spi_t *spi, uint8_t cs_pin, spi_slave_t slave)
 {
     // TODO: Check too many slaves
 
@@ -81,7 +81,7 @@ void spi_add_slave(bus_spi_t *spi, uint8_t cs_pin, spi_slave_t slave)
     spi->slave_count++;
 }
 
-spi_result_t spi_write_dma(bus_spi_t *spi, uint32_t address, size_t size)
+spi_result_t bus_spi_write_dma(bus_spi_t *spi, uint32_t address, size_t size)
 {
     if (address < ARM_SRAM_START || address >= ARM_SRAM_END) // TODO: Check end too
     {
@@ -90,13 +90,19 @@ spi_result_t spi_write_dma(bus_spi_t *spi, uint32_t address, size_t size)
     }
 
     uint32_t offset = address - ARM_SRAM_START;
+
+    return bus_spi_write(spi, spi->ram + offset, size);
+}
+
+spi_result_t bus_spi_write(bus_spi_t *spi, const uint8_t *data, size_t size)
+{
     bool handled = false;
 
     for (size_t i = 0; i < spi->slave_count; i++)
     {
         if (!pins_is_set(spi->pins, spi->slave_pin[i]))
         {
-            spi->slaves[i]->write(spi->ram + offset, size, spi->slaves[i]->userdata);
+            spi->slaves[i]->write(data, size, spi->slaves[i]->userdata);
             handled = true;
         }
     }
@@ -104,7 +110,7 @@ spi_result_t spi_write_dma(bus_spi_t *spi, uint32_t address, size_t size)
     return handled ? SPI_RESULT_OK : SPI_RESULT_NO_SELECTED;
 }
 
-size_t spi_read_dma(bus_spi_t *spi, uint32_t address, size_t size)
+size_t bus_spi_read_dma(bus_spi_t *spi, uint32_t address, size_t size)
 {
     if (address < ARM_SRAM_START || address >= ARM_SRAM_END) // TODO: Check end too
     {
@@ -114,10 +120,18 @@ size_t spi_read_dma(bus_spi_t *spi, uint32_t address, size_t size)
 
     uint32_t offset = address - ARM_SRAM_START;
 
+    return bus_spi_read(spi, spi->ram + offset, size);
+}
+
+size_t bus_spi_read(bus_spi_t *spi, uint8_t *data, size_t size)
+{
     for (size_t i = 0; i < spi->slave_count; i++)
     {
         if (!pins_is_set(spi->pins, spi->slave_pin[i]))
-            return spi->slaves[i]->read(spi->ram + offset, size, spi->slaves[i]->userdata);
+        {
+            size_t read = spi->slaves[i]->read(data, size, spi->slaves[i]->userdata);
+            return read;
+        }
     }
 
     return 0;

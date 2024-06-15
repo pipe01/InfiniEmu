@@ -43,8 +43,8 @@ struct NRF52832_inst_t
     uint64_t cycle_counter;
 
     memreg_t *mem;
-    bus_spi_t *spi;
-    bus_i2c_t *i2c;
+    bus_spi_t *bus_spi;
+    bus_i2c_t *bus_i2c;
     pins_t *pins;
     ticker_t *ticker;
     dma_t *dma;
@@ -83,8 +83,8 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
 
     NRF52832_t *chip = (NRF52832_t *)malloc(sizeof(NRF52832_t));
     chip->pins = pins_new();
-    chip->spi = spi_new(chip->pins, sram, sram_size);
-    chip->i2c = i2c_new(sram, sram_size);
+    chip->bus_spi = bus_spi_new(chip->pins, sram, sram_size);
+    chip->bus_i2c = i2c_new(sram, sram_size);
     chip->ticker = ticker_new();
     chip->dma = dma_new(ARM_SRAM_START, sram, sram_size);
 
@@ -104,8 +104,8 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
         .pins = chip->pins,
         .ppi = chip->ppi,
         .ticker = chip->ticker,
-        .i2c = chip->i2c,
-        .spi = chip->spi,
+        .i2c = chip->bus_i2c,
+        .spi = chip->bus_spi,
         .dma = chip->dma,
     };
 
@@ -153,8 +153,8 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 
     memreg_reset_all(nrf52832->mem);
     pins_reset(nrf52832->pins);
-    spi_reset(nrf52832->spi);
-    i2c_reset(nrf52832->i2c);
+    bus_spi_reset(nrf52832->bus_spi);
+    i2c_reset(nrf52832->bus_i2c);
     ticker_reset(nrf52832->ticker);
     cpu_reset(nrf52832->cpu);
 }
@@ -165,7 +165,7 @@ void nrf52832_step(NRF52832_t *nrf52832)
 
     ticker_tick(nrf52832->ticker);
     gpiote_step(nrf52832->gpiote); // TODO: Add to ticker instead
-    spi_step(nrf52832->spi);
+    bus_spi_step(nrf52832->bus_spi);
 
     cpu_step(nrf52832->cpu);
 }
@@ -177,12 +177,12 @@ cpu_t *nrf52832_get_cpu(NRF52832_t *chip)
 
 bus_spi_t *nrf52832_get_spi(NRF52832_t *chip)
 {
-    return chip->spi;
+    return chip->bus_spi;
 }
 
 bus_i2c_t *nrf52832_get_i2c(NRF52832_t *chip)
 {
-    return chip->i2c;
+    return chip->bus_i2c;
 }
 
 pins_t *nrf52832_get_pins(NRF52832_t *chip)

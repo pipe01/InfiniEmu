@@ -104,7 +104,7 @@ OPERATION(gpio)
             case 2:
                 sense = SENSE_HIGH;
                 break;
-            case 3:
+            case 3: 
                 sense = SENSE_LOW;
                 break;
             default:

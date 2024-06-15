@@ -28,10 +28,12 @@ typedef struct
     spi_cs_changed_f cs_changed;
 } spi_slave_t;
 
-bus_spi_t *spi_new(pins_t *pins, uint8_t *ram, size_t ram_size);
-void spi_reset(bus_spi_t *);
-void spi_free(bus_spi_t *);
-void spi_step(bus_spi_t *);
-void spi_add_slave(bus_spi_t *, uint8_t cs_pin, spi_slave_t slave);
-spi_result_t spi_write(bus_spi_t *, uint32_t address, size_t size);
-size_t spi_read(bus_spi_t *, uint32_t address, size_t size);
+bus_spi_t *bus_spi_new(pins_t *pins, uint8_t *ram, size_t ram_size);
+void bus_spi_reset(bus_spi_t *);
+void bus_spi_free(bus_spi_t *);
+void bus_spi_step(bus_spi_t *);
+void bus_spi_add_slave(bus_spi_t *, uint8_t cs_pin, spi_slave_t slave);
+spi_result_t bus_spi_write_dma(bus_spi_t *, uint32_t address, size_t size);
+spi_result_t bus_spi_write(bus_spi_t *, const uint8_t *data, size_t size);
+size_t bus_spi_read_dma(bus_spi_t *, uint32_t address, size_t size);
+size_t bus_spi_read(bus_spi_t *, uint8_t *data, size_t size);
