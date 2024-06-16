@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "circular_buffer.h"
 #include "config.h"
 #include "fault.h"
 
@@ -84,31 +85,10 @@ struct spinorflash_t
     bool is_reading_data;
     uint32_t data_read_address;
 
-    uint8_t out_queue[READ_QUEUE_SIZE];
-    size_t out_queue_head, out_queue_tail;
+    circular_buffer_t *out_buffer;
 
     uint32_t pp_address;
 };
-
-static void spinorflash_queue_write(spinorflash_t *flash, uint8_t byte)
-{
-    if (flash->out_queue_tail == (flash->out_queue_head - 1) % READ_QUEUE_SIZE)
-        fault_take(FAULT_SPI_OUTPUT_BUFFER_FULL);
-
-    flash->out_queue[flash->out_queue_tail++] = byte;
-    flash->out_queue_tail %= READ_QUEUE_SIZE;
-}
-
-static uint8_t spinorflash_queue_read(spinorflash_t *flash)
-{
-    if (flash->out_queue_head == flash->out_queue_tail)
-        return 0xFF;
-
-    uint8_t byte = flash->out_queue[flash->out_queue_head++];
-    flash->out_queue_head %= READ_QUEUE_SIZE;
-
-    return byte;
-}
 
 void spinorflash_write_internal(uint8_t byte, void *userdata)
 {
@@ -132,19 +112,19 @@ void spinorflash_write_internal(uint8_t byte, void *userdata)
         switch (flash->last_write[0])
         {
         case COMMAND_RDID:
-            spinorflash_queue_write(flash, 0x0B);
-            spinorflash_queue_write(flash, 0x40);
-            spinorflash_queue_write(flash, 0x16);
+            circular_buffer_write(flash, 0x0B);
+            circular_buffer_write(flash, 0x40);
+            circular_buffer_write(flash, 0x16);
             flash->handled_command = true;
             break;
 
         case COMMAND_RDSR:
-            spinorflash_queue_write(flash, flash->statusreg.value & 0xFF);
+            circular_buffer_write(flash, flash->statusreg.value & 0xFF);
             flash->handled_command = true;
             break;
 
         case COMMAND_RDSER:
-            spinorflash_queue_write(flash, flash->securityreg.value);
+            circular_buffer_write(flash, flash->securityreg.value);
             flash->handled_command = true;
             break;
 
@@ -172,7 +152,7 @@ void spinorflash_write_internal(uint8_t byte, void *userdata)
         }
 
         case COMMAND_RDI:
-            spinorflash_queue_write(flash, 0xA5);
+            circular_buffer_write(flash->out_buffer, 0xA5);
             flash->handled_command = true;
             break;
 
@@ -208,7 +188,12 @@ uint8_t spinorflash_read_internal(void *userdata)
     if (flash->is_reading_data)
         return flash->data[flash->data_read_address++];
 
-    return spinorflash_queue_read(flash);
+    uint8_t byte;
+
+    if (circular_buffer_read(flash->out_buffer, &byte))
+        return byte;
+
+    return 0xFF;
 }
 
 void spinorflash_cs_changed(bool selected, void *userdata)
@@ -247,7 +232,8 @@ void spinorflash_reset(void *userdata)
     flash->securityreg.value = 0;
     flash->last_write_size = 0;
     flash->write_count = 0;
-    flash->out_queue_head = flash->out_queue_tail = 0;
+
+    circular_buffer_clear(flash->out_buffer);
 }
 
 spinorflash_t *spinorflash_new(size_t size, size_t sector_size)
@@ -257,6 +243,7 @@ spinorflash_t *spinorflash_new(size_t size, size_t sector_size)
     flash->should_free_data = true;
     flash->size = size;
     flash->sector_size = sector_size;
+    flash->out_buffer = circular_buffer_new(READ_QUEUE_SIZE);
 
     return flash;
 }
