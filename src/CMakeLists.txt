@@ -60,6 +60,10 @@ set(LIBS m tiny-aes capstone)
 
 add_compile_options(-Werror -Wall -Wextra -Wno-unused-parameter)
 
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+add_compile_definitions(_POSIX_C_SOURCE=200809L)
+
 if(EMSCRIPTEN)
     list(APPEND SRC_FILES wasm.c)
     add_compile_definitions(WASM=1)

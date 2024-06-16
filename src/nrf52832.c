@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 2
-
 #include <string.h>
 
 #include "byte_util.h"
