@@ -90,11 +90,19 @@ spi_result_t bus_spi_write_dma(bus_spi_t *spi, uint32_t address, size_t size)
     }
 
     uint32_t offset = address - ARM_SRAM_START;
+    spi_result_t result;
 
-    return bus_spi_write(spi, spi->ram + offset, size);
+    for (size_t i = 0; i < size; i++)
+    {
+        result = bus_spi_write(spi, spi->ram[offset + i]) != SPI_RESULT_OK;
+        if (result != SPI_RESULT_OK)
+            return result;
+    }
+
+    return SPI_RESULT_OK;
 }
 
-spi_result_t bus_spi_write(bus_spi_t *spi, const uint8_t *data, size_t size)
+spi_result_t bus_spi_write(bus_spi_t *spi, uint8_t byte)
 {
     bool handled = false;
 
@@ -102,7 +110,7 @@ spi_result_t bus_spi_write(bus_spi_t *spi, const uint8_t *data, size_t size)
     {
         if (!pins_is_set(spi->pins, spi->slave_pin[i]))
         {
-            spi->slaves[i]->write(data, size, spi->slaves[i]->userdata);
+            spi->slaves[i]->write(byte, spi->slaves[i]->userdata);
             handled = true;
         }
     }
@@ -120,19 +128,25 @@ size_t bus_spi_read_dma(bus_spi_t *spi, uint32_t address, size_t size)
 
     uint32_t offset = address - ARM_SRAM_START;
 
-    return bus_spi_read(spi, spi->ram + offset, size);
+    for (size_t i = 0; i < size; i++)
+    {
+        if (!bus_spi_read(spi, &spi->ram[offset]))
+            return i;
+    }
+
+    return size;
 }
 
-size_t bus_spi_read(bus_spi_t *spi, uint8_t *data, size_t size)
+bool bus_spi_read(bus_spi_t *spi, uint8_t *data)
 {
     for (size_t i = 0; i < spi->slave_count; i++)
     {
         if (!pins_is_set(spi->pins, spi->slave_pin[i]))
         {
-            size_t read = spi->slaves[i]->read(data, size, spi->slaves[i]->userdata);
-            return read;
+            *data = spi->slaves[i]->read(spi->slaves[i]->userdata);
+            return true;
         }
     }
 
-    return 0;
+    return false;
 }

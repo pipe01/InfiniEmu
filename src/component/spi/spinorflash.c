@@ -27,6 +27,7 @@ enum
 };
 
 #define MAX_COMMAND_SIZE 200
+#define READ_QUEUE_SIZE 512
 
 #define READ_UINT24(data, start) (((data)[(start)] << 16) | ((data)[(start) + 1] << 8) | (data)[(start) + 2])
 
@@ -76,147 +77,138 @@ struct spinorflash_t
     statusreg_t statusreg;
     securityreg_t securityreg;
 
-    uint8_t last_command[MAX_COMMAND_SIZE];
-    size_t last_command_size;
+    uint8_t last_write[MAX_COMMAND_SIZE];
+    size_t last_write_size;
+    bool handled_command;
+
+    bool is_reading_data;
+    uint32_t data_read_address;
+
+    uint8_t out_queue[READ_QUEUE_SIZE];
+    size_t out_queue_head, out_queue_tail;
 
     uint32_t pp_address;
 };
 
-void spinorflash_write_internal(const uint8_t *data, size_t data_size, void *userdata)
+static void spinorflash_queue_write(spinorflash_t *flash, uint8_t byte)
 {
-    if (data_size > MAX_COMMAND_SIZE)
-    {
-        printf("SPI flash command too long: %zu\n", data_size);
-        fault_take(FAULT_SPI_COMMAND_TOO_LONG);
-    }
+    if (flash->out_queue_tail == (flash->out_queue_head - 1) % READ_QUEUE_SIZE)
+        fault_take(FAULT_SPI_OUTPUT_BUFFER_FULL);
 
-#if ENABLE_LOG_SPI_FLASH
-    LOGF("SPI flash got data: ");
-    for (size_t i = 0; i < data_size; i++)
-    {
-        LOGF("%02X", data[i]);
-        if (i < data_size - 1)
-            LOGF("-");
-    }
-    LOGF("\n");
-#endif
+    flash->out_queue[flash->out_queue_tail++] = byte;
+    flash->out_queue_tail %= READ_QUEUE_SIZE;
+}
+
+static uint8_t spinorflash_queue_read(spinorflash_t *flash)
+{
+    if (flash->out_queue_head == flash->out_queue_tail)
+        return 0xFF;
+
+    uint8_t byte = flash->out_queue[flash->out_queue_head++];
+    flash->out_queue_head %= READ_QUEUE_SIZE;
+
+    return byte;
+}
+
+void spinorflash_write_internal(uint8_t byte, void *userdata)
+{
+    LOGF("SPI flash got data: %02X\n", byte);
 
     spinorflash_t *flash = (spinorflash_t *)userdata;
 
     if (flash->statusreg.WIP)
     {
-        memcpy(flash->data + flash->pp_address, data, data_size);
+        flash->data[flash->pp_address++] = byte;
         flash->write_count++;
         return;
     }
 
-    memcpy(flash->last_command, data, data_size);
-    flash->last_command_size = data_size;
+    flash->is_reading_data = false;
+    flash->last_write[flash->last_write_size++] = byte;
 
-    switch (data[0])
+    switch (flash->last_write_size)
     {
-    case COMMAND_PP:
-    {
-        assert(data_size == 4);
-        assert(flash->statusreg.WEL);
+    case 1:
+        switch (flash->last_write[0])
+        {
+        case COMMAND_RDID:
+            spinorflash_queue_write(flash, 0x0B);
+            spinorflash_queue_write(flash, 0x40);
+            spinorflash_queue_write(flash, 0x16);
+            flash->handled_command = true;
+            break;
 
-        uint32_t addr = READ_UINT24(data, 1);
-        assert(addr < flash->size);
+        case COMMAND_RDSR:
+            spinorflash_queue_write(flash, flash->statusreg.value & 0xFF);
+            flash->handled_command = true;
+            break;
 
-        flash->pp_address = addr;
-        flash->statusreg.WIP = 1;
+        case COMMAND_RDSER:
+            spinorflash_queue_write(flash, flash->securityreg.value);
+            flash->handled_command = true;
+            break;
+
+        case COMMAND_WREN:
+            flash->statusreg.WEL = 1;
+            flash->handled_command = true;
+            break;
+        }
         break;
-    }
 
-    case COMMAND_WREN:
-        assert(data_size == 1);
+    case 4:
+        switch (flash->last_write[0])
+        {
+        case COMMAND_PP:
+        {
+            assert(flash->statusreg.WEL);
 
-        flash->statusreg.WEL = 1;
+            uint32_t addr = READ_UINT24(flash->last_write, 1);
+            assert(addr < flash->size);
+
+            flash->pp_address = addr;
+            flash->statusreg.WIP = 1;
+            flash->handled_command = true;
+            break;
+        }
+
+        case COMMAND_RDI:
+            spinorflash_queue_write(flash, 0xA5);
+            flash->handled_command = true;
+            break;
+
+        case COMMAND_READ:
+        {
+            flash->data_read_address = READ_UINT24(flash->last_write, 1);
+            flash->is_reading_data = true;
+            flash->handled_command = true;
+            break;
+        }
+
+        case COMMAND_SE:
+        {
+            assert(flash->statusreg.WEL);
+
+            uint32_t addr = READ_UINT24(flash->last_write, 1);
+            assert(addr <= flash->size - flash->sector_size);
+
+            memset(flash->data + addr, 0xFF, flash->sector_size);
+            flash->write_count++;
+            flash->handled_command = true;
+            break;
+        }
+        }
         break;
-
-    case COMMAND_SE:
-    {
-        assert(data_size == 4);
-        assert(flash->statusreg.WEL);
-
-        uint32_t addr = READ_UINT24(data, 1);
-        assert(addr <= flash->size - flash->sector_size);
-
-        memset(flash->data + addr, 0xFF, flash->sector_size);
-        flash->write_count++;
-        break;
-    }
-
-    case COMMAND_READ:
-    case COMMAND_RDSR:
-    case COMMAND_RDSER:
-    case COMMAND_RDID:
-    case COMMAND_RDI:
-        break; // Handled in read
-
-    default:
-        printf("Unknown SPI flash write command: %02X\n", data[0]);
-        fault_take(FAULT_SPI_UNKNOWN_COMMAND);
     }
 }
 
-size_t spinorflash_read_internal(uint8_t *data, size_t data_size, void *userdata)
+uint8_t spinorflash_read_internal(void *userdata)
 {
     spinorflash_t *flash = (spinorflash_t *)userdata;
 
-    switch (flash->last_command[0])
-    {
-    case COMMAND_READ:
-    {
-        assert(flash->last_command_size == 4);
+    if (flash->is_reading_data)
+        return flash->data[flash->data_read_address++];
 
-        uint32_t offset = READ_UINT24(flash->last_command, 1);
-
-        memcpy(data, flash->data + offset, data_size);
-        return data_size;
-    }
-
-    case COMMAND_RDSR:
-        assert(data_size >= 1);
-
-        data[0] = flash->statusreg.value & 0xFF;
-        return 1;
-
-    case COMMAND_RDSER:
-        assert(data_size >= 1);
-
-        data[0] = flash->securityreg.value;
-        return 1;
-
-    case COMMAND_RDID:
-        assert(data_size >= 3);
-
-        // Dummy data
-        data[0] = 0xA5;
-        data[1] = 0xA5;
-        data[2] = 0xA5;
-        return 3;
-
-    case COMMAND_RDI:
-        assert(data_size >= 1);
-
-        // Dummy data
-        data[0] = 0xA5;
-        return 1;
-    }
-
-    printf("Unknown SPI flash command: %02X\n", flash->last_command[0]);
-    fault_take(FAULT_SPI_UNKNOWN_COMMAND);
-}
-
-void spinorflash_reset(void *userdata)
-{
-    spinorflash_t *flash = (spinorflash_t *)userdata;
-
-    flash->statusreg.value = 0;
-    flash->securityreg.value = 0;
-    flash->last_command_size = 0;
-    flash->write_count = 0;
+    return spinorflash_queue_read(flash);
 }
 
 void spinorflash_cs_changed(bool selected, void *userdata)
@@ -225,8 +217,37 @@ void spinorflash_cs_changed(bool selected, void *userdata)
 
     if (!selected)
     {
+        if (!flash->handled_command && flash->last_write_size > 0 && flash->last_write[0] == COMMAND_RDI)
+        {
+            // Release from power-down
+            puts("");
+        }
+        else if (flash->last_write_size > 0 && !flash->handled_command)
+        {
+            abort();
+        }
+
+        if (flash->last_write_size > 0 && (flash->last_write[0] == COMMAND_PP || flash->last_write[0] == COMMAND_SE))
+            flash->statusreg.WEL = 0;
+
         flash->statusreg.WIP = 0;
+        flash->last_write_size = 0;
     }
+    else
+    {
+        flash->handled_command = false;
+    }
+}
+
+void spinorflash_reset(void *userdata)
+{
+    spinorflash_t *flash = (spinorflash_t *)userdata;
+
+    flash->statusreg.value = 0;
+    flash->securityreg.value = 0;
+    flash->last_write_size = 0;
+    flash->write_count = 0;
+    flash->out_queue_head = flash->out_queue_tail = 0;
 }
 
 spinorflash_t *spinorflash_new(size_t size, size_t sector_size)

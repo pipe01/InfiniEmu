@@ -84,181 +84,137 @@ struct st7789_t
     value16_t vertical_scroll_start;
 
     command_t command;
-    size_t expecting_data;
+    size_t expecting_data, got_data;
+    uint8_t data_buffer[2048];
 
     uint8_t screen[DISPLAY_BUFFER_WIDTH * DISPLAY_BUFFER_HEIGHT * BYTES_PER_PIXEL];
     uint8_t *screen_buffer;
     size_t screen_buffer_ptr;
 };
 
-size_t st7789_read(uint8_t *data, size_t data_size, void *userdata)
+uint8_t st7789_read(void *userdata)
 {
     fault_take(FAULT_NOT_IMPLEMENTED);
 }
 
-void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
+void st7789_write(uint8_t byte, void *userdata)
 {
     st7789_t *st7789 = (st7789_t *)userdata;
-
-    assert(data_size >= 1);
 
     // Some commands will send extra data after the command byte, however this data comes
     // on a separate SPI write. When handling these commands we set the expecting_data to
     // the number of bytes we expect to receive.
 
-    if (st7789->expecting_data)
+    if (st7789->got_data < st7789->expecting_data)
     {
-        if (st7789->command == Command_WriteToRam)
+        if (st7789->got_data == sizeof(st7789->data_buffer))
+            fault_take(FAULT_SPI_INPUT_BUFFER_FULL);
+
+        st7789->data_buffer[st7789->got_data++] = byte;
+
+        if (st7789->got_data == st7789->expecting_data)
         {
-            memcpy(&st7789->screen_buffer[st7789->screen_buffer_ptr], data, data_size);
-
-            st7789->expecting_data -= data_size;
-            st7789->screen_buffer_ptr += data_size;
-
-            if (st7789->expecting_data == 0)
+            switch (st7789->command)
             {
-                assert_fault(st7789->xend.value >= st7789->xstart.value, FAULT_ST7789_INVALID_COORDS);
-                assert_fault(st7789->yend.value >= st7789->ystart.value, FAULT_ST7789_INVALID_COORDS);
-                assert_fault(st7789->xstart.value < DISPLAY_BUFFER_WIDTH, FAULT_ST7789_INVALID_COORDS);
-                assert_fault(st7789->xend.value < DISPLAY_BUFFER_WIDTH, FAULT_ST7789_INVALID_COORDS);
-                assert_fault(st7789->ystart.value < DISPLAY_BUFFER_HEIGHT, FAULT_ST7789_INVALID_COORDS);
-                assert_fault(st7789->yend.value < DISPLAY_BUFFER_HEIGHT, FAULT_ST7789_INVALID_COORDS);
+            case Command_WriteToRam:
+            {
+                memcpy(&st7789->screen_buffer[st7789->screen_buffer_ptr], st7789->data_buffer, st7789->got_data);
 
-                uint16_t width = st7789->xend.value - st7789->xstart.value + 1;
-                uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
-                size_t stride = width * BYTES_PER_PIXEL;
+                st7789->expecting_data -= st7789->got_data;
+                st7789->screen_buffer_ptr += st7789->got_data;
 
-                // static int counter = 0;
-                // printf("WriteToRam %d: %d x %d starting at %d,%d\n", counter++, width, height, st7789->xstart.value, st7789->ystart.value);
-
-                size_t region_start_px = (DISPLAY_BUFFER_WIDTH * st7789->ystart.value) + st7789->xstart.value;
-
-                for (size_t row = 0; row < height; row++)
+                if (st7789->expecting_data == 0)
                 {
-                    size_t start_px = region_start_px + row * DISPLAY_BUFFER_WIDTH;
-                    size_t start = start_px * BYTES_PER_PIXEL;
+                    assert_fault(st7789->xend.value >= st7789->xstart.value, FAULT_ST7789_INVALID_COORDS);
+                    assert_fault(st7789->yend.value >= st7789->ystart.value, FAULT_ST7789_INVALID_COORDS);
+                    assert_fault(st7789->xstart.value < DISPLAY_BUFFER_WIDTH, FAULT_ST7789_INVALID_COORDS);
+                    assert_fault(st7789->xend.value < DISPLAY_BUFFER_WIDTH, FAULT_ST7789_INVALID_COORDS);
+                    assert_fault(st7789->ystart.value < DISPLAY_BUFFER_HEIGHT, FAULT_ST7789_INVALID_COORDS);
+                    assert_fault(st7789->yend.value < DISPLAY_BUFFER_HEIGHT, FAULT_ST7789_INVALID_COORDS);
 
-                    assert(start + stride <= sizeof(st7789->screen));
-                    assert(row * stride + stride <= st7789->screen_buffer_ptr);
+                    uint16_t width = st7789->xend.value - st7789->xstart.value + 1;
+                    uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
+                    size_t stride = width * BYTES_PER_PIXEL;
 
-                    memcpy(&st7789->screen[start], &st7789->screen_buffer[row * stride], stride);
+                    // static int counter = 0;
+                    // printf("WriteToRam %d: %d x %d starting at %d,%d\n", counter++, width, height, st7789->xstart.value, st7789->ystart.value);
+
+                    size_t region_start_px = (DISPLAY_BUFFER_WIDTH * st7789->ystart.value) + st7789->xstart.value;
+
+                    for (size_t row = 0; row < height; row++)
+                    {
+                        size_t start_px = region_start_px + row * DISPLAY_BUFFER_WIDTH;
+                        size_t start = start_px * BYTES_PER_PIXEL;
+
+                        assert(start + stride <= sizeof(st7789->screen));
+                        assert(row * stride + stride <= st7789->screen_buffer_ptr);
+
+                        memcpy(&st7789->screen[start], &st7789->screen_buffer[row * stride], stride);
+                    }
+
+                    free(st7789->screen_buffer);
                 }
-
-                free(st7789->screen_buffer);
+                break;
             }
 
-            return;
-        }
-
-        assert(data_size == 1);
-
-        switch (st7789->command)
-        {
-        case Command_ColMod:
-        {
-            st7789->colmod = (colmod_t){.value = data[0]};
-
-            assert(st7789->colmod.ctrl_color_format == 5);
-            assert(st7789->colmod.rgb_color_format == RGB_FORMAT_16bpp);
-            break;
-        }
-
-        case Command_MemoryDataAccessControl:
-        {
-            madctl_t madctl = (madctl_t){.value = data[0]};
-
-            assert(madctl.mh == 0);
-            assert(madctl.rgb == 0);
-            assert(madctl.ml == 0);
-            assert(madctl.mv == 0);
-            assert(madctl.mx == 0);
-            assert(madctl.my == 0);
-            break;
-        }
-
-        case Command_ColumnAddressSet:
-            switch (st7789->expecting_data)
+            case Command_ColMod:
             {
-            case 4:
-                st7789->xstart.msb = data[0];
+                st7789->colmod = (colmod_t){.value = st7789->data_buffer[0]};
+
+                assert(st7789->colmod.ctrl_color_format == 5);
+                assert(st7789->colmod.rgb_color_format == RGB_FORMAT_16bpp);
                 break;
+            }
 
-            case 3:
-                st7789->xstart.lsb = data[0];
+            case Command_MemoryDataAccessControl:
+            {
+                madctl_t madctl = (madctl_t){.value = st7789->data_buffer[0]};
+
+                assert(madctl.mh == 0);
+                assert(madctl.rgb == 0);
+                assert(madctl.ml == 0);
+                assert(madctl.mv == 0);
+                assert(madctl.mx == 0);
+                assert(madctl.my == 0);
                 break;
+            }
 
-            case 2:
-                st7789->xend.msb = data[0];
-                break;
-
-            case 1:
-                st7789->xend.lsb = data[0];
-
+            case Command_ColumnAddressSet:
+                st7789->xstart.msb = st7789->data_buffer[0];
+                st7789->xstart.lsb = st7789->data_buffer[1];
+                st7789->xend.msb = st7789->data_buffer[2];
+                st7789->xend.lsb = st7789->data_buffer[3];
                 assert(st7789->xstart.value <= st7789->xend.value);
                 break;
 
-            default:
-                fault_take(FAULT_UNKNOWN);
-            }
-            break;
-
-        case Command_RowAddressSet:
-            switch (st7789->expecting_data)
-            {
-            case 4:
-                st7789->ystart.msb = data[0];
-                break;
-
-            case 3:
-                st7789->ystart.lsb = data[0];
-                break;
-
-            case 2:
-                st7789->yend.msb = data[0];
-                break;
-
-            case 1:
-                st7789->yend.lsb = data[0];
-
+            case Command_RowAddressSet:
+                st7789->ystart.msb = st7789->data_buffer[0];
+                st7789->ystart.lsb = st7789->data_buffer[1];
+                st7789->yend.msb = st7789->data_buffer[2];
+                st7789->yend.lsb = st7789->data_buffer[3];
                 assert(st7789->ystart.value <= st7789->yend.value);
                 break;
 
-            default:
-                fault_take(FAULT_UNKNOWN);
-            }
-            break;
-
-        case Command_VdvSet:
-            // Ignore
-            break;
-
-        case Command_VerticalScrollStartAddress:
-            switch (st7789->expecting_data)
-            {
-            case 2:
-                st7789->vertical_scroll_start.msb = data[0];
+            case Command_VdvSet:
+                // Ignore
                 break;
 
-            case 1:
-                st7789->vertical_scroll_start.lsb = data[0];
+            case Command_VerticalScrollStartAddress:
+                st7789->vertical_scroll_start.msb = st7789->data_buffer[0];
+                st7789->vertical_scroll_start.lsb = st7789->data_buffer[1];
                 break;
 
             default:
-                fault_take(FAULT_UNKNOWN);
+                fault_take(FAULT_SPI_UNKNOWN_COMMAND);
             }
-            break;
-
-        default:
-            fault_take(FAULT_SPI_UNKNOWN_COMMAND);
         }
 
-        st7789->expecting_data--;
         return;
     }
 
-    assert(data_size == 1);
-
-    st7789->command = data[0];
+    st7789->command = byte;
+    st7789->got_data = 0;
+    st7789->expecting_data = 0;
 
     switch (st7789->command)
     {
@@ -328,7 +284,9 @@ void st7789_write(const uint8_t *data, size_t data_size, void *userdata)
         break;
 
     default:
-        fault_take(FAULT_I2C_UNKNOWN_COMMAND);
+        // fault_take(FAULT_I2C_UNKNOWN_COMMAND);
+        printf("Unknown ST7789 command: 0x%02X\n", st7789->command);
+        break;
     }
 }
 

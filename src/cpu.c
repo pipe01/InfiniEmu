@@ -178,6 +178,8 @@ struct cpu_inst_t
     jmp_buf *fault_jmp_buf;
     bool has_fault_jmp;
 
+    bool is_locked_up;
+
     runlog_t *runlog;
 
     branch_cb_t branch_cb;
@@ -567,6 +569,16 @@ static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool 
 
     default:
         return next_addr;
+    }
+}
+
+static void cpu_enter_lockup(cpu_t *cpu)
+{
+    if (!cpu->is_locked_up)
+    {
+        cpu->is_locked_up = true;
+
+        LOG("LOCKUP", "Entering lockup state");
     }
 }
 
@@ -2868,6 +2880,9 @@ void cpu_step(cpu_t *cpu)
 {
     dwt_increment_cycle(cpu->dwt);
 
+    if (cpu->is_locked_up)
+        return;
+
     arm_exception pending;
 
     uint32_t pc = cpu->core_regs[ARM_REG_PC];
@@ -3131,8 +3146,12 @@ bool cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value)
 void cpu_jump_exception(cpu_t *cpu, arm_exception ex)
 {
     uint32_t vtor = scb_get_vtor_tbloff(cpu->scb);
+    uint32_t vector_addr = vtor + ex * 4;
 
-    cpu_reg_write(cpu, ARM_REG_PC, READ_UINT32(cpu->program, vtor + ex * 4));
+    if (vector_addr >= cpu->program_size)
+        cpu_enter_lockup(cpu);
+    else
+        cpu_reg_write(cpu, ARM_REG_PC, READ_UINT32(cpu->program, vector_addr));
 }
 
 int16_t cpu_get_exception_priority(cpu_t *cpu, arm_exception ex)

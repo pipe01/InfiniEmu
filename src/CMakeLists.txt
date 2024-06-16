@@ -40,6 +40,7 @@ set(SRC_FILES
     peripherals/nrf52832/rng.c
     peripherals/nrf52832/rtc.c
     peripherals/nrf52832/saadc.c
+    peripherals/nrf52832/spi.c
     peripherals/nrf52832/spim.c
     peripherals/nrf52832/temp.c
     peripherals/nrf52832/timer.c

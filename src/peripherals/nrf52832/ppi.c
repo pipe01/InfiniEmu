@@ -286,6 +286,8 @@ void ppi_fire_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id, bool pe
     peripheral_t *periph = ppi->peripherals[peripheral_id];
     assert(periph != NULL);
 
+    // printf("Firing event %d on peripheral %d\n", event_id, peripheral_id);
+
     periph->events |= (1 << event_id);
 
     if (pend_exception)
@@ -308,6 +310,8 @@ void ppi_clear_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
     assert(event_id < EVENTS_COUNT);
 
     peripheral_t *periph = ppi->peripherals[peripheral_id];
+
+    // printf("Clearing event %d on peripheral %d\n", event_id, peripheral_id);
 
     if (periph)
         periph->events &= ~(1 << event_id);

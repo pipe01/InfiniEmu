@@ -25,6 +25,7 @@
 #include "peripherals/nrf52832/rtc.h"
 #include "peripherals/nrf52832/radio.h"
 #include "peripherals/nrf52832/saadc.h"
+#include "peripherals/nrf52832/spi.h"
 #include "peripherals/nrf52832/spim.h"
 #include "peripherals/nrf52832/temp.h"
 #include "peripherals/nrf52832/timer.h"
@@ -67,6 +68,7 @@ struct NRF52832_inst_t
     CCM_t *ccm;
     ECB_t *ecb;
     NVMC_t *nvmc;
+    SPI_t *spi[3];
 };
 
 #define NEW_NRF52_PERIPH(chip, type, name, field, idn, ...)                                                                               \
@@ -115,8 +117,10 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     NEW_NRF52_PERIPH(chip, CLOCK, clock, clock, INSTANCE_CLOCK);
     NEW_NRF52_PERIPH(chip, POWER, power, power, INSTANCE_POWER);
     NEW_NRF52_PERIPH(chip, RADIO, radio, radio, INSTANCE_RADIO);
+    NEW_NRF52_PERIPH(chip, SPI, spi, spi[0], INSTANCE_SPI0);
     NEW_NRF52_PERIPH(chip, SPIM, spim, spim[0], INSTANCE_SPIM0);
     NEW_NRF52_PERIPH(chip, TWIM, twim, twim[0], INSTANCE_TWIM0);
+    NEW_NRF52_PERIPH(chip, SPI, spi, spi[1], INSTANCE_SPI1);
     NEW_NRF52_PERIPH(chip, SPIM, spim, spim[1], INSTANCE_SPIM1);
     NEW_NRF52_PERIPH(chip, TWIM, twim, twim[1], INSTANCE_TWIM1);
     NEW_NRF52_PERIPH(chip, GPIOTE, gpiote, gpiote, INSTANCE_GPIOTE);
@@ -134,6 +138,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     NEW_NRF52_PERIPH(chip, COMP, comp, comp, INSTANCE_COMP);
     NEW_NRF52_PERIPH(chip, TIMER, timer, timer[3], INSTANCE_TIMER3, 6);
     NEW_NRF52_PERIPH(chip, TIMER, timer, timer[4], INSTANCE_TIMER4, 6);
+    NEW_NRF52_PERIPH(chip, SPI, spi, spi[2], INSTANCE_SPI2);
     NEW_NRF52_PERIPH(chip, SPIM, spim, spim[2], INSTANCE_SPIM2);
     NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[2], INSTANCE_RTC2, 4);
     NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000, ctx);
