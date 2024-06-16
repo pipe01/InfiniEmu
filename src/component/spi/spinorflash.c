@@ -112,19 +112,19 @@ void spinorflash_write_internal(uint8_t byte, void *userdata)
         switch (flash->last_write[0])
         {
         case COMMAND_RDID:
-            circular_buffer_write(flash, 0x0B);
-            circular_buffer_write(flash, 0x40);
-            circular_buffer_write(flash, 0x16);
+            circular_buffer_write(flash->out_buffer, 0x0B);
+            circular_buffer_write(flash->out_buffer, 0x40);
+            circular_buffer_write(flash->out_buffer, 0x16);
             flash->handled_command = true;
             break;
 
         case COMMAND_RDSR:
-            circular_buffer_write(flash, flash->statusreg.value & 0xFF);
+            circular_buffer_write(flash->out_buffer, flash->statusreg.value & 0xFF);
             flash->handled_command = true;
             break;
 
         case COMMAND_RDSER:
-            circular_buffer_write(flash, flash->securityreg.value);
+            circular_buffer_write(flash->out_buffer, flash->securityreg.value);
             flash->handled_command = true;
             break;
 
