@@ -5,11 +5,14 @@
             "includePath": [
                 "${workspaceFolder}/include",
                 "${workspaceFolder}/lib",
-                "${workspaceFolder}/lib/capstone/include"
+                "${workspaceFolder}/lib/capstone/include",
+                "${workspaceFolder}"
             ],
-            "defines": [],
+            "defines": [
+                "_POSIX_C_SOURCE=200809L"
+            ],
             "compilerPath": "/usr/bin/gcc",
-            "cStandard": "c17",
+            "cStandard": "c11",
             "cppStandard": "gnu++17",
             "intelliSenseMode": "linux-gcc-x64"
         }
