@@ -2,6 +2,7 @@ set(SRC_FILES
     bus_i2c.c
     bus_spi.c
     circular_buffer.c
+    commander.c
     cpu.c
     dma.c
     fault.c
