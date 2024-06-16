@@ -58,6 +58,8 @@ set(WASM_EXPORTS
 
 set(LIBS m tiny-aes capstone)
 
+add_compile_options(-Werror -Wall -Wextra -Wno-unused-parameter)
+
 if(EMSCRIPTEN)
     list(APPEND SRC_FILES wasm.c)
     add_compile_definitions(WASM=1)
