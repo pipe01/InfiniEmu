@@ -12,6 +12,7 @@ typedef struct command_t
     bool is_end;
 
     const char *name;
+    const char *description;
     const struct command_t *children;
 
     void (*handler)(commander_t *cder, const char *cmd, char *args);
@@ -62,6 +63,8 @@ static int parse_pin(const char *args)
 }
 
 #define COMMAND(name) static void name(commander_t *cder, const char *cmd, char *args)
+
+COMMAND(cmd_help);
 
 COMMAND(cmd_nrf52_pins_set)
 {
@@ -140,6 +143,10 @@ COMMAND(cmd_step)
 
 static command_t commands[] = {
     {
+        .name = "help",
+        .handler = cmd_help,
+    },
+    {
         .name = "nrf52",
         .children = (command_t[]){
             {
@@ -160,6 +167,7 @@ static command_t commands[] = {
                     {
                         .name = "read",
                         .handler = cmd_nrf52_pins_read,
+                        .description = "Read the state of a pin, or all pins if none is passed as argument",
                     },
                     END,
                 },
@@ -170,9 +178,39 @@ static command_t commands[] = {
     {
         .name = "step",
         .handler = cmd_step,
+        .description = "Step the emulator by one instruction",
     },
     END,
 };
+
+static void print_commands(commander_t *cder, const command_t *commands, const char *prefix)
+{
+    for (size_t i = 0; !commands[i].is_end; i++)
+    {
+        if (commands[i].handler)
+        {
+            commander_outputf(cder, "%s%s\n", prefix, commands[i].name);
+
+            if (commands[i].description)
+                commander_outputf(cder, "  %s\n", commands[i].description);
+        }
+
+        if (commands[i].children)
+        {
+            char *new_prefix = malloc(strlen(prefix) + strlen(commands[i].name) + 2);
+            sprintf(new_prefix, "%s%s.", prefix, commands[i].name);
+
+            print_commands(cder, commands[i].children, new_prefix);
+
+            free(new_prefix);
+        }
+    }
+}
+
+COMMAND(cmd_help)
+{
+    print_commands(cder, commands, "");
+}
 
 commander_t *commander_new(pinetime_t *pt)
 {
