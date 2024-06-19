@@ -23,10 +23,10 @@ struct pinetime_t
 #endif
 };
 
-pinetime_t *pinetime_new(const uint8_t *program, size_t program_size, bool big_ram)
+pinetime_t *pinetime_new(const uint8_t *program, size_t program_size, bool big_ram, bool big_flash)
 {
     pinetime_t *pt = (pinetime_t *)malloc(sizeof(pinetime_t));
-    pt->nrf = nrf52832_new(program, program_size, big_ram ? 512 * 1024 : NRF52832_SRAM_SIZE);
+    pt->nrf = nrf52832_new(program, program_size, big_ram ? 512 * 1024 : NRF52832_SRAM_SIZE, big_flash ? 0x800000 : NRF52832_FLASH_SIZE);
     pt->lcd = st7789_new();
     pt->touch = cst816s_new(nrf52832_get_pins(pt->nrf), PINETIME_CST816S_IRQ_PIN);
     pt->hrs = hrs3300_new();

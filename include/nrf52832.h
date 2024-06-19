@@ -80,7 +80,7 @@ enum
 
 typedef struct NRF52832_inst_t NRF52832_t;
 
-NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sram_size);
+NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sram_size, size_t flash_size);
 void nrf52832_reset(NRF52832_t *);
 void nrf52832_step(NRF52832_t *);
 
