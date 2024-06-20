@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "fault.h"
+#include "nrf52832.h"
 #include "peripherals/nrf52832/ppi.h"
 
 #define STATE_CHANGE_DELAY_INST 10000
@@ -141,6 +142,9 @@ struct RADIO_inst_t
     radio_state_t state, next_state;
     inten_t inten;
 
+    bool tx_sent_address, tx_sent_payload;
+    bool rx_received_address, rx_received_payload;
+
     uint32_t mode;
     uint32_t txpower;
     uint32_t packetptr;
@@ -173,29 +177,99 @@ void radio_reset(RADIO_t *radio)
 void radio_do_state_change(void *userdata)
 {
     RADIO_t *radio = userdata;
+    radio_state_t old_state = radio->state;
 
     radio->state = radio->next_state;
+
+    bool request_update = false;
 
     switch (radio->state)
     {
     case STATE_RXDISABLE:
     case STATE_TXDISABLE:
         radio->next_state = STATE_DISABLED;
+        request_update = true;
         break;
 
     case STATE_TXRU:
         radio->next_state = STATE_TXIDLE;
+        request_update = true;
         break;
 
     case STATE_RXRU:
         radio->next_state = STATE_RXIDLE;
+        request_update = true;
+        break;
+
+    case STATE_TX:
+        if (radio->tx_sent_address && radio->tx_sent_payload)
+        {
+            radio->tx_sent_address = false;
+            radio->tx_sent_payload = false;
+            radio->next_state = STATE_TXIDLE;
+        }
+        else if (radio->tx_sent_address)
+        {
+            radio->tx_sent_payload = true;
+            ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_PAYLOAD), radio->inten.PAYLOAD);
+        }
+        else
+        {
+            radio->tx_sent_address = true;
+            ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_ADDRESS), radio->inten.ADDRESS);
+        }
+        request_update = true;
+        break;
+
+    case STATE_RX:
+        if (radio->rx_received_address && radio->rx_received_payload)
+        {
+            radio->rx_received_address = false;
+            radio->rx_received_payload = false;
+            radio->next_state = STATE_RXIDLE;
+        }
+        else if (radio->rx_received_address)
+        {
+            radio->rx_received_payload = true;
+            ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_PAYLOAD), radio->inten.PAYLOAD);
+        }
+        else
+        {
+            radio->rx_received_address = true;
+            ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_ADDRESS), radio->inten.ADDRESS);
+        }
+        request_update = true;
         break;
 
     default:
+        switch (radio->next_state)
+        {
+        case STATE_DISABLED:
+            if (old_state == STATE_TXDISABLE || old_state == STATE_RXDISABLE)
+                ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_DISABLED), radio->inten.DISABLED);
+            break;
+
+        case STATE_TXIDLE:
+            if (old_state == STATE_TXRU)
+                ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_READY), radio->inten.READY);
+            else if (old_state == STATE_TX)
+                ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_END), radio->inten.END);
+            break;
+
+        case STATE_RXIDLE:
+            if (old_state == STATE_RXRU)
+                ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_READY), radio->inten.READY);
+            else if (old_state == STATE_RX)
+                ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_END), radio->inten.END);
+            break;
+
+        default:
+            break;
+        }
         break;
     }
 
-    if (radio->next_state != radio->state)
+    if (request_update)
         ticker_add(radio->ticker, radio_do_state_change, radio, STATE_CHANGE_DELAY_INST, false);
 }
 
@@ -320,7 +394,27 @@ OPERATION(radio)
         OP_EVENT(RADIO_EVENTS_CRCERROR)
 
     case 0x200: // SHORTS
-        OP_RETURN_REG(radio->shorts.value, WORD);
+        OP_ASSERT_SIZE(op, WORD);
+
+        if (op == OP_READ_WORD)
+        {
+            *value = radio->shorts.value;
+        }
+        else if (op == OP_WRITE_WORD)
+        {
+            radio->shorts.value = *value;
+
+            ppi_shorts_set_enabled(current_ppi, SHORT_RADIO_READY_START, radio->shorts.READY_START);
+            ppi_shorts_set_enabled(current_ppi, SHORT_RADIO_END_DISABLE, radio->shorts.END_DISABLE);
+            ppi_shorts_set_enabled(current_ppi, SHORT_RADIO_DISABLED_TXEN, radio->shorts.DISABLED_TXEN);
+            ppi_shorts_set_enabled(current_ppi, SHORT_RADIO_DISABLED_RXEN, radio->shorts.DISABLED_RXEN);
+            ppi_shorts_set_enabled(current_ppi, SHORT_RADIO_ADDRESS_RSSISTART, radio->shorts.ADDRESS_RSSISTART);
+            ppi_shorts_set_enabled(current_ppi, SHORT_RADIO_END_START, radio->shorts.END_START);
+            ppi_shorts_set_enabled(current_ppi, SHORT_RADIO_ADDRESS_BCSTART, radio->shorts.ADDRESS_BCSTART);
+            ppi_shorts_set_enabled(current_ppi, SHORT_RADIO_DISABLED_RSSISTOP, radio->shorts.DISABLED_RSSISTOP);
+        }
+
+        return (MEMREG_RESULT_OK);
 
     case 0x304: // INTENSET
         if (OP_IS_READ(op))
@@ -423,7 +517,7 @@ OPERATION(radio)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
 {
-    RADIO_t *radio = malloc(sizeof(RADIO_t));
+    RADIO_t *radio = calloc(1, sizeof(RADIO_t));
     radio->ticker = ctx.ticker;
 
     ppi_add_peripheral(ctx.ppi, ctx.id, radio_task_handler, radio);

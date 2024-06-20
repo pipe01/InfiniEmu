@@ -14,10 +14,19 @@
 #include "peripherals/peripheral.h"
 
 #define CHANNELS_COUNT 32
+#define SHORTS_COUNT 32
 #define PROGRAMMABLE_CHANNELS_COUNT (CHANNELS_COUNT - 12)
 
 #define PERIPHERALS_COUNT 0x26
 #define EVENTS_COUNT 64
+
+#define SHORT_CHANNEL_INDEX(n) ((n) + CHANNELS_COUNT)
+
+#define SET_CHANNEL(n, eep_p, eep_e, tep_p, tep_t) \
+    ppi->channels[n].eep_peripheral = eep_p;       \
+    ppi->channels[n].eep_event = EVENT_ID(eep_e);  \
+    ppi->channels[n].tep_peripheral = tep_p;       \
+    ppi->channels[n].tep_task = TASK_ID(tep_t);
 
 _Thread_local PPI_t *current_ppi;
 
@@ -40,7 +49,7 @@ struct PPI_t
 {
     cpu_t **cpu;
 
-    channel_t channels[CHANNELS_COUNT];
+    channel_t channels[CHANNELS_COUNT + SHORTS_COUNT];
     peripheral_t *peripherals[PERIPHERALS_COUNT];
 };
 
@@ -172,69 +181,32 @@ PPI_t *ppi_new(cpu_t **cpu)
     {
         ppi->channels[i].fixed = true;
     }
+    for (size_t i = CHANNELS_COUNT; i < CHANNELS_COUNT + SHORTS_COUNT; i++)
+    {
+        ppi->channels[i].fixed = true;
+    }
 
-    // TIMER0 COMPARE[0] -> RADIO TXEN
-    ppi->channels[20].eep_peripheral = INSTANCE_TIMER0;
-    ppi->channels[20].eep_event = EVENT_ID(TIMER_EVENTS_COMPARE0);
-    ppi->channels[20].tep_peripheral = INSTANCE_RADIO;
-    ppi->channels[20].tep_task = TASK_ID(RADIO_TASKS_TXEN);
+    SET_CHANNEL(20, INSTANCE_TIMER0, TIMER_EVENTS_COMPARE0, INSTANCE_RADIO, RADIO_TASKS_TXEN)
+    SET_CHANNEL(21, INSTANCE_TIMER0, TIMER_EVENTS_COMPARE0, INSTANCE_RADIO, RADIO_TASKS_RXEN)
+    SET_CHANNEL(22, INSTANCE_TIMER0, TIMER_EVENTS_COMPARE1, INSTANCE_RADIO, RADIO_TASKS_DISABLE)
+    // TODO: Implement RADIO BCMATCH -> AAR START
+    // TODO: Implement RADIO READY -> CCM KSGEN
+    // TODO: Implement RADIO ADDRESS -> CCM CRYPT
+    SET_CHANNEL(26, INSTANCE_RADIO, RADIO_EVENTS_ADDRESS, INSTANCE_TIMER0, TIMER_TASKS_CAPTURE1)
+    SET_CHANNEL(27, INSTANCE_RADIO, RADIO_EVENTS_END, INSTANCE_TIMER0, TIMER_TASKS_CAPTURE1)
+    SET_CHANNEL(28, INSTANCE_RTC0, RTC_EVENTS_COMPARE0, INSTANCE_RADIO, RADIO_TASKS_TXEN)
+    SET_CHANNEL(29, INSTANCE_RTC0, RTC_EVENTS_COMPARE0, INSTANCE_RADIO, RADIO_TASKS_RXEN)
+    SET_CHANNEL(30, INSTANCE_RTC0, RTC_EVENTS_COMPARE0, INSTANCE_TIMER0, TIMER_TASKS_CLEAR)
+    SET_CHANNEL(31, INSTANCE_RTC0, RTC_EVENTS_COMPARE0, INSTANCE_TIMER0, TIMER_TASKS_START)
 
-    // TIMER0 COMPARE[0] -> RADIO RXEN
-    ppi->channels[21].eep_peripheral = INSTANCE_TIMER0;
-    ppi->channels[21].eep_event = EVENT_ID(TIMER_EVENTS_COMPARE0);
-    ppi->channels[21].tep_peripheral = INSTANCE_RADIO;
-    ppi->channels[21].tep_task = TASK_ID(RADIO_TASKS_RXEN);
-
-    // TIMER0 COMPARE[1] -> RADIO DISABLE
-    ppi->channels[22].eep_peripheral = INSTANCE_TIMER0;
-    ppi->channels[22].eep_event = EVENT_ID(TIMER_EVENTS_COMPARE1);
-    ppi->channels[22].tep_peripheral = INSTANCE_RADIO;
-    ppi->channels[22].tep_task = TASK_ID(RADIO_TASKS_DISABLE);
-
-    // RADIO BCMATCH -> AAR START
-    // TODO: Implement
-
-    // RADIO READY -> CCM KSGEN
-    // TODO: Implement
-
-    // RADIO ADDRESS -> CCM CRYPT
-    // TODO: Implement
-
-    // RADIO ADDRESS -> TIMER0 CAPTURE[1]
-    ppi->channels[26].eep_peripheral = INSTANCE_RADIO;
-    ppi->channels[26].eep_event = EVENT_ID(RADIO_EVENTS_ADDRESS);
-    ppi->channels[26].tep_peripheral = INSTANCE_TIMER0;
-    ppi->channels[26].tep_task = TASK_ID(TIMER_TASKS_CAPTURE1);
-
-    // RADIO END -> TIMER0 CAPTURE[1]
-    ppi->channels[27].eep_peripheral = INSTANCE_RADIO;
-    ppi->channels[27].eep_event = EVENT_ID(RADIO_EVENTS_END);
-    ppi->channels[27].tep_peripheral = INSTANCE_TIMER0;
-    ppi->channels[27].tep_task = TASK_ID(TIMER_TASKS_CAPTURE2);
-
-    // RTC0 COMPARE[0] -> RADIO TXEN
-    ppi->channels[28].eep_peripheral = INSTANCE_RTC0;
-    ppi->channels[28].eep_event = EVENT_ID(RTC_EVENTS_COMPARE0);
-    ppi->channels[28].tep_peripheral = INSTANCE_RADIO;
-    ppi->channels[28].tep_task = TASK_ID(RADIO_TASKS_TXEN);
-
-    // RTC0 COMPARE[0] -> RADIO RXEN
-    ppi->channels[29].eep_peripheral = INSTANCE_RTC0;
-    ppi->channels[29].eep_event = EVENT_ID(RTC_EVENTS_COMPARE0);
-    ppi->channels[29].tep_peripheral = INSTANCE_RADIO;
-    ppi->channels[29].tep_task = TASK_ID(RADIO_TASKS_RXEN);
-
-    // RTC0 COMPARE[0] -> TIMER0 CLEAR
-    ppi->channels[30].eep_peripheral = INSTANCE_RTC0;
-    ppi->channels[30].eep_event = EVENT_ID(RTC_EVENTS_COMPARE0);
-    ppi->channels[30].tep_peripheral = INSTANCE_TIMER0;
-    ppi->channels[30].tep_task = TASK_ID(TIMER_TASKS_CLEAR);
-
-    // RTC0 COMPARE[0] -> TIMER0 START
-    ppi->channels[31].eep_peripheral = INSTANCE_RTC0;
-    ppi->channels[31].eep_event = EVENT_ID(RTC_EVENTS_COMPARE0);
-    ppi->channels[31].tep_peripheral = INSTANCE_TIMER0;
-    ppi->channels[31].tep_task = TASK_ID(TIMER_TASKS_START);
+    SET_CHANNEL(SHORT_CHANNEL_INDEX(SHORT_RADIO_READY_START), INSTANCE_RADIO, RADIO_EVENTS_READY, INSTANCE_RADIO, RADIO_TASKS_START)
+    SET_CHANNEL(SHORT_CHANNEL_INDEX(SHORT_RADIO_END_DISABLE), INSTANCE_RADIO, RADIO_EVENTS_END, INSTANCE_RADIO, RADIO_TASKS_DISABLE)
+    SET_CHANNEL(SHORT_CHANNEL_INDEX(SHORT_RADIO_DISABLED_TXEN), INSTANCE_RADIO, RADIO_EVENTS_DISABLED, INSTANCE_RADIO, RADIO_TASKS_TXEN)
+    SET_CHANNEL(SHORT_CHANNEL_INDEX(SHORT_RADIO_DISABLED_RXEN), INSTANCE_RADIO, RADIO_EVENTS_DISABLED, INSTANCE_RADIO, RADIO_TASKS_RXEN)
+    SET_CHANNEL(SHORT_CHANNEL_INDEX(SHORT_RADIO_ADDRESS_RSSISTART), INSTANCE_RADIO, RADIO_EVENTS_ADDRESS, INSTANCE_RADIO, RADIO_TASKS_RSSISTART)
+    SET_CHANNEL(SHORT_CHANNEL_INDEX(SHORT_RADIO_END_START), INSTANCE_RADIO, RADIO_EVENTS_END, INSTANCE_RADIO, RADIO_TASKS_START)
+    SET_CHANNEL(SHORT_CHANNEL_INDEX(SHORT_RADIO_ADDRESS_BCSTART), INSTANCE_RADIO, RADIO_EVENTS_ADDRESS, INSTANCE_RADIO, RADIO_TASKS_BCSTART)
+    SET_CHANNEL(SHORT_CHANNEL_INDEX(SHORT_RADIO_DISABLED_RSSISTOP), INSTANCE_RADIO, RADIO_EVENTS_DISABLED, INSTANCE_RADIO, RADIO_TASKS_RSSISTOP)
 
     return ppi;
 }
@@ -293,7 +265,7 @@ void ppi_fire_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id, bool pe
     if (pend_exception)
         cpu_exception_set_pending(*ppi->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(peripheral_id));
 
-    for (size_t i = 0; i < CHANNELS_COUNT; i++)
+    for (size_t i = 0; i < CHANNELS_COUNT + SHORTS_COUNT; i++)
     {
         channel_t *channel = &ppi->channels[i];
 
@@ -328,4 +300,22 @@ bool ppi_event_is_set(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id)
         return false;
 
     return (periph->events & (1 << event_id)) != 0;
+}
+
+void ppi_shorts_set_enabled(PPI_t *ppi, ppi_short_t short_id, bool enabled)
+{
+    assert(short_id < SHORTS_COUNT);
+
+    channel_t *channel = &ppi->channels[SHORT_CHANNEL_INDEX(short_id)];
+
+    channel->enabled = enabled;
+}
+
+bool ppi_shorts_is_enabled(PPI_t *ppi, ppi_short_t short_id)
+{
+    assert(short_id < SHORTS_COUNT);
+
+    channel_t *channel = &ppi->channels[SHORT_CHANNEL_INDEX(short_id)];
+
+    return channel->enabled;
 }
