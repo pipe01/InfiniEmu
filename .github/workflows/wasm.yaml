@@ -1,0 +1,57 @@
+name: wasm
+on: [push]
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    env:
+      EMSCRIPTEN: 3.1.61
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: apt-get update && apt-get install -y python3 git wget gcc g++ make cmake xz-utils
+
+      - name: Install Emscripten
+        run: |
+          cd /tmp
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install $EMSCRIPTEN
+          ./emsdk activate $EMSCRIPTEN
+
+      - name: Build 
+        run: |
+          source /tmp/emsdk/emsdk_env.sh
+          mkdir -p build
+          cd build
+          emcmake cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j$(nproc) infiniemu-wasm
+          cd ..
+          cp build/src/infiniemu.js build/src/infiniemu.wasm wasm/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: github-pages
+          path: wasm
+          if-no-files-found: error
+
+  deploy:
+    runs-on: ubuntu-22.04
+    needs: build
+    steps:
+      - uses: actions/download-artifact@v4
