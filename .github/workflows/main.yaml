@@ -15,10 +15,10 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y wget gcc-12 g++ make cmake pkg-config libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libopengl-dev libglx-dev libglu1-mesa-dev freeglut3-dev libxxf86vm-dev
 
-      - name: Install Go
-        run: |
-          wget https://go.dev/dl/go1.22.3.linux-amd64.tar.gz
-          sudo tar -C /usr/local -xzf go1.22.3.linux-amd64.tar.gz
+      - name: Setup Golang with cache
+        uses: magnetikonline/action-golang-cache@v5
+        with:
+          go-version-file: go.mod
 
       - name: Build libinfiniemu
         run: |
