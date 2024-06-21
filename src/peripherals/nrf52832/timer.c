@@ -85,10 +85,7 @@ void timer_tick(void *userdata)
 {
     TIMER_t *timer = userdata;
 
-    if (timer->mode == MODE_TIMER)
-    {
-        timer_increase_counter(timer);
-    }
+    timer_increase_counter(timer);
 }
 
 OPERATION(timer)
