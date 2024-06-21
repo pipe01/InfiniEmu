@@ -24,7 +24,7 @@ jobs:
           submodules: recursive
 
       - name: Install dependencies
-        run: apt-get update && apt-get install -y python3 git wget gcc g++ make cmake xz-utils
+        run: sudo apt-get update && sudo apt-get install -y python3 git wget gcc g++ make cmake xz-utils
 
       - name: Install Emscripten
         run: |
