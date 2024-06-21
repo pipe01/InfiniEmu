@@ -148,6 +148,7 @@ struct RADIO_inst_t
     uint32_t mode;
     uint32_t txpower;
     uint32_t packetptr;
+    uint32_t bcc;
 
     pcnf0_t pcnf0;
     pcnf1_t pcnf1;
@@ -485,6 +486,9 @@ OPERATION(radio)
 
     case 0x554: // DATAWHITEIV
         OP_RETURN_REG(radio->datawhiteiv, WORD);
+
+    case 0x560: // BCC
+        OP_RETURN_REG(radio->bcc, WORD);
 
     case 0x650: // MODECNF0
         OP_RETURN_REG(radio->modecnf0.value, WORD);
