@@ -32,7 +32,7 @@ jobs:
       - name: Build raw-viewer
         run: |
           cd tools/raw-viewer
-          /usr/local/go/bin/go build -o infiniemu .
+          go build -o infiniemu .
 
       - uses: actions/upload-artifact@v4
         with:
