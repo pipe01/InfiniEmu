@@ -1,0 +1,41 @@
+name: main
+on: [push]
+jobs:
+  build-viewer:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install sudo if running on Act
+        if: ${{ env.ACT }}
+        run: apt-get update && apt-get install -y sudo
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y wget gcc-12 g++ make cmake pkg-config libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libopengl-dev libglx-dev libglu1-mesa-dev freeglut3-dev libxxf86vm-dev
+
+      - name: Install Go
+        run: |
+          wget https://go.dev/dl/go1.22.3.linux-amd64.tar.gz
+          sudo tar -C /usr/local -xzf go1.22.3.linux-amd64.tar.gz
+
+      - name: Build libinfiniemu
+        run: |
+          gcc --version
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j$(nproc) bundling_target
+          cp libinfiniemu_bundle.a ../tools/raw-viewer/libinfiniemu.a
+
+      - name: Build raw-viewer
+        run: |
+          cd tools/raw-viewer
+          /usr/local/go/bin/go build -o infiniemu .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InfiniEmu
+          path: tools/raw-viewer/infiniemu
+          if-no-files-found: error
