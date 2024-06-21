@@ -18,7 +18,7 @@ jobs:
       - name: Setup Golang with cache
         uses: magnetikonline/action-golang-cache@v5
         with:
-          go-version-file: go.mod
+          go-version-file: tools/raw-viewer/go.mod
 
       - name: Build libinfiniemu
         run: |
