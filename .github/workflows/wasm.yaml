@@ -45,7 +45,7 @@ jobs:
           cp build/src/infiniemu.js build/src/infiniemu.wasm wasm/
 
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: wasm
 
