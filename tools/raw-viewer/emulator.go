@@ -1,7 +1,7 @@
 package main
 
 /*
-#cgo CFLAGS: -I../../include
+#cgo CFLAGS: -I../../include -I../../lib/capstone/include
 #cgo LDFLAGS: libinfiniemu.a
 
 #include <setjmp.h>
@@ -283,7 +283,7 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 	pinner.Pin(&flash[0])
 
 	// The C code makes a copy of the flash contents, so we can safely unpin it after
-	pt := C.pinetime_new((*C.uchar)(&flash[0]), C.ulong(len(flash)), true)
+	pt := C.pinetime_new((*C.uchar)(&flash[0]), C.ulong(len(flash)), true, true)
 	C.pinetime_reset(pt)
 
 	nrf52 := C.pinetime_get_nrf52832(pt)
