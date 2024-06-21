@@ -18,7 +18,6 @@ void st7789_read_screen_rgba(st7789_t *st, uint8_t *screen_buffer, uint8_t *rgba
 {
     st7789_read_screen(st, screen_buffer, width, height);
 
-    uint16_t next_pixel;
     size_t pixel_idx = 0;
 
     for (size_t y = 0; y < height; y++)

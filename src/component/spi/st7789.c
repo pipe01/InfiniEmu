@@ -169,6 +169,7 @@ void st7789_write(uint8_t byte, void *userdata)
             case Command_MemoryDataAccessControl:
             {
                 madctl_t madctl = (madctl_t){.value = st7789->data_buffer[0]};
+                (void)madctl;
 
                 assert(madctl.mh == 0);
                 assert(madctl.rgb == 0);
