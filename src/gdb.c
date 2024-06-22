@@ -981,7 +981,7 @@ void gdb_start(gdb_t *gdb)
 
 gdb_t *gdb_new(pinetime_t *pt, bool start_paused)
 {
-    gdb_t *gdb = (gdb_t *)malloc(sizeof(gdb_t));
+    gdb_t *gdb = malloc(sizeof(gdb_t));
     memset(gdb, 0, sizeof(gdb_t));
 
     gdb->nrf = pinetime_get_nrf52832(pt);

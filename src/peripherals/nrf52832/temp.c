@@ -40,7 +40,7 @@ OPERATION(temp)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(TEMP, temp)
 {
-    return (TEMP_t *)malloc(sizeof(TEMP_t));
+    return malloc(sizeof(TEMP_t));
 }
 
 void temp_reset(TEMP_t *temp)

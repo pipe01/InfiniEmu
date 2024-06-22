@@ -49,7 +49,7 @@ void i2c_add_slave(bus_i2c_t *i2c, uint8_t address, i2c_slave_t slave)
     if (i2c->slaves[address])
         fault_take(FAULT_I2C_DUPLICATE_ADDRESS);
 
-    i2c_slave_t *copy = (i2c_slave_t *)malloc(sizeof(i2c_slave_t));
+    i2c_slave_t *copy = malloc(sizeof(i2c_slave_t));
     memcpy(copy, &slave, sizeof(i2c_slave_t));
 
     i2c->slaves[address] = copy;

@@ -81,7 +81,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
 {
     uint8_t *sram = malloc(sram_size);
 
-    NRF52832_t *chip = (NRF52832_t *)malloc(sizeof(NRF52832_t));
+    NRF52832_t *chip = malloc(sizeof(NRF52832_t));
     chip->pins = pins_new();
     chip->bus_spi = bus_spi_new(chip->pins, sram, sram_size);
     chip->bus_i2c = i2c_new(sram, sram_size);

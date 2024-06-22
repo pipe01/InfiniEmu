@@ -37,7 +37,7 @@ OPERATION(scb_fp)
 
 SCB_FP_t *scb_fp_new()
 {
-    return (SCB_FP_t *)malloc(sizeof(SCB_FP_t));
+    return malloc(sizeof(SCB_FP_t));
 }
 
 FPCCR_t scb_fp_get_fpccr(SCB_FP_t *scb_fp)

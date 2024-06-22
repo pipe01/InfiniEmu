@@ -184,7 +184,7 @@ OPERATION(spim)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(SPIM, spim)
 {
-    SPIM_t *spim = (SPIM_t *)malloc(sizeof(SPIM_t));
+    SPIM_t *spim = malloc(sizeof(SPIM_t));
     spim->bus = ctx.spi;
     spim->id = ctx.id;
 

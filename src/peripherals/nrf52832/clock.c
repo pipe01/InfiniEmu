@@ -148,7 +148,7 @@ PPI_TASK_HANDLER(clock_task_handler)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(CLOCK, clock)
 {
-    CLOCK_t *clock = (CLOCK_t *)malloc(sizeof(CLOCK_t));
+    CLOCK_t *clock = malloc(sizeof(CLOCK_t));
 
     ppi_add_peripheral(ctx.ppi, ctx.id, clock_task_handler, clock);
 

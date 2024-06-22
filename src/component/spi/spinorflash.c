@@ -239,7 +239,7 @@ void spinorflash_reset(void *userdata)
 spinorflash_t *spinorflash_new(size_t size, size_t sector_size)
 {
     spinorflash_t *flash = malloc(sizeof(spinorflash_t));
-    flash->data = (uint8_t *)malloc(size);
+    flash->data = malloc(size);
     flash->should_free_data = true;
     flash->size = size;
     flash->sector_size = sector_size;

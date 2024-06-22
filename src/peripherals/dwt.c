@@ -37,7 +37,7 @@ OPERATION(dwt)
 
 DWT_t *dwt_new()
 {
-    return (DWT_t *)malloc(sizeof(DWT_t));
+    return malloc(sizeof(DWT_t));
 }
 
 void dwt_increment_cycle(DWT_t *dwt)

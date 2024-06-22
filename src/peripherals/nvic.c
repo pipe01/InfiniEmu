@@ -161,7 +161,7 @@ NVIC_t *nvic_new(cpu_t *cpu, size_t priority_bits)
 {
     assert(priority_bits >= 3 && priority_bits <= 8);
 
-    NVIC_t *nvic = (NVIC_t *)malloc(sizeof(NVIC_t));
+    NVIC_t *nvic = malloc(sizeof(NVIC_t));
     nvic->cpu = cpu;
     nvic->priority_mask = (0xFF << (8 - priority_bits)) & 0xFF;
 

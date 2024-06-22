@@ -55,5 +55,5 @@ OPERATION(wdt)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(WDT, wdt)
 {
-    return (WDT_t *)malloc(sizeof(WDT_t));
+    return malloc(sizeof(WDT_t));
 }

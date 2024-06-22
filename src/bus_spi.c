@@ -72,7 +72,7 @@ void bus_spi_add_slave(bus_spi_t *spi, uint8_t cs_pin, spi_slave_t slave)
 {
     // TODO: Check too many slaves
 
-    spi_slave_t *copy = (spi_slave_t *)malloc(sizeof(spi_slave_t));
+    spi_slave_t *copy = malloc(sizeof(spi_slave_t));
     memcpy(copy, &slave, sizeof(spi_slave_t));
 
     spi->slaves[spi->slave_count] = copy;

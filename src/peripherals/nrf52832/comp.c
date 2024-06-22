@@ -25,7 +25,7 @@ OPERATION(comp)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(COMP, comp)
 {
-    return (COMP_t *)malloc(sizeof(COMP_t));
+    return malloc(sizeof(COMP_t));
 }
 
 void comp_reset(COMP_t *comp)

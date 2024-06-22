@@ -108,7 +108,7 @@ PPI_TASK_HANDLER(rng_task_cb)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(RNG, rng)
 {
-    RNG_t *rng = (RNG_t *)malloc(sizeof(RNG_t));
+    RNG_t *rng = malloc(sizeof(RNG_t));
     rng->cpu = ctx.cpu;
     rng->ppi = ctx.ppi;
 

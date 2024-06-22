@@ -233,7 +233,7 @@ OPERATION(gpio)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(GPIO, gpio)
 {
-    GPIO_t *gpio = (GPIO_t *)malloc(sizeof(GPIO_t));
+    GPIO_t *gpio = malloc(sizeof(GPIO_t));
     gpio->pins = ctx.pins;
     return gpio;
 }

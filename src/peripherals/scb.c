@@ -137,7 +137,7 @@ OPERATION(scb)
 
 SCB_t *scb_new(cpu_t *cpu)
 {
-    SCB_t *scb = (SCB_t *)malloc(sizeof(SCB_t));
+    SCB_t *scb = malloc(sizeof(SCB_t));
     scb->cpu = cpu;
 
     return scb;

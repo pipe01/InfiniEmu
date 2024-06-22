@@ -223,7 +223,7 @@ NRF52_PERIPHERAL_CONSTRUCTOR(TIMER, timer, size_t cc_num)
 {
     assert(cc_num <= TIMER_MAX_CC);
 
-    TIMER_t *timer = (TIMER_t *)malloc(sizeof(TIMER_t));
+    TIMER_t *timer = malloc(sizeof(TIMER_t));
     timer->cc_num = cc_num;
     timer->id = ctx.id;
     timer->ticker = ctx.ticker;

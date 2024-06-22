@@ -182,7 +182,7 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RTC, rtc, size_t cc_num)
 {
     assert(cc_num <= RTC_MAX_CC);
 
-    RTC_t *rtc = (RTC_t *)malloc(sizeof(RTC_t));
+    RTC_t *rtc = malloc(sizeof(RTC_t));
     rtc->cc_num = cc_num;
     rtc->cpu = ctx.cpu;
     rtc->id = ctx.id;

@@ -39,5 +39,5 @@ OPERATION(dcb)
 
 DCB_t *dcb_new()
 {
-    return (DCB_t *)malloc(sizeof(DCB_t));
+    return malloc(sizeof(DCB_t));
 }
