@@ -60,10 +60,12 @@ onmessage = (e) => {
                 return;
             }
 
-            const program = e.data.program;
-            console.log(program);
+            const program = Module._program_new(0x800000);
+            const args = [program, 0, e.data.program, e.data.program.length];
+            if (Module.ccall("program_load_elf", "number", ["number", "number", "array", "number"], args) === 0)
+                Module.ccall("program_load_binary", null, ["number", "number", "array", "number"], args);
 
-            pt = Module.ccall("pinetime_new", "any", ["array", "number", "boolean"], [program, program.length, true]);
+            pt = Module._pinetime_new(program, true);
             lcd = Module._pinetime_get_st7789(pt);
             touch = Module._pinetime_get_cst816s(pt);
             pins = Module._nrf52832_get_pins(Module._pinetime_get_nrf52832(pt));
@@ -79,7 +81,7 @@ onmessage = (e) => {
                     screenUpdated = Module._pinetime_loop(pt, iterations);
                 } catch (error) {
                     clearInterval(interval);
-                    postMessage({ type: "error", data: error.toString() });
+                    postMessage({ type: "error", data: error.stack.toString() });
                     return;
                 }
 

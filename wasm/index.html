@@ -62,8 +62,7 @@
                 alert("MCUBoot DFU files are not supported, this probably won't work");
             }
 
-            const binData = await binEntry.getData(new zip.Uint8ArrayWriter());
-            return binData;
+            return await binEntry.getData(new zip.Uint8ArrayWriter());
         }
 
         function loadProgramFile(file) {

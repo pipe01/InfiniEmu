@@ -56,6 +56,7 @@ set(WASM_EXPORTS
     pinetime_get_st7789 st7789_read_screen_rgba st7789_is_sleeping st7789_get_write_count st7789_is_sleeping
     pinetime_get_cst816s cst816s_do_touch cst816s_release_touch
     pinetime_get_nrf52832 nrf52832_get_pins pins_set pins_clear
+    program_new program_load_binary program_load_elf
 )
 
 set(LIBS m tiny-aes capstone)
