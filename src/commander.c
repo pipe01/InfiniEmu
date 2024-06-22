@@ -1,6 +1,7 @@
 #include "commander.h"
 
 #include <string.h>
+#include <time.h>
 
 #define END            \
     {                  \
@@ -141,10 +142,67 @@ COMMAND(cmd_step)
     pinetime_step(cder->pt);
 }
 
+COMMAND(cmd_wait)
+{
+    char *end;
+    int ms = strtol(args, &end, 0);
+
+    if (end == args || *end != '\0' || ms < 0)
+    {
+        commander_outputf(cder, "Invalid number of milliseconds: %s\n", args);
+        return;
+    }
+
+    struct timespec ts = {
+        .tv_sec = ms / 1000,
+        .tv_nsec = (ms % 1000) * 1000000,
+    };
+    nanosleep(&ts, NULL);
+}
+
+COMMAND(cmd_pinetime_touch_swipe)
+{
+    cst816s_t *touch = pinetime_get_cst816s(cder->pt);
+
+    touch_gesture_t gesture;
+    if (strcmp(args, "left") == 0)
+        gesture = GESTURE_SLIDELEFT;
+    else if (strcmp(args, "right") == 0)
+        gesture = GESTURE_SLIDERIGHT;
+    else if (strcmp(args, "up") == 0)
+        gesture = GESTURE_SLIDEUP;
+    else if (strcmp(args, "down") == 0)
+        gesture = GESTURE_SLIDEDOWN;
+    else
+    {
+        commander_outputf(cder, "Invalid gesture: %s\n", args);
+        return;
+    }
+
+    cst816s_do_touch(touch, gesture, PINETIME_LCD_WIDTH / 2, PINETIME_LCD_HEIGHT / 2);
+}
+
+COMMAND(cmd_pinetime_touch_release)
+{
+    cst816s_t *touch = pinetime_get_cst816s(cder->pt);
+
+    cst816s_release_touch(touch);
+}
+
 static command_t commands[] = {
     {
         .name = "help",
         .handler = cmd_help,
+    },
+    {
+        .name = "step",
+        .handler = cmd_step,
+        .description = "Step the emulator by one instruction",
+    },
+    {
+        .name = "wait",
+        .handler = cmd_wait,
+        .description = "Wait for a given number of milliseconds",
     },
     {
         .name = "nrf52",
@@ -176,9 +234,24 @@ static command_t commands[] = {
         },
     },
     {
-        .name = "step",
-        .handler = cmd_step,
-        .description = "Step the emulator by one instruction",
+        .name = "pinetime",
+        .children = (command_t[]){
+            {
+                .name = "touch",
+                .children = (command_t[]){
+                    {
+                        .name = "swipe",
+                        .handler = cmd_pinetime_touch_swipe,
+                    },
+                    {
+                        .name = "release",
+                        .handler = cmd_pinetime_touch_release,
+                    },
+                    END,
+                },
+            },
+            END,
+        },
     },
     END,
 };
