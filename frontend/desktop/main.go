@@ -507,6 +507,10 @@ func main() {
 				imgui.EndDisabled()
 			}
 			imgui.EndDisabled()
+
+			if imgui.Button("Heap") {
+				emulator.FindFreeHeapBlocks()
+			}
 		}
 		imgui.End()
 

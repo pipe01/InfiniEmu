@@ -10,7 +10,7 @@
             "request": "launch",
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
-            "args": ["-bf", "${workspaceFolder}/infinitime.bin"],
+            "args": ["-bf", "${workspaceFolder}/infinitime.out"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [

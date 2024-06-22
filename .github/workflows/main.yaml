@@ -18,7 +18,7 @@ jobs:
       - name: Setup Golang with cache
         uses: magnetikonline/action-golang-cache@v5
         with:
-          go-version-file: tools/raw-viewer/go.mod
+          go-version-file: frontend/desktop/go.mod
 
       - name: Build libinfiniemu
         run: |
@@ -27,15 +27,15 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
           make -j$(nproc) bundling_target
-          cp libinfiniemu_bundle.a ../tools/raw-viewer/libinfiniemu.a
+          cp libinfiniemu_bundle.a ../frontend/desktop/libinfiniemu.a
 
-      - name: Build raw-viewer
+      - name: Build desktop frontend
         run: |
-          cd tools/raw-viewer
+          cd frontend/desktop
           go build -o infiniemu .
 
       - uses: actions/upload-artifact@v4
         with:
           name: InfiniEmu
-          path: tools/raw-viewer/infiniemu
+          path: frontend/desktop/infiniemu
           if-no-files-found: error

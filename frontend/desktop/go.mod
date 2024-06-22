@@ -1,4 +1,4 @@
-module raw-viewer
+module github.com/pipe01/InfiniEmu/frontend/desktop
 
 go 1.22.2
 

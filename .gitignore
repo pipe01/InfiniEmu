@@ -1,6 +1,7 @@
 /*.bin
 /*.dis
 /*.out
+/*.elf
 /*.so
 /*.o
 build

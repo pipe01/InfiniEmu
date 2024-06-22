@@ -1,7 +1,0 @@
-*.so
-__debug_bin*
-imgui.ini
-*.AppImage
-AppDir/usr
-*.a
-spiflash.bin

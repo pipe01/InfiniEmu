@@ -42,7 +42,7 @@ jobs:
           emcmake cmake -DCMAKE_BUILD_TYPE=Release ..
           make -j$(nproc) infiniemu-wasm
           cd ..
-          cp build/src/infiniemu.js build/src/infiniemu.wasm wasm/
+          cp build/src/infiniemu.js build/src/infiniemu.wasm frontend/wasm/
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3

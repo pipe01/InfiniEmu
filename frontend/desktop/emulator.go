@@ -38,6 +38,11 @@ const (
 	displayBytesPerPixel = C.BYTES_PER_PIXEL
 )
 
+const (
+	portBYTE_ALIGNMENT_MASK = 7
+	portBYTE_ALIGNMENT      = 8
+)
+
 type TouchGesture int
 
 const (
@@ -607,4 +612,60 @@ func (e *Emulator) DidSPIFlashChange() bool {
 
 func (e *Emulator) SPIFlash() []byte {
 	return e.extflashContents
+}
+
+func (e *Emulator) FindFreeHeapBlocks() {
+	var blockAddr uint32
+
+	if sym, ok := e.program.Symbols["ucHeap"]; !ok {
+		return
+	} else {
+		blockAddr = sym.Start
+
+		if blockAddr&portBYTE_ALIGNMENT_MASK != 0 {
+			blockAddr += portBYTE_ALIGNMENT - 1
+			blockAddr &^= portBYTE_ALIGNMENT_MASK
+		}
+
+		println(sym.Length)
+	}
+
+	blockAllocatedBitSym, ok := e.program.Symbols["xBlockAllocatedBit"]
+	if !ok {
+		return
+	}
+
+	blockAllocatedBit := e.ReadMemory(blockAllocatedBitSym.Start)
+
+	fmt.Printf("Found FreeRTOS heap at 0x%x\n", blockAddr)
+
+	var prevBlockAddr, prevBlockSize uint32
+
+	for blockAddr != 0 {
+		// nextFreeBlock := e.ReadMemory(blockAddr)
+		blockSize := e.ReadMemory(blockAddr + 4)
+
+		isAllocated := blockSize&blockAllocatedBit != 0
+
+		blockSize &^= blockAllocatedBit
+
+		fmt.Printf("Block at 0x%08x, size %d, in use: %t\n", blockAddr, blockSize, isAllocated)
+
+		if blockSize == 0 {
+			break
+		}
+
+		if prevBlockAddr != 0 {
+			gap := int32(blockAddr) - int32(prevBlockAddr+prevBlockSize)
+
+			if gap > 0 {
+				fmt.Printf("Gap between 0x%08x and 0x%08x: %d bytes\n", prevBlockAddr, blockAddr, gap)
+			}
+		}
+
+		prevBlockAddr = blockAddr
+		prevBlockSize = blockSize
+
+		blockAddr += blockSize
+	}
 }
