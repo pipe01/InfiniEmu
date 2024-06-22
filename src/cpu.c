@@ -199,7 +199,7 @@ struct cpu_inst_t
     arm_mode mode;
 
     csh cs;
-    uint8_t *program;
+    const uint8_t *program;
     size_t program_size;
 
     cs_insn *inst;
@@ -1183,7 +1183,7 @@ static inline void cpu_decode_arithmetic(cpu_t *cpu, cs_insn *i, uint32_t *op0_v
     }
 }
 
-cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts, size_t priority_bits)
+cpu_t *cpu_new(const uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts, size_t priority_bits)
 {
     cpu_t *cpu = calloc(1, sizeof(cpu_t));
 

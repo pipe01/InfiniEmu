@@ -77,7 +77,7 @@ struct NRF52832_inst_t
         last = memreg_set_next(last, memreg_new_operation(0x40000000 | (((idn) & 0xFF) << 12), 0x1000, name##_operation, (chip)->field)); \
     } while (0)
 
-NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sram_size, size_t flash_size)
+NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
 {
     uint8_t *sram = malloc(sram_size);
 
@@ -88,9 +88,8 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     chip->ticker = ticker_new();
     chip->dma = dma_new(ARM_SRAM_START, sram, sram_size);
 
-    chip->flash = malloc(flash_size);
-    memcpy(chip->flash, program, program_size);
-    memset(chip->flash + program_size, 0xFF, flash_size - program_size); // 0xFF out the rest of the flash
+    chip->flash = malloc(program_size(flash));
+    program_write_to(flash, chip->flash);
 
     chip->mem = memreg_new_simple(x(2000, 0000), sram, sram_size);
     memreg_t *last = chip->mem;
@@ -109,8 +108,8 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
         .dma = chip->dma,
     };
 
-    NEW_NRF52_PERIPH(chip, NVMC, nvmc, nvmc, INSTANCE_NVMC, chip->flash, flash_size);
-    last = memreg_set_next(last, memreg_new_operation(0, flash_size, nvmc_operation, chip->nvmc));
+    NEW_NRF52_PERIPH(chip, NVMC, nvmc, nvmc, INSTANCE_NVMC, chip->flash, program_size(flash));
+    last = memreg_set_next(last, memreg_new_operation(0, program_size(flash), nvmc_operation, chip->nvmc));
 
     NEW_NRF52_PERIPH(chip, CLOCK, clock, clock, INSTANCE_CLOCK);
     NEW_NRF52_PERIPH(chip, POWER, power, power, INSTANCE_POWER);
@@ -145,7 +144,7 @@ NRF52832_t *nrf52832_new(const uint8_t *program, size_t program_size, size_t sra
     last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len));
     last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len));
 
-    chip->cpu = cpu_new(chip->flash, program_size, chip->mem, NRF52832_MAX_EXTERNAL_INTERRUPTS, NRF52832_PRIORITY_BITS);
+    chip->cpu = cpu_new(chip->flash, program_size(flash), chip->mem, NRF52832_MAX_EXTERNAL_INTERRUPTS, NRF52832_PRIORITY_BITS);
 
     return chip;
 }

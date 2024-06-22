@@ -12,7 +12,7 @@ typedef struct cpu_inst_t cpu_t;
 
 typedef void (*branch_cb_t)(cpu_t *cpu, uint32_t old_pc, uint32_t new_pc, void *userdata);
 
-cpu_t *cpu_new(uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts, size_t priority_bits);
+cpu_t *cpu_new(const uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts, size_t priority_bits);
 void cpu_free(cpu_t *cpu);
 void cpu_reset(cpu_t *cpu);
 void cpu_step(cpu_t *cpu);

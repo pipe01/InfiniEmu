@@ -11,6 +11,7 @@ set(SRC_FILES
     nrf52832.c
     pinetime.c
     pins.c
+    program.c
     runlog.c
     scheduler.c
     segger_rtt.c

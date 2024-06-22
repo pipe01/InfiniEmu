@@ -329,7 +329,7 @@ func main() {
 		extflashInit = v
 	}
 
-	emulator := NewEmulator(program, extflashInit)
+	emulator := NewEmulator(program, extflashInit, true)
 
 	if *analyzeHeap {
 		emulator.EnableHeapTracker()

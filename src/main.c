@@ -8,6 +8,7 @@
 #include "pinetime.h"
 #include "gdb.h"
 #include "ie_time.h"
+#include "program.h"
 
 void commander_output(const char *msg, void *userdata)
 {
@@ -65,13 +66,17 @@ int main(int argc, char **argv)
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    uint8_t *program = malloc(fsize);
-    fread(program, fsize, 1, f);
+    uint8_t *program_data = malloc(fsize);
+    fread(program_data, fsize, 1, f);
     fclose(f);
+
+    program_t *program = program_new(big_ram ? 0x800000 : NRF52832_FLASH_SIZE);
+    if (!program_load_elf(program, 0, program_data, fsize))
+        program_load_binary(program, 0, program_data, fsize);
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
-    pinetime_t *pt = pinetime_new(program, fsize, big_ram, big_ram);
+    pinetime_t *pt = pinetime_new(program, big_ram);
 
     NRF52832_t *nrf = pinetime_get_nrf52832(pt);
     cpu_t *cpu = nrf52832_get_cpu(nrf);
@@ -89,7 +94,7 @@ int main(int argc, char **argv)
 
         runlog = runlog_new(f);
 
-        runlog_record_load_program(runlog, program, fsize);
+        runlog_record_load_program(runlog, program_data, fsize);
 
         cpu_set_runlog(cpu, runlog);
         cpu_reset(cpu);

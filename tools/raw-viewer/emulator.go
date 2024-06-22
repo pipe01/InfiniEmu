@@ -272,7 +272,7 @@ type Emulator struct {
 
 var emulators = map[uint64]*Emulator{}
 
-func NewEmulator(program *Program, spiFlash []byte) *Emulator {
+func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 	flash := program.Flatten()
 
 	var pinner runtime.Pinner
@@ -280,10 +280,18 @@ func NewEmulator(program *Program, spiFlash []byte) *Emulator {
 
 	var longPinner runtime.Pinner
 
+	// The C code makes a copy of the flash contents, so we can safely unpin it afterwards
 	pinner.Pin(&flash[0])
 
-	// The C code makes a copy of the flash contents, so we can safely unpin it after
-	pt := C.pinetime_new((*C.uchar)(&flash[0]), C.ulong(len(flash)), true, true)
+	flashSize := C.size_t(C.NRF52832_FLASH_SIZE)
+	if big {
+		flashSize = 0x800000
+	}
+
+	ptProgram := C.program_new(flashSize)
+	C.program_load_binary(ptProgram, 0, (*C.uchar)(&flash[0]), C.size_t(len(flash)))
+
+	pt := C.pinetime_new(ptProgram, C.bool(big))
 	C.pinetime_reset(pt)
 
 	nrf52 := C.pinetime_get_nrf52832(pt)
