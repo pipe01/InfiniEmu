@@ -52,11 +52,13 @@ set(SRC_FILES
 )
 
 set(WASM_EXPORTS
-    malloc pinetime_new pinetime_step pinetime_loop
+    malloc free
+    pinetime_new pinetime_step pinetime_loop
     pinetime_get_st7789 st7789_read_screen_rgba st7789_is_sleeping st7789_get_write_count st7789_is_sleeping
     pinetime_get_cst816s cst816s_do_touch cst816s_release_touch
     pinetime_get_nrf52832 nrf52832_get_pins pins_set pins_clear
     program_new program_load_binary program_load_elf
+    commander_new commander_set_output commander_run_command commander_output
 )
 
 set(LIBS m tiny-aes capstone)
@@ -79,7 +81,7 @@ if(EMSCRIPTEN)
     list(JOIN WASM_EXPORTS "," WASM_EXPORTS_STR)
 
     target_link_options(infiniemu-wasm PRIVATE "-sEXPORTED_FUNCTIONS=${WASM_EXPORTS_STR}")
-    target_link_options(infiniemu-wasm PRIVATE -sTOTAL_STACK=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=ccall,cwrap)
+    target_link_options(infiniemu-wasm PRIVATE -sTOTAL_STACK=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,stringToNewUTF8)
 else()
     add_executable(infiniemu-cli ${SRC_FILES} main.c)
     add_library(infiniemu-lib STATIC ${SRC_FILES})

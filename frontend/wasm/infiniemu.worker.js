@@ -5,13 +5,15 @@ var Module = {
 
         postMessage({ type: "ready" });
     },
+    print(text) {
+        console.log("print", text);
+    }
 };
 
 importScripts("infiniemu.js");
-
 const iterations = 700000;
 
-var pt, lcd, touch, pins;
+var pt, lcd, touch, pins, cmd;
 
 var isLcdSleeping = false;
 var displayBufferPointer, rgbaBufferPointer;
@@ -54,6 +56,12 @@ onmessage = (e) => {
             Module._pins_clear(pins, 13);
             break;
 
+        case "runCommand":
+            const str = stringToNewUTF8(e.data.command);
+            Module._commander_run_command(cmd, str);
+            Module._free(str);
+            break;
+
         case "loadProgram":
             if (pt) {
                 console.error("Pinetime already loaded");
@@ -69,6 +77,9 @@ onmessage = (e) => {
             lcd = Module._pinetime_get_st7789(pt);
             touch = Module._pinetime_get_cst816s(pt);
             pins = Module._nrf52832_get_pins(Module._pinetime_get_nrf52832(pt));
+            cmd = Module._commander_new(pt);
+
+            Module._commander_set_output(cmd, Module._commander_output);
 
             displayBufferPointer = Module._malloc(240 * 240 * 2);
             rgbaBufferPointer = Module._malloc(240 * 240 * 4);

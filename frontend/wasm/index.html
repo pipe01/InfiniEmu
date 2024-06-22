@@ -36,6 +36,11 @@
 
     <div id="performance"></div>
 
+    <div>
+        <input type="text" id="command">
+        <button onclick="myWorker.postMessage({ type: 'runCommand', command: document.getElementById('command').value })">Run</button>
+    </div>
+
     <script>
         const myWorker = new Worker("infiniemu.worker.js");
         const display = document.getElementById("display");

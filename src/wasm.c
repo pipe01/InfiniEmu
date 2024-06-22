@@ -1,6 +1,8 @@
 #include "pinetime.h"
 #include "components/spi/st7789.h"
 
+#include <emscripten.h>
+
 bool pinetime_loop(pinetime_t *pt, size_t n)
 {
     st7789_t *lcd = pinetime_get_st7789(pt);
@@ -38,4 +40,11 @@ void st7789_read_screen_rgba(st7789_t *st, uint8_t *screen_buffer, uint8_t *rgba
             pixel_idx++;
         }
     }
+}
+
+void commander_output(const char *msg, void *userdata)
+{
+    EM_ASM({
+        console.log($0);
+    }, msg);
 }
