@@ -81,7 +81,13 @@ if(EMSCRIPTEN)
     list(JOIN WASM_EXPORTS "," WASM_EXPORTS_STR)
 
     target_link_options(infiniemu-wasm PRIVATE "-sEXPORTED_FUNCTIONS=${WASM_EXPORTS_STR}")
-    target_link_options(infiniemu-wasm PRIVATE -sTOTAL_STACK=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,stringToNewUTF8)
+    target_link_options(infiniemu-wasm PRIVATE
+        -sTOTAL_STACK=64MB
+        -sALLOW_MEMORY_GROWTH
+        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,stringToNewUTF8
+        -sMODULARIZE=1
+        -sEXPORT_ES6=1
+    )
 else()
     add_executable(infiniemu-cli ${SRC_FILES} main.c)
     add_library(infiniemu-lib STATIC ${SRC_FILES})
