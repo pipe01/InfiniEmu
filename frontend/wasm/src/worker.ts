@@ -105,6 +105,24 @@ class Emulator {
             this.runInterval = null;
         }
     }
+
+    doTouch(gesture: number, x: number, y: number, duration?: number) {
+        this.Module._cst816s_do_touch(this.touch, gesture, x, y);
+
+        if (duration && duration > 0)
+            setTimeout(() => this.Module._cst816s_release_touch(this.touch), duration);
+    }
+
+    clearTouch() {
+        this.Module._cst816s_release_touch(this.touch);
+    }
+
+    changePin(pin: number, isSet: boolean) {
+        if (isSet)
+            this.Module._pins_set(this.pins, pin);
+        else
+            this.Module._pins_clear(this.pins, pin);
+    }
 };
 
 let emulator: Emulator | null = null;
@@ -121,8 +139,7 @@ onmessage = event => {
 
     switch (type) {
         case "loadProgram":
-            if (!Module)
-            {
+            if (!Module) {
                 postMessage({ type: "error", data: "Module not loaded" });
                 return;
             }
@@ -145,6 +162,26 @@ onmessage = event => {
         case "stop":
             if (emulator)
                 emulator.stop();
+            break;
+
+        case "doTouch":
+            if (emulator)
+                emulator.doTouch(data.gesture, data.x, data.y);
+            break;
+
+        case "clearTouch":
+            if (emulator)
+                emulator.clearTouch();
+            break;
+
+        case "pressButton":
+            if (emulator)
+                emulator.changePin(13, true);
+            break;
+
+        case "releaseButton":
+            if (emulator)
+                emulator.changePin(13, false);
             break;
     }
 }
