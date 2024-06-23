@@ -11,12 +11,42 @@ template(v-if="!isReady")
             button.btn.btn-success(v-if="!isRunning" @click="start") Start
             button.btn.btn-danger(v-else @click="stop") Stop
     .col
-        .card(v-if="isStarted")
-            .card-body
-                h3.card-title Performance
-                div Instructions per second: {{ numberFmt.format(performance.ips.value.toFixed(0)) }}
-                div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
-                div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
+        template(v-if="isStarted")
+            .card
+                .card-body
+                    h3.card-title Performance
+                    div Instructions per second: {{ numberFmt.format(performance.ips.value.toFixed(0)) }}
+                    div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
+                    div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
+
+            .card.mt-3
+                .card-body
+                    h3.card-title Controls
+
+                    .d-flex.flex-column.justify-content-center.align-items-center
+                        table
+                            tr
+                                td
+                                td
+                                    button.btn.btn-primary(@click="swipeCenter(Direction.Down)")
+                                        i.bi-caret-up-fill
+                                td
+                            tr
+                                td
+                                    button.btn.btn-primary(@click="swipeCenter(Direction.Left)")
+                                        i.bi-caret-left-fill
+                                td
+                                    button.btn.btn-primary(@mousedown="onButtonDown(true)" @mouseup="onButtonDown(false)")
+                                        i.bi-square-fill
+                                td
+                                    button.btn.btn-primary(@click="swipeCenter(Direction.Right)")
+                                        i.bi-caret-right-fill
+                            tr
+                                td
+                                td
+                                    button.btn.btn-primary(@click="swipeCenter(Direction.Up)")
+                                        i.bi-caret-down-fill
+                                td
 </template>
 
 <script lang="ts" setup>
@@ -99,6 +129,11 @@ function onButtonDown(isDown: boolean) {
     else
         worker.postMessage({ type: "releaseButton" });
 }
+
+const swipeCenter = (direction: Direction) => {
+    onStartSwipe(direction, 240 / 2, 240 / 2)
+    setTimeout(clearTouch, 100);
+};
 
 function onStartSwipe(direction: Direction, x: number, y: number) {
     let gesture: number;
