@@ -25,6 +25,12 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
     _st7789_is_sleeping(lcd: ST7789): boolean;
     _st7789_read_screen_rgba(lcd: ST7789, buffer: Pointer, rgbaBuffer: Pointer, width: number, height: number): void;
 
+    _cst816s_do_touch(touch: CST816S, gesture: number, x: number, y: number): void;
+    _cst816s_release_touch(touch: CST816S): void;
+
+    _pins_set(pin: Pins, pinNumber: number): void;
+    _pins_clear(pin: Pins, pinNumber: number): void;
+
     _commander_new(pt: Pinetime): Commander;
     _commander_set_output(cmd: Commander, output: Pointer): void;
 

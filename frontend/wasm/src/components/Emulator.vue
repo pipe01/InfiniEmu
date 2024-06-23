@@ -3,14 +3,19 @@ template(v-if="!isReady")
     h1 Loading worker...
 .row(v-else)
     .col
-    .col
+    .col(style="flex-grow: 0")
         Display(:width="240" :height="240" @got-canvas="onGotCanvas"
             @button-down="onButtonDown" @start-swipe="onStartSwipe" @end-swipe="clearTouch"
             @start-touch="onStartTouch" @end-touch="clearTouch")
         div
-            button.btn.btn-success(@click="start") Start
-            button.btn.btn-danger.ms-3(@click="stop") Stop
+            button.btn.btn-success(v-if="!isRunning" @click="start") Start
+            button.btn.btn-danger(v-else @click="stop") Stop
     .col
+        .card(v-if="isStarted")
+            .card-body
+                h3.card-title Performance
+                div Instructions per second: {{ performance.ips }}
+                div Loop time: {{ performance.loopTime }} ms
 </template>
 
 <script lang="ts" setup>
@@ -19,12 +24,20 @@ import { onUnmounted, ref } from "vue";
 import MyWorker from "@/worker?worker";
 
 import Display, { Direction } from "@/components/Display.vue";
+import { useAverage } from "@/utils";
 
 const props = defineProps<{
     programFile: ArrayBuffer;
 }>();
 
 const isReady = ref(false);
+const isStarted = ref(false);
+const isRunning = ref(false);
+
+const performance = {
+    ips: useAverage(1000),
+    loopTime: useAverage(1000),
+}
 
 const worker = new MyWorker();
 onUnmounted(() => worker.terminate());
@@ -41,6 +54,11 @@ worker.onmessage = (event) => {
             worker.postMessage({ type: "loadProgram", data: props.programFile });
             isReady.value = true;
             break;
+
+        case "performance":
+            performance.ips.value = data.ips;
+            performance.loopTime.value = data.loopTime;
+            break;
     }
 };
 
@@ -52,10 +70,13 @@ function onGotCanvas(canvas: HTMLCanvasElement) {
 
 function start() {
     worker.postMessage({ type: "start" });
+    isStarted.value = true;
+    isRunning.value = true;
 }
 
 function stop() {
     worker.postMessage({ type: "stop" });
+    isRunning.value = false;
 }
 
 function onButtonDown(isDown: boolean) {
