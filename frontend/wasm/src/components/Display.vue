@@ -1,9 +1,12 @@
 <template lang="pug">
 div.position-relative
     canvas(:width="width" :height="height" ref="canvas"
-        @contextmenu.prevent="" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove")
+        @contextmenu.prevent="" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove"
+        :style="{ width: `${width + sizeOffset}px`, height: `${height + sizeOffset}px` }")
 
-    .sleep-cover(v-if="off" :style="{ width: `${width}px`, height: `${height}px` }")
+    .sleep-cover(v-if="off" :style="{ width: `${width + sizeOffset}px`, height: `${height + sizeOffset}px` }")
+
+    hr.resize-handle(@mousedown="onResizeHandleMouseDown")
 </template>
 
 <script lang="ts">
@@ -18,7 +21,7 @@ export enum Direction {
 <script lang="ts" setup>
 import { onMounted, ref } from "vue";
 
-defineProps<{
+const props = defineProps<{
     width: number;
     height: number;
     off: boolean;
@@ -31,6 +34,7 @@ const emit = defineEmits<{
     (e: "endSwipe"): void
     (e: "startTouch", x: number, y: number): void
     (e: "endTouch"): void
+    (e: "resized", width: number, height: number): void
 }>();
 
 const canvas = ref<HTMLCanvasElement | null>(null);
@@ -43,7 +47,11 @@ let isMouseDown = false, isButtonDown = false;
 let hasSwiped = false;
 let mouseDownX = 0, mouseDownY = 0;
 
+const sizeOffset = ref(0);
+
 const minSwipeDistancePixels = 50;
+
+const normalizePos = (pos: number) => (pos / (props.width + sizeOffset.value)) * props.width;
 
 function onMouseDown(e: MouseEvent) {
     e.preventDefault();
@@ -51,8 +59,8 @@ function onMouseDown(e: MouseEvent) {
     if (e.button == 0) {
         isMouseDown = true;
 
-        mouseDownX = e.offsetX;
-        mouseDownY = e.offsetY;
+        mouseDownX = normalizePos(e.offsetX);
+        mouseDownY = normalizePos(e.offsetY);
     } else if (e.button == 2) {
         isButtonDown = true;
 
@@ -67,8 +75,11 @@ function onMouseMove(e: MouseEvent) {
 
     e.preventDefault();
 
-    const distX = e.offsetX - mouseDownX;
-    const distY = e.offsetY - mouseDownY;
+    const x = normalizePos(e.offsetX);
+    const y = normalizePos(e.offsetY);
+    
+    const distX = x - mouseDownX;
+    const distY = y - mouseDownY;
     const dist = Math.sqrt(distX * distX + distY * distY);
 
     if (dist > minSwipeDistancePixels && !hasSwiped) {
@@ -82,7 +93,7 @@ function onMouseMove(e: MouseEvent) {
             dir = distY > 0 ? Direction.Up : Direction.Down;
         }
 
-        emit("startSwipe", dir, e.offsetX, e.offsetY);
+        emit("startSwipe", dir, x, y);
     }
 }
 
@@ -102,10 +113,36 @@ function onMouseUp(e: MouseEvent) {
             hasSwiped = false;
             emit("endSwipe");
         } else {
-            emit("startTouch", e.offsetX, e.offsetY);
+            emit("startTouch", normalizePos(e.offsetX), normalizePos(e.offsetY));
             setTimeout(() => emit("endTouch"), 200);
         }
     }
+}
+
+let resizePrevY = 0;
+
+function onResizeHandleMouseDown(e: MouseEvent) {
+    e.preventDefault();
+
+    document.addEventListener("mousemove", onResizeHandleMouseMove);
+    document.addEventListener("mouseup", onResizeHandleMouseUp);
+    resizePrevY = e.clientY;
+}
+
+function onResizeHandleMouseMove(e: MouseEvent) {
+    e.preventDefault();
+
+    sizeOffset.value += e.clientY - resizePrevY;
+    resizePrevY = e.clientY;
+
+    emit("resized", props.width + sizeOffset.value, props.height + sizeOffset.value);
+}
+
+function onResizeHandleMouseUp(e: MouseEvent) {
+    e.preventDefault();
+
+    document.removeEventListener("mousemove", onResizeHandleMouseMove);
+    document.removeEventListener("mouseup", onResizeHandleMouseUp);
 }
 </script>
 
@@ -122,5 +159,10 @@ canvas {
     right: 0;
     background-color: black;
     pointer-events: none;
+}
+
+.resize-handle {
+    cursor: ns-resize;
+    height: 10px;
 }
 </style>
