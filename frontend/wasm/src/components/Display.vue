@@ -135,6 +135,12 @@ function onResizeHandleMouseMove(e: MouseEvent) {
     e.preventDefault();
 
     sizeOffset.value += e.clientY - resizePrevY;
+    if (sizeOffset.value >= 300) {
+        sizeOffset.value = 300;
+    } else if (sizeOffset.value <= -100) {
+        sizeOffset.value = -100;
+    }
+
     resizePrevY = e.clientY;
 
     emit("resized", props.width + sizeOffset.value, props.height + sizeOffset.value);
