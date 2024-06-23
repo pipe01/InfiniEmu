@@ -89,6 +89,7 @@ worker.onmessage = (event) => {
         case "ready":
             worker.postMessage({ type: "loadProgram", data: props.programFile });
             isReady.value = true;
+            start();
             break;
 
         case "lcdSleeping":
