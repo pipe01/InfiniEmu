@@ -14,8 +14,8 @@ template(v-if="!isReady")
         .card(v-if="isStarted")
             .card-body
                 h3.card-title Performance
-                div Instructions per second: {{ performance.ips }}
-                div Loop time: {{ performance.loopTime }} ms
+                div Instructions per second: {{ numberFmt.format(performance.ips.value.toFixed(0)) }}
+                div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
 </template>
 
 <script lang="ts" setup>
@@ -29,6 +29,8 @@ import { useAverage } from "@/utils";
 const props = defineProps<{
     programFile: ArrayBuffer;
 }>();
+
+const numberFmt = new Intl.NumberFormat();
 
 const isReady = ref(false);
 const isStarted = ref(false);
