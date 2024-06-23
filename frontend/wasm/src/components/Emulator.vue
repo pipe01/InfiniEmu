@@ -7,7 +7,7 @@ template(v-if="!isReady")
         Display(:width="240" :height="240" :off="isLcdOff" @got-canvas="onGotCanvas"
             @button-down="onButtonDown" @start-swipe="onStartSwipe" @end-swipe="clearTouch"
             @start-touch="onStartTouch" @end-touch="clearTouch")
-        div
+        .d-flex.flex-column.align-items-stretch.mt-3
             button.btn.btn-success(v-if="!isRunning" @click="start") Start
             button.btn.btn-danger(v-else @click="stop") Stop
     .col
@@ -37,7 +37,7 @@ const isReady = ref(false);
 const isStarted = ref(false);
 const isRunning = ref(false);
 
-const isLcdOff = ref(false);
+const isLcdOff = ref(true);
 const isCpuSleeping = ref(false);
 
 const performance = {

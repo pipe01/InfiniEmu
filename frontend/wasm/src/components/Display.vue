@@ -1,12 +1,14 @@
 <template lang="pug">
-div.position-relative
-    canvas(:width="width" :height="height" ref="canvas"
-        @contextmenu.prevent="" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove"
-        :style="{ width: `${width + sizeOffset}px`, height: `${height + sizeOffset}px` }")
+div
+    div.position-relative
+        canvas(:width="width" :height="height" ref="canvas"
+            @contextmenu.prevent="" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove"
+            :style="{ width: `${width + sizeOffset}px`, height: `${height + sizeOffset}px` }")
 
-    .sleep-cover(v-if="off" :style="{ width: `${width + sizeOffset}px`, height: `${height + sizeOffset}px` }")
+        .sleep-cover(v-if="off" :style="{ width: `${width + sizeOffset}px`, height: `${height + sizeOffset}px` }")
+            span Screen is off
 
-    hr.resize-handle(@mousedown="onResizeHandleMouseDown")
+    .resize-handle.mt-2.mb-3(@mousedown="onResizeHandleMouseDown")
 </template>
 
 <script lang="ts">
@@ -146,7 +148,7 @@ function onResizeHandleMouseUp(e: MouseEvent) {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 canvas {
     background-color: black;
 }
@@ -159,10 +161,23 @@ canvas {
     right: 0;
     background-color: black;
     pointer-events: none;
+
+    & > span {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        opacity: 0.3;
+    }
 }
 
 .resize-handle {
     cursor: ns-resize;
     height: 10px;
+
+    border-top: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    opacity: 0.25;
 }
 </style>

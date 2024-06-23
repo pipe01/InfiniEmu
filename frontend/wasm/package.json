@@ -16,6 +16,7 @@
     "@zip.js/zip.js": "^2.7.45",
     "bootstrap": "^5.3.3",
     "pug": "^3.0.3",
+    "sass": "^1.77.6",
     "vue": "^3.4.29"
   },
   "devDependencies": {
