@@ -6,6 +6,7 @@ export type Pinetime = { readonly [tag]: "Pinetime" };
 export type ST7789 = { readonly [tag]: "ST7789" };
 export type CST816S = { readonly [tag]: "CST816S" };
 export type NRF52832 = { readonly [tag]: "NRF52832" };
+export type CPU = { readonly [tag]: "CPU" };
 export type Pins = { readonly [tag]: "Pins" };
 export type Commander = { readonly [tag]: "Commander" };
 
@@ -20,7 +21,10 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
     _pinetime_get_nrf52832(pt: Pinetime): NRF52832;
     _pinetime_loop(pt: Pinetime, iterations: number): boolean;
 
-    _nrf52832_get_pins(pt: NRF52832): Pins;
+    _nrf52832_get_pins(nrf: NRF52832): Pins;
+    _nrf52832_get_cpu(nrf: NRF52832): CPU;
+
+    _cpu_is_sleeping(cpu: CPU): boolean;
 
     _st7789_is_sleeping(lcd: ST7789): boolean;
     _st7789_read_screen_rgba(lcd: ST7789, buffer: Pointer, rgbaBuffer: Pointer, width: number, height: number): void;

@@ -1,6 +1,9 @@
 <template lang="pug">
-canvas(:width="width" :height="height" ref="canvas"
-    @contextmenu.prevent="" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove")
+div.position-relative
+    canvas(:width="width" :height="height" ref="canvas"
+        @contextmenu.prevent="" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove")
+
+    .sleep-cover(v-if="off" :style="{ width: `${width}px`, height: `${height}px` }")
 </template>
 
 <script lang="ts">
@@ -18,6 +21,7 @@ import { onMounted, ref } from "vue";
 defineProps<{
     width: number;
     height: number;
+    off: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -108,5 +112,15 @@ function onMouseUp(e: MouseEvent) {
 <style scoped>
 canvas {
     background-color: black;
+}
+
+.sleep-cover {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background-color: black;
+    pointer-events: none;
 }
 </style>

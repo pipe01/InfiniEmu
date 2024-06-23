@@ -4,7 +4,7 @@ template(v-if="!isReady")
 .row(v-else)
     .col
     .col(style="flex-grow: 0")
-        Display(:width="240" :height="240" @got-canvas="onGotCanvas"
+        Display(:width="240" :height="240" :off="isLcdOff" @got-canvas="onGotCanvas"
             @button-down="onButtonDown" @start-swipe="onStartSwipe" @end-swipe="clearTouch"
             @start-touch="onStartTouch" @end-touch="clearTouch")
         div
@@ -16,6 +16,7 @@ template(v-if="!isReady")
                 h3.card-title Performance
                 div Instructions per second: {{ numberFmt.format(performance.ips.value.toFixed(0)) }}
                 div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
+                div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
 </template>
 
 <script lang="ts" setup>
@@ -36,6 +37,9 @@ const isReady = ref(false);
 const isStarted = ref(false);
 const isRunning = ref(false);
 
+const isLcdOff = ref(false);
+const isCpuSleeping = ref(false);
+
 const performance = {
     ips: useAverage(1000),
     loopTime: useAverage(1000),
@@ -55,6 +59,14 @@ worker.onmessage = (event) => {
         case "ready":
             worker.postMessage({ type: "loadProgram", data: props.programFile });
             isReady.value = true;
+            break;
+
+        case "lcdSleeping":
+            isLcdOff.value = data;
+            break;
+
+        case "cpuSleeping":
+            isCpuSleeping.value = data;
             break;
 
         case "performance":

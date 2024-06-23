@@ -1,4 +1,4 @@
-import type { CST816S, Commander, Pinetime, Pins, Pointer, ST7789 } from "../infiniemu.js"
+import type { CPU, CST816S, Commander, Pinetime, Pins, Pointer, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
 
 const iterations = 700000;
@@ -11,6 +11,7 @@ class Emulator {
     private readonly pinetime: Pinetime;
     private readonly lcd: ST7789;
     private readonly touch: CST816S;
+    private readonly cpu: CPU;
     private readonly pins: Pins;
     private readonly cmd: Commander;
 
@@ -22,6 +23,7 @@ class Emulator {
 
     private runInterval: number | null = null;
     private isLcdSleeping = false;
+    private isCPUSleeping = false;
 
     constructor(private readonly Module: Module, programFile: Uint8Array) {
         const program = Module._program_new(0x800000);
@@ -34,6 +36,7 @@ class Emulator {
         this.lcd = Module._pinetime_get_st7789(this.pinetime);
         this.touch = Module._pinetime_get_cst816s(this.pinetime);
         this.pins = Module._nrf52832_get_pins(Module._pinetime_get_nrf52832(this.pinetime));
+        this.cpu = Module._nrf52832_get_cpu(Module._pinetime_get_nrf52832(this.pinetime));
         this.cmd = Module._commander_new(this.pinetime);
 
         Module._commander_set_output(this.cmd, Module._commander_output);
@@ -65,7 +68,17 @@ class Emulator {
 
             postMessage({
                 type: "lcdSleeping",
-                data: this.isLcdSleeping,
+                data: !!this.isLcdSleeping,
+            });
+        }
+
+        const cpuSleepingNow = this.Module._cpu_is_sleeping(this.cpu);
+        if (cpuSleepingNow !== this.isCPUSleeping) {
+            this.isCPUSleeping = cpuSleepingNow;
+
+            postMessage({
+                type: "cpuSleeping",
+                data: !!this.isCPUSleeping,
             });
         }
 

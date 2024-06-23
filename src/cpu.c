@@ -213,6 +213,8 @@ struct cpu_inst_t
     size_t running_exception_count;
     int execution_priority;
 
+    size_t sleep_fuel;
+
 #if ASSERT_EXCEPTION_REGISTERS
     uint32_t exception_regs[sizeof(check_exc_registers) / sizeof(arm_reg)][MAX_EXECUTING_EXCEPTIONS];
     size_t exception_regs_count;
@@ -1337,6 +1339,9 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     LOG_CPU_INST("%s %s", i->mnemonic, i->op_str);
 
+    if (cpu->sleep_fuel)
+        cpu->sleep_fuel--;
+
     switch (i->id)
     {
     case ARM_INS_CBZ:
@@ -1594,7 +1599,6 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_DSB:
     case ARM_INS_ISB:
     case ARM_INS_NOP:
-    case ARM_INS_HINT:
     case ARM_INS_PLD:
     case ARM_INS_PLI:
         // Do nothing
@@ -1626,6 +1630,14 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             cpu_reg_write(cpu, detail->operands[0].reg, value.i);
         }
 
+        break;
+
+    case ARM_INS_HINT:
+        if (i->size == 2 && i->bytes[0] == 0x20 && i->bytes[1] == 0xBF)
+        {
+            // WFE
+            cpu->sleep_fuel = 10;
+        }
         break;
 
     case ARM_INS_IT:
@@ -3166,4 +3178,9 @@ void cpu_set_exception_priority(cpu_t *cpu, arm_exception ex, int16_t priority)
 
     cpu->exceptions[ex].priority = priority;
     cpu->execution_priority = cpu_calculate_execution_priority(cpu);
+}
+
+bool cpu_is_sleeping(cpu_t *cpu)
+{
+    return cpu->sleep_fuel > 0;
 }
