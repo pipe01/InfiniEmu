@@ -9,6 +9,7 @@
 #include "gdb.h"
 #include "ie_time.h"
 #include "program.h"
+#include "segger_rtt.h"
 
 void commander_output(const char *msg, void *userdata)
 {
@@ -81,6 +82,13 @@ int main(int argc, char **argv)
     NRF52832_t *nrf = pinetime_get_nrf52832(pt);
     cpu_t *cpu = nrf52832_get_cpu(nrf);
 
+#if ENABLE_SEGGER_RTT
+    rtt_t *rtt = rtt_new(cpu_mem(cpu));
+    bool found_rtt = false;
+    size_t rtt_counter = 0, rtt_read = 0;
+    char rtt_buffer[1024];
+#endif
+
     runlog_t *runlog = NULL;
 
     if (runlog_path)
@@ -121,6 +129,26 @@ int main(int argc, char **argv)
         for (;;)
         {
             pinetime_step(pt);
+
+#if ENABLE_SEGGER_RTT
+            if (found_rtt || rtt_counter < 1000000)
+            {
+                if (rtt_counter % 1000 == 0)
+                {
+                    if (!found_rtt)
+                        found_rtt = rtt_find_control(rtt);
+
+                    rtt_read = rtt_flush_buffers(rtt, rtt_buffer, sizeof(rtt_buffer));
+                    if (rtt_read > 0)
+                    {
+                        fwrite(rtt_buffer, 1, rtt_read, stdout);
+                        fflush(stdout);
+                    }
+                }
+
+                rtt_counter++;
+            }
+#endif
 
 #if ENABLE_MEASUREMENT
             if (++inst_counter == 1000000)
