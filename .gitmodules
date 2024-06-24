@@ -8,3 +8,6 @@
 	path = lib/capstone
 	url = git@github.com:capstone-engine/capstone.git
 	branch = 5.0.1
+[submodule "lib/littlefs"]
+	path = lib/littlefs
+	url = https://github.com/littlefs-project/littlefs
