@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y python3 git wget gcc g++ make cmake xz-utils
 
-      - name: Cache Emscripten downloads
+      - name: Cache Emscripten
         id: cache-emscripten
         uses: actions/cache@v4
         with:
