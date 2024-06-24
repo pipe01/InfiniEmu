@@ -296,7 +296,7 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 	ptProgram := C.program_new(flashSize)
 	C.program_load_binary(ptProgram, 0, (*C.uchar)(&flash[0]), C.size_t(len(flash)))
 
-	pt := C.pinetime_new(ptProgram, C.bool(big))
+	pt := C.pinetime_new(ptProgram)
 	C.pinetime_reset(pt)
 
 	nrf52 := C.pinetime_get_nrf52832(pt)
