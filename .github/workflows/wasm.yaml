@@ -32,13 +32,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y python3 git wget gcc g++ make cmake xz-utils
 
       - name: Cache Emscripten downloads
-        id: cache-primes
+        id: cache-emscripten
         uses: actions/cache@v4
         with:
-          path: /tmp/emsdk/downloads
-          key: emscripten-down
+          path: /tmp/emsdk
+          key: emscripten-${{ env.EMSCRIPTEN }}
 
       - name: Install Emscripten
+        if: steps.cache-emscripten.outputs.cache-hit != 'true'
         run: |
           cd /tmp
           git clone https://github.com/emscripten-core/emsdk.git
