@@ -23,8 +23,19 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y python3 git wget gcc g++ make cmake xz-utils
+
+      - name: Cache Emscripten downloads
+        id: cache-primes
+        uses: actions/cache@v4
+        with:
+          path: /tmp/emsdk/downloads
 
       - name: Install Emscripten
         run: |
@@ -34,7 +45,7 @@ jobs:
           ./emsdk install $EMSCRIPTEN
           ./emsdk activate $EMSCRIPTEN
 
-      - name: Build 
+      - name: Build InfiniEmu
         run: |
           source /tmp/emsdk/emsdk_env.sh
           mkdir -p build
@@ -44,10 +55,17 @@ jobs:
           cd ..
           cp build/src/infiniemu.js build/src/infiniemu.wasm frontend/wasm/
 
+      - name: Build frontend
+        run: |
+          cd frontend/wasm
+          npm i -g pnpm
+          pnpm install
+          pnpm run build
+
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend/wasm
+          path: frontend/wasm/dist
 
   deploy:
     runs-on: ubuntu-22.04
