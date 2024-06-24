@@ -49,6 +49,9 @@ set(SRC_FILES
     peripherals/nrf52832/timer.c
     peripherals/nrf52832/twim.c
     peripherals/nrf52832/wdt.c
+
+    ../lib/littlefs/lfs.c #TODO: Make this better
+    ../lib/littlefs/lfs_util.c
 )
 
 set(WASM_EXPORTS
