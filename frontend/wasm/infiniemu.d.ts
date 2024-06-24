@@ -7,8 +7,10 @@ export type ST7789 = { readonly [tag]: "ST7789" };
 export type CST816S = { readonly [tag]: "CST816S" };
 export type NRF52832 = { readonly [tag]: "NRF52832" };
 export type CPU = { readonly [tag]: "CPU" };
+export type Memory = { readonly [tag]: "Memory" };
 export type Pins = { readonly [tag]: "Pins" };
 export type Commander = { readonly [tag]: "Commander" };
+export type RTT = { readonly [tag]: "RTT" };
 
 const module: EmscriptenModuleFactory<EmscriptenModule & {
     ccall(name: string, returnType: string | null, argTypes: string[], args: any[]): any;
@@ -25,6 +27,7 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
     _nrf52832_get_cpu(nrf: NRF52832): CPU;
 
     _cpu_is_sleeping(cpu: CPU): boolean;
+    _cpu_mem(cpu: CPU): Memory;
 
     _st7789_is_sleeping(lcd: ST7789): boolean;
     _st7789_read_screen_rgba(lcd: ST7789, buffer: Pointer, rgbaBuffer: Pointer, width: number, height: number): void;
@@ -37,6 +40,12 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
 
     _commander_new(pt: Pinetime): Commander;
     _commander_set_output(cmd: Commander, output: Pointer): void;
+
+    _rtt_new(mem: Memory): RTT;
+    _rtt_find_control(rtt: RTT): boolean;
+    _rtt_flush_buffers(rtt: RTT, buffer: Pointer, bufferSize: number): number;
+
+    UTF8ToString(ptr: Pointer, maxBytes?: number): string;
 
     _commander_output: Pointer;
 }>;

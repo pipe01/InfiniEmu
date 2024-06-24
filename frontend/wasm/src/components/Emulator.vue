@@ -3,6 +3,13 @@ template(v-if="!isReady")
     h1 Loading worker...
 .row(v-else)
     .col
+        template(v-if="isStarted")
+            .card
+                .card-body
+                    h3.card-title Console
+
+                    Console(:lines="consoleLines" style="height: 400px")
+
     .col(style="flex-grow: 0")
         Display(:width="240" :height="240" :off="isLcdOff" @got-canvas="onGotCanvas"
             @button-down="onButtonDown" @start-swipe="onStartSwipe" @end-swipe="clearTouch"
@@ -10,7 +17,7 @@ template(v-if="!isReady")
         .d-flex.flex-column.align-items-stretch.mt-3
             button.btn.btn-success(v-if="!isRunning" @click="start") Start
             button.btn.btn-danger(v-else @click="stop") Stop
-    .col
+    .col-3
         template(v-if="isStarted")
             .card
                 .card-body
@@ -30,7 +37,6 @@ template(v-if="!isReady")
                                 td
                                     button.btn.btn-primary(@click="swipeCenter(Direction.Down)")
                                         i.bi-caret-up-fill
-                                td
                             tr
                                 td
                                     button.btn.btn-primary(@click="swipeCenter(Direction.Left)")
@@ -46,7 +52,6 @@ template(v-if="!isReady")
                                 td
                                     button.btn.btn-primary(@click="swipeCenter(Direction.Up)")
                                         i.bi-caret-down-fill
-                                td
 </template>
 
 <script lang="ts" setup>
@@ -55,6 +60,7 @@ import { onUnmounted, ref } from "vue";
 import MyWorker from "@/worker?worker";
 
 import Display, { Direction } from "@/components/Display.vue";
+import Console from "@/components/Console.vue";
 import { useAverage } from "@/utils";
 
 const props = defineProps<{
@@ -69,6 +75,8 @@ const isRunning = ref(false);
 
 const isLcdOff = ref(true);
 const isCpuSleeping = ref(false);
+
+const consoleLines = ref<string[]>([]);
 
 const performance = {
     ips: useAverage(1000),
@@ -91,6 +99,10 @@ worker.onmessage = (event) => {
             isReady.value = true;
             start();
             break;
+        
+        case "running":
+            isRunning.value = !!data;
+            break;
 
         case "lcdSleeping":
             isLcdOff.value = data;
@@ -104,6 +116,15 @@ worker.onmessage = (event) => {
             performance.ips.value = data.ips;
             performance.loopTime.value = data.loopTime;
             break;
+
+        case "rttData":
+            const lines = (data as string).split("\n");
+            consoleLines.value.push(...lines);
+
+            if (consoleLines.value.length > 1000) {
+                consoleLines.value.splice(0, consoleLines.value.length - 1000);
+            }
+            break;
     }
 };
 
@@ -116,12 +137,10 @@ function onGotCanvas(canvas: HTMLCanvasElement) {
 function start() {
     worker.postMessage({ type: "start" });
     isStarted.value = true;
-    isRunning.value = true;
 }
 
 function stop() {
     worker.postMessage({ type: "stop" });
-    isRunning.value = false;
 }
 
 function onButtonDown(isDown: boolean) {
@@ -154,7 +173,7 @@ function onStartSwipe(direction: Direction, x: number, y: number) {
         default:
             return;
     }
-    
+
     worker.postMessage({ type: "doTouch", data: { gesture, x, y } });
 }
 

@@ -1,4 +1,4 @@
-import type { CPU, CST816S, Commander, Pinetime, Pins, Pointer, ST7789 } from "../infiniemu.js"
+import type { CPU, CST816S, Commander, Pinetime, Pins, Pointer, RTT, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
 
 const iterations = 700000;
@@ -7,13 +7,25 @@ type PromiseResult<T> = T extends Promise<infer U> ? U : T;
 
 type Module = PromiseResult<ReturnType<typeof createModule>>;
 
+function pointerToNumber(ptr: Pointer) {
+    return ptr as unknown as number;
+}
+function numberToPointer(num: number) {
+    return num as unknown as Pointer;
+}
+
 class Emulator {
+    private readonly rttReadBufferSize = 1024;
+
     private readonly pinetime: Pinetime;
     private readonly lcd: ST7789;
     private readonly touch: CST816S;
     private readonly cpu: CPU;
     private readonly pins: Pins;
     private readonly cmd: Commander;
+    private readonly rtt: RTT;
+
+    private readonly rttReadBuffer: Pointer;
 
     private readonly displayBuffer: Pointer;
     private readonly rgbaBuffer: Pointer;
@@ -24,6 +36,8 @@ class Emulator {
     private runInterval: number | null = null;
     private isLcdSleeping = false;
     private isCPUSleeping = false;
+
+    private rttFoundBlock = false;
 
     constructor(private readonly Module: Module, programFile: Uint8Array) {
         const program = Module._program_new(0x800000);
@@ -38,26 +52,50 @@ class Emulator {
         this.pins = Module._nrf52832_get_pins(Module._pinetime_get_nrf52832(this.pinetime));
         this.cpu = Module._nrf52832_get_cpu(Module._pinetime_get_nrf52832(this.pinetime));
         this.cmd = Module._commander_new(this.pinetime);
+        this.rtt = Module._rtt_new(Module._cpu_mem(this.cpu));
 
         Module._commander_set_output(this.cmd, Module._commander_output);
 
-        this.displayBuffer = Module._malloc(240 * 240 * 2) as unknown as Pointer;
-        this.rgbaBuffer = Module._malloc(240 * 240 * 4) as unknown as Pointer;
+        this.displayBuffer = numberToPointer(Module._malloc(240 * 240 * 2));
+        this.rgbaBuffer = numberToPointer(Module._malloc(240 * 240 * 4));
+        this.rttReadBuffer = numberToPointer(Module._malloc(this.rttReadBufferSize));
     }
 
     private async run() {
-        const start = new Date().valueOf();
-        let screenUpdated;
+        const start = performance.now();
+        let screenUpdated: boolean;
 
         try {
             screenUpdated = this.Module._pinetime_loop(this.pinetime, iterations);
         } catch (error: any) {
             this.stop();
-            postMessage({ type: "error", data: error.stack?.toString() ?? error });
+            postMessage({
+                type: "error", data: {
+                    message: "message" in error ? error.message : undefined,
+                    stack: "stack" in error ? error.stack : undefined,
+                    string: error.toString(),
+                }
+            });
             return;
         }
 
-        const end = new Date().valueOf();
+        if (!this.rttFoundBlock) {
+            this.rttFoundBlock = !!this.Module._rtt_find_control(this.rtt);
+        }
+        if (this.rttFoundBlock) {
+            const readBytes = this.Module._rtt_flush_buffers(this.rtt, this.rttReadBuffer, this.rttReadBufferSize);
+
+            if (readBytes > 0) {
+                const msg = this.Module.UTF8ToString(this.rttReadBuffer, readBytes);
+
+                postMessage({
+                    type: "rttData",
+                    data: msg,
+                });
+            }
+        }
+
+        const end = performance.now();
 
         if (screenUpdated)
             this.sendScreenUpdate();
@@ -108,14 +146,17 @@ class Emulator {
     }
 
     start() {
-        if (!this.runInterval)
+        if (!this.runInterval) {
             this.runInterval = setInterval(() => this.run(), 1); // TODO: Maybe use 0 here?
+            postMessage({ type: "running", data: true });
+        }
     }
 
     stop() {
         if (this.runInterval) {
             clearInterval(this.runInterval);
             this.runInterval = null;
+            postMessage({ type: "running", data: false });
         }
     }
 
@@ -141,14 +182,23 @@ class Emulator {
 let emulator: Emulator | null = null;
 let Module: Module | null = null;
 
-createModule().then((mod) => {
+createModule({
+    print(text) {
+        console.log("text", text);
+    },
+    printErr(text) {
+        console.log("got error");
+    },
+    onAbort(what: any) {
+        console.log("abort");
+    },
+}).then((mod) => {
     Module = mod;
     postMessage({ type: "ready" });
 });
 
 onmessage = event => {
     const { type, data } = event.data;
-    console.log("Worker received message", type, data);
 
     switch (type) {
         case "loadProgram":

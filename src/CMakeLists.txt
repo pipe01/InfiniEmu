@@ -57,9 +57,10 @@ set(WASM_EXPORTS
     pinetime_get_st7789 st7789_read_screen_rgba st7789_is_sleeping st7789_get_write_count st7789_is_sleeping
     pinetime_get_cst816s cst816s_do_touch cst816s_release_touch
     pinetime_get_nrf52832 nrf52832_get_pins pins_set pins_clear
-    nrf52832_get_cpu cpu_is_sleeping
+    nrf52832_get_cpu cpu_is_sleeping cpu_mem
     program_new program_load_binary program_load_elf
     commander_new commander_set_output commander_run_command commander_output
+    rtt_new rtt_find_control rtt_flush_buffers
 )
 
 set(LIBS m tiny-aes capstone)
@@ -85,7 +86,7 @@ if(EMSCRIPTEN)
     target_link_options(infiniemu-wasm PRIVATE
         -sTOTAL_STACK=64MB
         -sALLOW_MEMORY_GROWTH
-        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,stringToNewUTF8
+        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,stringToNewUTF8,UTF8ToString
         -sMODULARIZE=1
         -sEXPORT_ES6=1
     )
