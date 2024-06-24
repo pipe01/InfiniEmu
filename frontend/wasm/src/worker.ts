@@ -40,6 +40,8 @@ class Emulator {
 
     private rttFoundBlock = false;
 
+    private instructionCount = 0;
+
     constructor(private readonly Module: Module, programFile: Uint8Array) {
         const program = Module._program_new(0x800000);
 
@@ -47,7 +49,7 @@ class Emulator {
         if (Module.ccall("program_load_elf", "number", ["number", "number", "array", "number"], args) === 0)
             Module.ccall("program_load_binary", null, ["number", "number", "array", "number"], args);
 
-        this.pinetime = Module._pinetime_new(program, true);
+        this.pinetime = Module._pinetime_new(program);
         this.nrf52 = Module._pinetime_get_nrf52832(this.pinetime);
         this.lcd = Module._pinetime_get_st7789(this.pinetime);
         this.touch = Module._pinetime_get_cst816s(this.pinetime);
@@ -81,8 +83,12 @@ class Emulator {
             return;
         }
 
-        if (!this.rttFoundBlock) {
+        this.instructionCount += iterations;
+
+        if (this.instructionCount < 1000000 && !this.rttFoundBlock) {
             this.rttFoundBlock = !!this.Module._rtt_find_control(this.rtt);
+            if (this.rttFoundBlock)
+                postMessage({ type: "rttFound" });
         }
         if (this.rttFoundBlock) {
             const readBytes = this.Module._rtt_flush_buffers(this.rtt, this.rttReadBuffer, this.rttReadBufferSize);
@@ -127,7 +133,8 @@ class Emulator {
             data: {
                 loopTime: end - start,
                 ips: iterations / ((end - start) / 1000),
-                usedRam: this.Module._nrf52832_get_used_sram(this.nrf52),
+                foundRTT: this.rttFoundBlock,
+                totalSRAM: this.Module._nrf52832_get_sram_size(this.nrf52),
             },
         });
     }
@@ -135,7 +142,7 @@ class Emulator {
     private sendScreenUpdate() {
         this.Module._st7789_read_screen_rgba(this.lcd, this.displayBuffer, this.rgbaBuffer, 240, 240);
 
-        const arr = new Uint8Array(this.Module.HEAPU8.buffer, this.rgbaBuffer as unknown as number, 240 * 240 * 4);
+        const arr = new Uint8Array(this.Module.HEAPU8.buffer, pointerToNumber(this.rgbaBuffer), 240 * 240 * 4);
 
         if (this.ctx2d && this.imageData) {
             this.imageData.data.set(arr);
@@ -150,7 +157,7 @@ class Emulator {
 
     start() {
         if (!this.runInterval) {
-            this.runInterval = setInterval(() => this.run(), 1); // TODO: Maybe use 0 here?
+            this.runInterval = setInterval(() => this.run(), 0); // TODO: Maybe use 0 here?
             postMessage({ type: "running", data: true });
         }
     }
@@ -190,10 +197,10 @@ createModule({
         console.log("text", text);
     },
     printErr(text) {
-        console.log("got error");
+        console.log("got error", text);
     },
     onAbort(what: any) {
-        console.log("abort");
+        console.log("abort", what);
     },
 }).then((mod) => {
     Module = mod;

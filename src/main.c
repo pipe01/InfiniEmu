@@ -77,7 +77,7 @@ int main(int argc, char **argv)
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
-    pinetime_t *pt = pinetime_new(program, big_ram);
+    pinetime_t *pt = pinetime_new(program);
 
     NRF52832_t *nrf = pinetime_get_nrf52832(pt);
     cpu_t *cpu = nrf52832_get_cpu(nrf);

@@ -17,7 +17,7 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
 
     _program_new(size: number): Program;
 
-    _pinetime_new(program: Program, bigRam: boolean): Pinetime;
+    _pinetime_new(program: Program): Pinetime;
     _pinetime_get_st7789(pt: Pinetime): ST7789;
     _pinetime_get_cst816s(pt: Pinetime): CST816S;
     _pinetime_get_nrf52832(pt: Pinetime): NRF52832;
@@ -26,6 +26,7 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
     _nrf52832_get_pins(nrf: NRF52832): Pins;
     _nrf52832_get_cpu(nrf: NRF52832): CPU;
     _nrf52832_get_used_sram(nrf: NRF52832): number;
+    _nrf52832_get_sram_size(nrf: NRF52832): number;
 
     _cpu_is_sleeping(cpu: CPU): boolean;
     _cpu_mem(cpu: CPU): Memory;

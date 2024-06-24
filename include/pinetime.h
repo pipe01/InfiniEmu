@@ -21,7 +21,7 @@
 
 typedef struct pinetime_t pinetime_t;
 
-pinetime_t *pinetime_new(const program_t *program, bool big_ram);
+pinetime_t *pinetime_new(const program_t *program);
 void pinetime_free(pinetime_t *);
 void pinetime_reset(pinetime_t *);
 void pinetime_step(pinetime_t *);

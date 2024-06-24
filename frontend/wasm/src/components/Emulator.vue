@@ -7,6 +7,7 @@ template(v-if="!isReady")
             .card
                 .card-body
                     h3.card-title Console
+                    .text-danger(v-if="!foundRTT") Couldn't find Segger RTT block in memory
 
                     Console(:lines="consoleLines" style="height: 400px")
 
@@ -25,7 +26,7 @@ template(v-if="!isReady")
                     div Instructions per second: {{ numberFmt.format(performance.ips.value.toFixed(0)) }}
                     div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
                     div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
-                    div Used RAM: {{ numberFmt.format(performance.usedRam.value * 100) }}%
+                    div RAM size: {{ numberFmt.format(performance.sramSize.value) }} bytes
 
             .card.mt-3
                 .card-body
@@ -77,12 +78,14 @@ const isRunning = ref(false);
 const isLcdOff = ref(true);
 const isCpuSleeping = ref(false);
 
+const foundRTT = ref(false);
+
 const consoleLines = ref<string[]>([]);
 
 const performance = {
     ips: useAverage(1000),
     loopTime: useAverage(1000),
-    usedRam: ref(0),
+    sramSize: ref(0),
 }
 
 const worker = new MyWorker();
@@ -117,7 +120,12 @@ worker.onmessage = (event) => {
         case "performance":
             performance.ips.value = data.ips;
             performance.loopTime.value = data.loopTime;
-            performance.usedRam.value = data.usedRam;
+            performance.sramSize.value = data.totalSRAM;
+            break;
+
+        case "rttFound":
+            foundRTT.value = true;
+            console.log("RTT found");
             break;
 
         case "rttData":

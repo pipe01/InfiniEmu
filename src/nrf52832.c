@@ -96,8 +96,9 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
     chip->ticker = ticker_new();
     chip->dma = dma_new(ARM_SRAM_START, sram, sram_size);
 
-    chip->flash = malloc(program_size(flash));
-    program_write_to(flash, chip->flash);
+    size_t size = program_size(flash);
+    chip->flash = malloc(size);
+    program_write_to(flash, chip->flash, size);
 
     chip->mem = memreg_new_simple(x(2000, 0000), sram, sram_size);
     memreg_t *last = chip->mem;
@@ -216,7 +217,7 @@ void *nrf52832_get_peripheral(NRF52832_t *chip, uint8_t instance_id)
     return NULL;
 }
 
-double nrf52832_get_used_sram(NRF52832_t *nrf)
+size_t nrf52832_get_used_sram(NRF52832_t *nrf)
 {
     size_t used = 0;
     for (size_t i = 0; i < nrf->sram_size; i++)
@@ -225,5 +226,10 @@ double nrf52832_get_used_sram(NRF52832_t *nrf)
             used++;
     }
 
-    return (double)used / nrf->sram_size;
+    return used;
+}
+
+size_t nrf52832_get_sram_size(NRF52832_t *nrf)
+{
+    return nrf->sram_size;
 }

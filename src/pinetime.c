@@ -16,10 +16,19 @@ struct pinetime_t
     spinorflash_t *extflash;
 };
 
-pinetime_t *pinetime_new(const program_t *program, bool big_ram)
+pinetime_t *pinetime_new(const program_t *program)
 {
+    uint32_t initial_sp;
+    program_write_to(program, (uint8_t *)&initial_sp, sizeof(initial_sp));
+
+    size_t sram_size;
+    if (initial_sp > 0x20010000)
+        sram_size = 512 * 1024;
+    else
+        sram_size = NRF52832_SRAM_SIZE;
+
     pinetime_t *pt = malloc(sizeof(pinetime_t));
-    pt->nrf = nrf52832_new(program, big_ram ? 512 * 1024 : NRF52832_SRAM_SIZE);
+    pt->nrf = nrf52832_new(program, sram_size);
     pt->lcd = st7789_new();
     pt->touch = cst816s_new(nrf52832_get_pins(pt->nrf), PINETIME_CST816S_IRQ_PIN);
     pt->hrs = hrs3300_new();
