@@ -1,4 +1,4 @@
-import type { CPU, CST816S, Commander, Pinetime, Pins, Pointer, RTT, ST7789 } from "../infiniemu.js"
+import type { CPU, CST816S, Commander, NRF52832, Pinetime, Pins, Pointer, RTT, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
 
 const iterations = 700000;
@@ -18,6 +18,7 @@ class Emulator {
     private readonly rttReadBufferSize = 1024;
 
     private readonly pinetime: Pinetime;
+    private readonly nrf52: NRF52832;
     private readonly lcd: ST7789;
     private readonly touch: CST816S;
     private readonly cpu: CPU;
@@ -47,10 +48,11 @@ class Emulator {
             Module.ccall("program_load_binary", null, ["number", "number", "array", "number"], args);
 
         this.pinetime = Module._pinetime_new(program, true);
+        this.nrf52 = Module._pinetime_get_nrf52832(this.pinetime);
         this.lcd = Module._pinetime_get_st7789(this.pinetime);
         this.touch = Module._pinetime_get_cst816s(this.pinetime);
-        this.pins = Module._nrf52832_get_pins(Module._pinetime_get_nrf52832(this.pinetime));
-        this.cpu = Module._nrf52832_get_cpu(Module._pinetime_get_nrf52832(this.pinetime));
+        this.pins = Module._nrf52832_get_pins(this.nrf52);
+        this.cpu = Module._nrf52832_get_cpu(this.nrf52);
         this.cmd = Module._commander_new(this.pinetime);
         this.rtt = Module._rtt_new(Module._cpu_mem(this.cpu));
 
@@ -124,7 +126,8 @@ class Emulator {
             type: "performance",
             data: {
                 loopTime: end - start,
-                ips: iterations / ((end - start) / 1000)
+                ips: iterations / ((end - start) / 1000),
+                usedRam: this.Module._nrf52832_get_used_sram(this.nrf52),
             },
         });
     }

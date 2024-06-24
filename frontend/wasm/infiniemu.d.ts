@@ -25,6 +25,7 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
 
     _nrf52832_get_pins(nrf: NRF52832): Pins;
     _nrf52832_get_cpu(nrf: NRF52832): CPU;
+    _nrf52832_get_used_sram(nrf: NRF52832): number;
 
     _cpu_is_sleeping(cpu: CPU): boolean;
     _cpu_mem(cpu: CPU): Memory;

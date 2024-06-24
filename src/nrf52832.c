@@ -34,10 +34,15 @@
 #include "../dumps/uicr.h"
 #include "../dumps/secret.h"
 
+#define SRAM_FILL_BYTE 0xB5
+
 struct NRF52832_inst_t
 {
     cpu_t *cpu;
     uint8_t *flash;
+
+    uint8_t *sram;
+    size_t sram_size;
 
     uint64_t cycle_counter;
 
@@ -80,8 +85,11 @@ struct NRF52832_inst_t
 NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
 {
     uint8_t *sram = malloc(sram_size);
+    memset(sram, SRAM_FILL_BYTE, sram_size);
 
     NRF52832_t *chip = malloc(sizeof(NRF52832_t));
+    chip->sram = sram;
+    chip->sram_size = sram_size;
     chip->pins = pins_new();
     chip->bus_spi = bus_spi_new(chip->pins, sram, sram_size);
     chip->bus_i2c = i2c_new(sram, sram_size);
@@ -206,4 +214,16 @@ void *nrf52832_get_peripheral(NRF52832_t *chip, uint8_t instance_id)
     }
 
     return NULL;
+}
+
+double nrf52832_get_used_sram(NRF52832_t *nrf)
+{
+    size_t used = 0;
+    for (size_t i = 0; i < nrf->sram_size; i++)
+    {
+        if (nrf->sram[i] != SRAM_FILL_BYTE)
+            used++;
+    }
+
+    return (double)used / nrf->sram_size;
 }

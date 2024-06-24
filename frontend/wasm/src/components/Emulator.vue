@@ -25,6 +25,7 @@ template(v-if="!isReady")
                     div Instructions per second: {{ numberFmt.format(performance.ips.value.toFixed(0)) }}
                     div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
                     div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
+                    div Used RAM: {{ numberFmt.format(performance.usedRam.value * 100) }}%
 
             .card.mt-3
                 .card-body
@@ -81,6 +82,7 @@ const consoleLines = ref<string[]>([]);
 const performance = {
     ips: useAverage(1000),
     loopTime: useAverage(1000),
+    usedRam: ref(0),
 }
 
 const worker = new MyWorker();
@@ -115,6 +117,7 @@ worker.onmessage = (event) => {
         case "performance":
             performance.ips.value = data.ips;
             performance.loopTime.value = data.loopTime;
+            performance.usedRam.value = data.usedRam;
             break;
 
         case "rttData":
