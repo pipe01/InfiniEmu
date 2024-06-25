@@ -99,7 +99,7 @@ uint8_t st7789_read(void *userdata)
 
 void st7789_write(uint8_t byte, void *userdata)
 {
-    st7789_t *st7789 = (st7789_t *)userdata;
+    st7789_t *st7789 = userdata;
 
     // Some commands will send extra data after the command byte, however this data comes
     // on a separate SPI write. When handling these commands we set the expecting_data to

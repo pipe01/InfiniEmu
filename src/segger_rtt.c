@@ -91,7 +91,7 @@ size_t rtt_flush_buffers(rtt_t *rtt, char *buffer, size_t buffer_size)
         numBytesRead += numBytesRem;
         buffer_size -= numBytesRem;
         rdOff += numBytesRem;
-        
+
         while (numBytesRem--)
         {
             *buffer++ = memreg_read_byte(rtt->mem, bufferAddr++);

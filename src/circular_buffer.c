@@ -8,6 +8,7 @@ struct circular_buffer_t
     size_t size;
     size_t head;
     size_t tail;
+    size_t remaining;
 };
 
 circular_buffer_t *circular_buffer_new(size_t size)
@@ -16,6 +17,7 @@ circular_buffer_t *circular_buffer_new(size_t size)
     buf->data = malloc(size);
     buf->size = size;
     buf->head = buf->tail = 0;
+    buf->remaining = 0;
 
     return buf;
 }
@@ -33,6 +35,7 @@ bool circular_buffer_read(circular_buffer_t *buf, uint8_t *data)
 
     *data = buf->data[buf->tail];
     buf->tail = (buf->tail + 1) % buf->size;
+    buf->remaining--;
 
     return true;
 }
@@ -46,6 +49,7 @@ bool circular_buffer_write(circular_buffer_t *buf, uint8_t data)
 
     buf->data[buf->head] = data;
     buf->head = next_head;
+    buf->remaining++;
 
     return true;
 }
@@ -53,4 +57,9 @@ bool circular_buffer_write(circular_buffer_t *buf, uint8_t data)
 void circular_buffer_clear(circular_buffer_t *buf)
 {
     buf->head = buf->tail = 0;
+}
+
+size_t circular_buffer_remaining(circular_buffer_t *buf)
+{
+    return buf->remaining;
 }

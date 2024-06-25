@@ -10,7 +10,7 @@
 #include "fault.h"
 
 #if ENABLE_LOG_SPI_FLASH
-#define LOGF(...) printf(__VA_ARGS__)
+#define LOGF(msg, ...) printf("[SPI_FLASH] " msg "\n", ##__VA_ARGS__)
 #else
 #define LOGF(...)
 #endif
@@ -92,12 +92,12 @@ struct spinorflash_t
 
 void spinorflash_write_internal(uint8_t byte, void *userdata)
 {
-    LOGF("SPI flash got data: %02X\n", byte);
-
     spinorflash_t *flash = (spinorflash_t *)userdata;
 
     if (flash->statusreg.WIP)
     {
+        LOGF("Writing byte 0x%02X to 0x%06X", byte, flash->pp_address);
+
         flash->data[flash->pp_address++] = byte;
         flash->write_count++;
         return;
@@ -112,6 +112,7 @@ void spinorflash_write_internal(uint8_t byte, void *userdata)
         switch (flash->last_write[0])
         {
         case COMMAND_RDID:
+            LOGF("RDID");
             circular_buffer_write(flash->out_buffer, 0x0B);
             circular_buffer_write(flash->out_buffer, 0x40);
             circular_buffer_write(flash->out_buffer, 0x16);
@@ -119,16 +120,19 @@ void spinorflash_write_internal(uint8_t byte, void *userdata)
             break;
 
         case COMMAND_RDSR:
+            LOGF("RDSR");
             circular_buffer_write(flash->out_buffer, flash->statusreg.value & 0xFF);
             flash->handled_command = true;
             break;
 
         case COMMAND_RDSER:
+            LOGF("RDSER");
             circular_buffer_write(flash->out_buffer, flash->securityreg.value);
             flash->handled_command = true;
             break;
 
         case COMMAND_WREN:
+            LOGF("WREN");
             flash->statusreg.WEL = 1;
             flash->handled_command = true;
             break;
@@ -145,6 +149,8 @@ void spinorflash_write_internal(uint8_t byte, void *userdata)
             uint32_t addr = READ_UINT24(flash->last_write, 1);
             assert(addr < flash->size);
 
+            LOGF("Starting write at 0x%06X", addr);
+
             flash->pp_address = addr;
             flash->statusreg.WIP = 1;
             flash->handled_command = true;
@@ -152,6 +158,8 @@ void spinorflash_write_internal(uint8_t byte, void *userdata)
         }
 
         case COMMAND_RDI:
+            LOGF("RDI");
+
             circular_buffer_write(flash->out_buffer, 0xA5);
             flash->handled_command = true;
             break;
@@ -161,6 +169,8 @@ void spinorflash_write_internal(uint8_t byte, void *userdata)
             flash->data_read_address = READ_UINT24(flash->last_write, 1);
             flash->is_reading_data = true;
             flash->handled_command = true;
+
+            LOGF("Starting read at 0x%06X", flash->data_read_address);
             break;
         }
 
@@ -171,28 +181,47 @@ void spinorflash_write_internal(uint8_t byte, void *userdata)
             uint32_t addr = READ_UINT24(flash->last_write, 1);
             assert(addr <= flash->size - flash->sector_size);
 
+            LOGF("Erasing sector at 0x%06X", addr);
+
             memset(flash->data + addr, 0xFF, flash->sector_size);
             flash->write_count++;
             flash->handled_command = true;
             break;
         }
+
+        default:
+            goto invalid_cmd;
         }
         break;
     }
+
+    if (flash->last_write_size > 4)
+        goto invalid_cmd;
+
+    return;
+
+invalid_cmd:
+    LOGF("Invalid command byte 0x%02X", byte);
+    abort();
 }
 
 uint8_t spinorflash_read_internal(void *userdata)
 {
-    spinorflash_t *flash = (spinorflash_t *)userdata;
+    spinorflash_t *flash = userdata;
 
     if (flash->is_reading_data)
+    {
+        LOGF("Reading byte at 0x%06X: 0x%02X", flash->data_read_address, flash->data[flash->data_read_address]);
+
         return flash->data[flash->data_read_address++];
+    }
 
     uint8_t byte;
 
     if (circular_buffer_read(flash->out_buffer, &byte))
         return byte;
 
+    LOGF("Buffer is empty, reading dummy byte");
     return 0xFF;
 }
 
@@ -205,7 +234,6 @@ void spinorflash_cs_changed(bool selected, void *userdata)
         if (!flash->handled_command && flash->last_write_size > 0 && flash->last_write[0] == COMMAND_RDI)
         {
             // Release from power-down
-            puts("");
         }
         else if (flash->last_write_size > 0 && !flash->handled_command)
         {
@@ -217,6 +245,7 @@ void spinorflash_cs_changed(bool selected, void *userdata)
 
         flash->statusreg.WIP = 0;
         flash->last_write_size = 0;
+        circular_buffer_clear(flash->out_buffer);
     }
     else
     {
@@ -271,4 +300,14 @@ void spinorflash_set_buffer(spinorflash_t *flash, uint8_t *data)
 
     flash->should_free_data = false;
     flash->data = data;
+}
+
+uint8_t *spinorflash_get_buffer(spinorflash_t *flash)
+{
+    return flash->data;
+}
+
+size_t spinorflash_get_buffer_size(spinorflash_t *flash)
+{
+    return flash->size;
 }
