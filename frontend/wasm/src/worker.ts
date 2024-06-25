@@ -1,6 +1,6 @@
-import type { CPU, CST816S, Commander, NRF52832, Pinetime, Pins, Pointer, RTT, SPINorFlash, ST7789 } from "../infiniemu.js"
+import type { CPU, CST816S, Commander, LFS, NRF52832, Pinetime, Pins, Pointer, RTT, SPINorFlash, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
-import type { LFSFile, MessageFromWorkerType } from "./common";
+import type { FileInfo, MessageFromWorkerType, MessageToWorkerType } from "./common";
 
 const iterations = 700000;
 
@@ -165,41 +165,100 @@ class Emulator {
         }
     }
 
-    readDir(path: string) {
+    private useLFS<T>(fn: (lfs: LFS) => T) {
         const bufferPtr = this.Module._spinorflash_get_buffer(this.spiFlash);
         const lfs = this.Module._lfs_init(pointerAdd(bufferPtr, 0x0B4000), 0x400000 - 0x0B4000);
 
-        const dir = this.Module._lfs_dir_malloc();
-        const info = this.Module._lfs_info_malloc();
-        const pathBytes = this.Module.stringToNewUTF8(path);
-
-        let err = this.Module._lfs_dir_open(lfs, dir, pathBytes);
-
-        const files: LFSFile[] = [];
-
-        while (err >= 0) {
-            err = this.Module._lfs_dir_read(lfs, dir, info);
-            if (err < 0) {
-                throw new Error("Error reading dir: " + err);
-            }
-            else if (err > 0) {
-                const name = this.Module.UTF8ToString(this.Module._lfs_info_name(info));
-                files.push({
-                    name,
-                    size: this.Module._lfs_info_size(info),
-                });
-            }
-            else {
-                break; // No more files
-            }
+        let ret: T;
+        try {
+            ret = fn(lfs);
+        } finally {
+            this.Module._lfs_free_wasm(lfs);
         }
 
-        this.Module._free(pointerToNumber(dir));
-        this.Module._free(pointerToNumber(info));
-        this.Module._free(pointerToNumber(pathBytes));
-        this.Module._lfs_free_wasm(lfs);
+        return ret;
+    }
 
-        return files;
+    readDir(path: string) {
+        return this.useLFS(lfs => {
+            const info = this.Module._lfs_info_malloc();
+            const pathBytes = this.Module.stringToNewUTF8(path);
+
+            const dir = this.Module._lfs_open_dir(lfs, pathBytes);
+            if (!dir)
+                throw new Error("Error opening dir");
+
+            const files: FileInfo[] = [];
+
+            while (true) {
+                const err = this.Module._lfs_dir_read(lfs, dir, info);
+                if (err < 0) {
+                    throw new Error("Error reading dir: " + err);
+                }
+                else if (err > 0) {
+                    const name = this.Module.UTF8ToString(this.Module._lfs_info_name(info));
+                    files.push({
+                        name,
+                        fullPath: path == "" ? name : (path + "/" + name),
+                        size: this.Module._lfs_info_size(info),
+                        type: this.Module._lfs_info_type(info) == 1 ? "file" : "dir",
+                    });
+                }
+                else {
+                    break; // No more files
+                }
+            }
+
+            this.Module._free(pointerToNumber(dir as unknown as Pointer));
+            this.Module._free(pointerToNumber(info as unknown as Pointer));
+            this.Module._free(pointerToNumber(pathBytes));
+
+            return files;
+        });
+    }
+
+    readFile(path: string) {
+        return this.useLFS(lfs => {
+            const pathBytes = this.Module.stringToNewUTF8(path);
+
+            const file = this.Module._lfs_open_file(lfs, pathBytes, 0);
+            if (!file)
+                throw new Error("Error opening file");
+
+            const bufferSize = 1024;
+            const buffer = numberToPointer(this.Module._malloc(bufferSize));
+
+            let fullBuffer = new Uint8Array(1);
+            let totalReadBytes = 0;
+
+            while (true) {
+                const readBytes = this.Module._lfs_file_read(lfs, file, buffer, bufferSize);
+                if (readBytes <= 0)
+                    break;
+
+                const data = new Uint8Array(this.Module.HEAPU8.buffer, pointerToNumber(buffer), readBytes);
+
+                if (totalReadBytes + readBytes > fullBuffer.byteLength) {
+                    let newSize = fullBuffer.byteLength;
+                    while (newSize < totalReadBytes + readBytes) {
+                        newSize *= 2;
+                    }
+
+                    const newBuffer = new Uint8Array(newSize);
+                    newBuffer.set(new Uint8Array(fullBuffer));
+                    fullBuffer = newBuffer;
+                } else {
+                    fullBuffer.set(data, totalReadBytes);
+                }
+
+                totalReadBytes += readBytes;
+            }
+
+            this.Module._free(pointerToNumber(file as unknown as Pointer));
+            this.Module._free(pointerToNumber(buffer));
+
+            return fullBuffer.slice(0, totalReadBytes);
+        });
     }
 
     doTouch(gesture: number, x: number, y: number, duration?: number) {
@@ -241,11 +300,11 @@ createModule({
     sendMessage("ready", undefined);
 });
 
-onmessage = event => {
-    const { type, data } = event.data;
+function handleMessage(msg: MessageToWorkerType) {
+    const { type, data } = msg;
 
     switch (type) {
-        case "loadProgram":
+        case "setProgram":
             if (!Module) {
                 sendMessage("error", {
                     message: "Module not loaded",
@@ -299,5 +358,22 @@ onmessage = event => {
             if (emulator)
                 sendMessage("dirFiles", emulator.readDir(data));
             break;
+
+        case "readFile":
+            if (emulator)
+                sendMessage("fileData", { path: data, data: emulator.readFile(data) });
+            break;
+    }
+}
+
+onmessage = event => {
+    try {
+        handleMessage(event.data as MessageToWorkerType);
+    } catch (error: any) {
+        sendMessage("error", {
+            message: "message" in error ? error.message : undefined,
+            stack: "stack" in error ? error.stack : undefined,
+            string: error.toString(),
+        });
     }
 }

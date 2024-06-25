@@ -1,10 +1,11 @@
-export type LFSFile = {
+export type FileInfo = {
     name: string;
+    fullPath: string;
     size: number;
+    type: "file" | "dir";
 };
 
 export type MessageToWorkerType =
-    { type: "loadProgram", data: string } |
     { type: "setCanvas", data: OffscreenCanvas } |
     { type: "start", data: void } |
     { type: "stop", data: void } |
@@ -13,12 +14,14 @@ export type MessageToWorkerType =
     { type: "pressButton", data: void } |
     { type: "releaseButton", data: void } |
     { type: "setProgram", data: ArrayBuffer } |
-    { type: "readDir", data: void };
+    { type: "readDir", data: string } |
+    { type: "readFile", data: string };
 
 export type MessageFromWorkerType =
     { type: "ready", data: void } |
     { type: "error", data: { message: string | undefined, stack: string | undefined, string: string | undefined } } |
-    { type: "dirFiles", data: LFSFile[] } |
+    { type: "dirFiles", data: FileInfo[] } |
+    { type: "fileData", data: { path: string, data: ArrayBuffer } } |
     { type: "running", data: boolean } |
     { type: "rttFound", data: void } |
     { type: "rttData", data: string } |

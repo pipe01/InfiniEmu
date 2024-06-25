@@ -1,20 +1,21 @@
 declare const tag: unique symbol;
 
 export type Pointer = { readonly [tag]: "Pointer" };
-export type Program = Pointer & { readonly [tag]: "Program" };
-export type Pinetime = Pointer & { readonly [tag]: "Pinetime" };
-export type ST7789 = Pointer & { readonly [tag]: "ST7789" };
-export type CST816S = Pointer & { readonly [tag]: "CST816S" };
-export type NRF52832 = Pointer & { readonly [tag]: "NRF52832" };
-export type CPU = Pointer & { readonly [tag]: "CPU" };
-export type Memory = Pointer & { readonly [tag]: "Memory" };
-export type Pins = Pointer & { readonly [tag]: "Pins" };
-export type Commander = Pointer & { readonly [tag]: "Commander" };
-export type RTT = Pointer & { readonly [tag]: "RTT" };
-export type LFS = Pointer & { readonly [tag]: "LFS" };
-export type LFSDir = Pointer & { readonly [tag]: "LFSDir" };
-export type LFSInfo = Pointer & { readonly [tag]: "LFSInfo" };
-export type SPINorFlash = Pointer & { readonly [tag]: "SPINorFlash" };
+export type Program = { readonly [tag]: "Program" };
+export type Pinetime = { readonly [tag]: "Pinetime" };
+export type ST7789 = { readonly [tag]: "ST7789" };
+export type CST816S = { readonly [tag]: "CST816S" };
+export type NRF52832 = { readonly [tag]: "NRF52832" };
+export type SPINorFlash = { readonly [tag]: "SPINorFlash" };
+export type CPU = { readonly [tag]: "CPU" };
+export type Memory = { readonly [tag]: "Memory" };
+export type Pins = { readonly [tag]: "Pins" };
+export type Commander = { readonly [tag]: "Commander" };
+export type RTT = { readonly [tag]: "RTT" };
+export type LFS = { readonly [tag]: "LFS" };
+export type LFSDir = { readonly [tag]: "LFSDir" };
+export type LFSInfo = { readonly [tag]: "LFSInfo" };
+export type LFSFile = { readonly [tag]: "LFSInfo" };
 
 const module: EmscriptenModuleFactory<EmscriptenModule & {
     ccall(name: string, returnType: string | null, argTypes: string[], args: any[]): any;
@@ -58,12 +59,14 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
     _lfs_init(data: Pointer, dataSize: number): LFS;
     _lfs_free_wasm(lfs: LFS): void;
     _lfs_dir_malloc(): LFSDir;
-    _lfs_info_malloc(): LFSDir;
-    _lfs_dir_open(lfs: LFS, dir: LFSDir, path: Pointer): number;
+    _lfs_info_malloc(): LFSInfo;
+    _lfs_open_dir(lfs: LFS, path: Pointer): LFSDir;
     _lfs_dir_read(lfs: LFS, dir: LFSDir, info: LFSInfo): number;
     _lfs_info_type(info: LFSInfo): number;
     _lfs_info_size(info: LFSInfo): number;
     _lfs_info_name(info: LFSInfo): Pointer;
+    _lfs_open_file(lfs: LFS, path: Pointer, flags: number): LFSFile;
+    _lfs_file_read(lfs: LFS, file: LFSFile, buffer: Pointer, size: number): number;
 
     UTF8ToString(ptr: Pointer, maxBytes?: number): string;
     stringToNewUTF8(str: string): Pointer;

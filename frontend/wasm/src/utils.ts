@@ -33,5 +33,17 @@ export function useAverage(interval: number): Ref<number> {
 }
 
 export function sendMessage<Type extends MessageToWorkerType["type"]>(worker: Worker, type: Type, data: Extract<MessageToWorkerType, { type: Type }>["data"], transfer?: Transferable[]) {
-    worker.postMessage({ type, data }, transfer ?? []);
+    if (transfer)
+        worker.postMessage({ type, data }, transfer);
+    else
+        worker.postMessage({ type, data });
+}
+
+export function downloadURL(url: string, filename: string) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 }

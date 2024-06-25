@@ -122,9 +122,16 @@ void lfs_free_wasm(lfs_t *lfs)
     free(lfs);
 }
 
-lfs_dir_t *lfs_dir_malloc()
+lfs_dir_t *lfs_open_dir(lfs_t *lfs, const char *path)
 {
-    return malloc(sizeof(lfs_dir_t));
+    lfs_dir_t *dir = malloc(sizeof(lfs_dir_t));
+    if (lfs_dir_open(lfs, dir, path) < 0)
+    {
+        free(dir);
+        return NULL;
+    }
+
+    return dir;
 }
 
 struct lfs_info *lfs_info_malloc()
@@ -145,4 +152,16 @@ lfs_size_t lfs_info_size(const struct lfs_info *info)
 const char *lfs_info_name(const struct lfs_info *info)
 {
     return info->name;
+}
+
+lfs_file_t *lfs_open_file(lfs_t *lfs, const char *path, int flags)
+{
+    lfs_file_t *file = malloc(sizeof(lfs_file_t));
+    if (lfs_file_open(lfs, file, path, flags) < 0)
+    {
+        free(file);
+        return NULL;
+    }
+
+    return file;
 }

@@ -6,6 +6,12 @@ template(v-if="!isReady")
         template(v-if="isStarted")
             .card
                 .card-body
+                    h3.card-title File system
+
+                    FileBrowser(:worker="worker" :is-initialized="isStarted" @loadStart="onFileLoadStart" @loadEnd="onFileLoadEnd")
+
+            .card.mt-3
+                .card-body
                     h3.card-title Console
                     .text-danger(v-if="!foundRTT") Couldn't find Segger RTT block in memory
 
@@ -63,7 +69,9 @@ import MyWorker from "@/worker?worker";
 
 import Display, { Direction } from "@/components/Display.vue";
 import Console from "@/components/Console.vue";
-import { useAverage } from "@/utils";
+import FileBrowser from "@/components/FileBrowser.vue";
+import { sendMessage, useAverage } from "@/utils";
+import type { MessageFromWorkerType } from "@/common";
 
 const props = defineProps<{
     programFile: ArrayBuffer;
@@ -74,6 +82,8 @@ const numberFmt = new Intl.NumberFormat();
 const isReady = ref(false);
 const isStarted = ref(false);
 const isRunning = ref(false);
+
+const wasRunningBeforeLoad = ref(false);
 
 const isLcdOff = ref(true);
 const isCpuSleeping = ref(false);
@@ -91,6 +101,10 @@ const performance = {
 const worker = new MyWorker();
 onUnmounted(() => worker.terminate());
 
+worker.onerror = (event) => {
+    console.error("worker error", event);
+};
+
 worker.onmessage = (event) => {
     const { type, data } = event.data as MessageFromWorkerType;
 
@@ -104,7 +118,7 @@ worker.onmessage = (event) => {
             isReady.value = true;
             start();
             break;
-        
+
         case "running":
             isRunning.value = data;
             break;
@@ -152,6 +166,16 @@ function start() {
 
 function stop() {
     sendMessage(worker, "stop", undefined);
+}
+
+function onFileLoadStart() {
+    wasRunningBeforeLoad.value = isRunning.value;
+    stop();
+}
+
+function onFileLoadEnd() {
+    if (wasRunningBeforeLoad.value)
+        start();
 }
 
 function onButtonDown(isDown: boolean) {
