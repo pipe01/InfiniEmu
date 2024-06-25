@@ -67,6 +67,7 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
     _lfs_info_name(info: LFSInfo): Pointer;
     _lfs_open_file(lfs: LFS, path: Pointer, flags: number): LFSFile;
     _lfs_file_read(lfs: LFS, file: LFSFile, buffer: Pointer, size: number): number;
+    _lfs_mkdir(lfs: LFS, path: Pointer): number;
 
     UTF8ToString(ptr: Pointer, maxBytes?: number): string;
     stringToNewUTF8(str: string): Pointer;

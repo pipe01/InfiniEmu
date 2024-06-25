@@ -68,7 +68,7 @@ set(WASM_EXPORTS
     program_new program_load_binary program_load_elf
     commander_new commander_set_output commander_run_command commander_output
     rtt_new rtt_find_control rtt_flush_buffers
-    lfs_init lfs_free_wasm lfs_open_dir lfs_dir_read
+    lfs_init lfs_mkdir lfs_free_wasm lfs_open_dir lfs_dir_read
     lfs_open_file lfs_file_read
     lfs_info_malloc lfs_info_type lfs_info_size lfs_info_name
 )

@@ -47,3 +47,7 @@ export function downloadURL(url: string, filename: string) {
     a.click();
     a.remove();
 }
+
+export function joinLFSPaths(...paths: string[]) {
+    return paths.join("/").replace(/^\//, "").replace(/\/+/g, "/");
+}

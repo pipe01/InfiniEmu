@@ -1,6 +1,7 @@
 import type { CPU, CST816S, Commander, LFS, NRF52832, Pinetime, Pins, Pointer, RTT, SPINorFlash, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
 import type { FileInfo, MessageFromWorkerType, MessageToWorkerType } from "./common";
+import { joinLFSPaths } from "./utils.js";
 
 const iterations = 700000;
 
@@ -165,6 +166,26 @@ class Emulator {
         }
     }
 
+    doTouch(gesture: number, x: number, y: number, duration?: number) {
+        this.readDir("");
+
+        this.Module._cst816s_do_touch(this.touch, gesture, x, y);
+
+        if (duration && duration > 0)
+            setTimeout(() => this.Module._cst816s_release_touch(this.touch), duration);
+    }
+
+    clearTouch() {
+        this.Module._cst816s_release_touch(this.touch);
+    }
+
+    changePin(pin: number, isSet: boolean) {
+        if (isSet)
+            this.Module._pins_set(this.pins, pin);
+        else
+            this.Module._pins_clear(this.pins, pin);
+    }
+
     private useLFS<T>(fn: (lfs: LFS) => T) {
         const bufferPtr = this.Module._spinorflash_get_buffer(this.spiFlash);
         const lfs = this.Module._lfs_init(pointerAdd(bufferPtr, 0x0B4000), 0x400000 - 0x0B4000);
@@ -199,7 +220,7 @@ class Emulator {
                     const name = this.Module.UTF8ToString(this.Module._lfs_info_name(info));
                     files.push({
                         name,
-                        fullPath: path == "" ? name : (path + "/" + name),
+                        fullPath: joinLFSPaths(path, name),
                         size: this.Module._lfs_info_size(info),
                         type: this.Module._lfs_info_type(info) == 1 ? "file" : "dir",
                     });
@@ -261,24 +282,16 @@ class Emulator {
         });
     }
 
-    doTouch(gesture: number, x: number, y: number, duration?: number) {
-        this.readDir("");
+    createDir(path: string) {
+        return this.useLFS(lfs => {
+            const pathBytes = this.Module.stringToNewUTF8(path);
 
-        this.Module._cst816s_do_touch(this.touch, gesture, x, y);
+            const ret = this.Module._lfs_mkdir(lfs, pathBytes);
+            if (ret < 0)
+                throw new Error("Error creating dir: " + ret);
 
-        if (duration && duration > 0)
-            setTimeout(() => this.Module._cst816s_release_touch(this.touch), duration);
-    }
-
-    clearTouch() {
-        this.Module._cst816s_release_touch(this.touch);
-    }
-
-    changePin(pin: number, isSet: boolean) {
-        if (isSet)
-            this.Module._pins_set(this.pins, pin);
-        else
-            this.Module._pins_clear(this.pins, pin);
+            this.Module._free(pointerToNumber(pathBytes));
+        });
     }
 };
 
@@ -362,6 +375,13 @@ function handleMessage(msg: MessageToWorkerType) {
         case "readFile":
             if (emulator)
                 sendMessage("fileData", { path: data, data: emulator.readFile(data) });
+            break;
+
+        case "createDir":
+            if (emulator) {
+                emulator.createDir(data);
+                sendMessage("createdDir", data);
+            }
             break;
     }
 }

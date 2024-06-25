@@ -15,13 +15,15 @@ export type MessageToWorkerType =
     { type: "releaseButton", data: void } |
     { type: "setProgram", data: ArrayBuffer } |
     { type: "readDir", data: string } |
-    { type: "readFile", data: string };
+    { type: "readFile", data: string } |
+    { type: "createDir", data: string };
 
 export type MessageFromWorkerType =
     { type: "ready", data: void } |
     { type: "error", data: { message: string | undefined, stack: string | undefined, string: string | undefined } } |
     { type: "dirFiles", data: FileInfo[] } |
     { type: "fileData", data: { path: string, data: ArrayBuffer } } |
+    { type: "createdDir", data: string } |
     { type: "running", data: boolean } |
     { type: "rttFound", data: void } |
     { type: "rttData", data: string } |

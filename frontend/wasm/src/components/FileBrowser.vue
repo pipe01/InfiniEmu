@@ -16,7 +16,7 @@ div
 import { ref } from 'vue';
 
 import type { FileInfo, MessageFromWorkerType } from '@/common';
-import { downloadURL, sendMessage } from '@/utils';
+import { downloadURL, joinLFSPaths, sendMessage } from '@/utils';
 
 const props = defineProps<{
     worker: Worker,
@@ -61,6 +61,7 @@ function navigate(dir: FileInfo) {
         currentPath.value = currentPathParts.join("/");
     }
     else {
+        console.log(dir.fullPath);
         currentPath.value = dir.fullPath;
     }
 
@@ -88,6 +89,27 @@ function openFile(file: FileInfo) {
 
     props.worker.addEventListener("message", listener);
     sendMessage(props.worker, "readFile", file.fullPath);
+}
+
+function createFolder() {
+    const folderName = prompt("Enter folder name");
+
+    if (folderName) {
+        const path = joinLFSPaths(currentPath.value, folderName);
+
+        const listener = (event: MessageEvent) => {
+            const { type, data } = event.data as MessageFromWorkerType;
+
+            if (type == "createdDir" && data == path) {
+                props.worker.removeEventListener("message", listener);
+                emit("loadEnd");
+                refresh();
+            }
+        };
+
+        props.worker.addEventListener("message", listener);
+        sendMessage(props.worker, "createDir", path);
+    }
 }
 </script>
 
