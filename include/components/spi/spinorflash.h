@@ -11,3 +11,5 @@ spi_slave_t spinorflash_get_slave(spinorflash_t *);
 
 size_t spinorflash_get_write_count(spinorflash_t *);
 void spinorflash_set_buffer(spinorflash_t *, uint8_t *data);
+uint8_t *spinorflash_get_buffer(spinorflash_t *);
+size_t spinorflash_get_buffer_size(spinorflash_t *);

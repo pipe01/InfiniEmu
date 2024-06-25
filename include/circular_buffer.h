@@ -12,3 +12,4 @@ void circular_buffer_free(circular_buffer_t *);
 bool circular_buffer_read(circular_buffer_t *, uint8_t *data);
 bool circular_buffer_write(circular_buffer_t *, uint8_t data);
 void circular_buffer_clear(circular_buffer_t *);
+size_t circular_buffer_remaining(circular_buffer_t *);
