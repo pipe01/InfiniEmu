@@ -130,7 +130,7 @@ size_t bus_spi_read_dma(bus_spi_t *spi, uint32_t address, size_t size)
 
     for (size_t i = 0; i < size; i++)
     {
-        if (!bus_spi_read(spi, &spi->ram[offset]))
+        if (!bus_spi_read(spi, &spi->ram[offset + i]))
             return i;
     }
 
