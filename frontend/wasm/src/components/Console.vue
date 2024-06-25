@@ -1,9 +1,7 @@
 <template lang="pug">
-.outer
+.outer(ref="scrollEl")
     .console
         .line(v-for="line in lines") {{ line }}
-
-        div(ref="endOfConsole")
 </template>
 
 <script lang="ts" setup>
@@ -13,10 +11,10 @@ const props = defineProps<{
     lines: string[];
 }>();
 
-const endOfConsole = ref<HTMLDivElement | null>(null);
+const scrollEl = ref<HTMLDivElement | null>(null);
 
 watch(props.lines, () => {
-    nextTick(() => endOfConsole.value?.scrollIntoView());
+    nextTick(() => scrollEl.value?.scroll(0, scrollEl.value?.scrollHeight ?? 0));
 });
 </script>
 
