@@ -687,10 +687,7 @@ char *gdb_breakpoint(gdbstub *gdb, char *msg)
     msg++;
 
     if (kind != '1')
-    {
-        send_response_str(gdb->fd, "E01");
-        return strchr(msg, '#');
-    }
+        return NULL;
 
     msg++; // Skip comma
 
