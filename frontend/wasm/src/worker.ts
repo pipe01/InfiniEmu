@@ -1,5 +1,6 @@
-import type { CPU, CST816S, Commander, NRF52832, Pinetime, Pins, Pointer, RTT, ST7789 } from "../infiniemu.js"
+import type { CPU, CST816S, Commander, NRF52832, Pinetime, Pins, Pointer, RTT, SPINorFlash, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
+import type { LFSFile, MessageFromWorkerType } from "./common";
 
 const iterations = 700000;
 
@@ -13,6 +14,13 @@ function pointerToNumber(ptr: Pointer) {
 function numberToPointer(num: number) {
     return num as unknown as Pointer;
 }
+function pointerAdd(ptr: Pointer, offset: number) {
+    return numberToPointer(pointerToNumber(ptr) + offset);
+}
+
+function sendMessage<Type extends MessageFromWorkerType["type"]>(type: Type, data: Extract<MessageFromWorkerType, { type: Type }>["data"]) {
+    postMessage({ type, data });
+}
 
 class Emulator {
     private readonly rttReadBufferSize = 1024;
@@ -25,6 +33,7 @@ class Emulator {
     private readonly pins: Pins;
     private readonly cmd: Commander;
     private readonly rtt: RTT;
+    private readonly spiFlash: SPINorFlash;
 
     private readonly rttReadBuffer: Pointer;
 
@@ -57,6 +66,7 @@ class Emulator {
         this.cpu = Module._nrf52832_get_cpu(this.nrf52);
         this.cmd = Module._commander_new(this.pinetime);
         this.rtt = Module._rtt_new(Module._cpu_mem(this.cpu));
+        this.spiFlash = Module._pinetime_get_spinorflash(this.pinetime);
 
         Module._commander_set_output(this.cmd, Module._commander_output);
 
@@ -73,12 +83,10 @@ class Emulator {
             screenUpdated = this.Module._pinetime_loop(this.pinetime, iterations);
         } catch (error: any) {
             this.stop();
-            postMessage({
-                type: "error", data: {
-                    message: "message" in error ? error.message : undefined,
-                    stack: "stack" in error ? error.stack : undefined,
-                    string: error.toString(),
-                }
+            sendMessage("error", {
+                message: "message" in error ? error.message : undefined,
+                stack: "stack" in error ? error.stack : undefined,
+                string: error.toString(),
             });
             return;
         }
@@ -88,7 +96,7 @@ class Emulator {
         if (this.instructionCount < 1000000 && !this.rttFoundBlock) {
             this.rttFoundBlock = !!this.Module._rtt_find_control(this.rtt);
             if (this.rttFoundBlock)
-                postMessage({ type: "rttFound" });
+                sendMessage("rttFound", undefined);
         }
         if (this.rttFoundBlock) {
             const readBytes = this.Module._rtt_flush_buffers(this.rtt, this.rttReadBuffer, this.rttReadBufferSize);
@@ -96,10 +104,7 @@ class Emulator {
             if (readBytes > 0) {
                 const msg = this.Module.UTF8ToString(this.rttReadBuffer, readBytes);
 
-                postMessage({
-                    type: "rttData",
-                    data: msg,
-                });
+                sendMessage("rttData", msg);
             }
         }
 
@@ -110,32 +115,22 @@ class Emulator {
 
         const lcdSleepingNow = this.Module._st7789_is_sleeping(this.lcd);
         if (lcdSleepingNow !== this.isLcdSleeping) {
-            this.isLcdSleeping = lcdSleepingNow;
+            this.isLcdSleeping = !!lcdSleepingNow;
 
-            postMessage({
-                type: "lcdSleeping",
-                data: !!this.isLcdSleeping,
-            });
+            sendMessage("lcdSleeping", this.isLcdSleeping);
         }
 
         const cpuSleepingNow = this.Module._cpu_is_sleeping(this.cpu);
         if (cpuSleepingNow !== this.isCPUSleeping) {
-            this.isCPUSleeping = cpuSleepingNow;
+            this.isCPUSleeping = !!cpuSleepingNow;
 
-            postMessage({
-                type: "cpuSleeping",
-                data: !!this.isCPUSleeping,
-            });
+            sendMessage("cpuSleeping", this.isCPUSleeping);
         }
 
-        postMessage({
-            type: "performance",
-            data: {
-                loopTime: end - start,
-                ips: iterations / ((end - start) / 1000),
-                foundRTT: this.rttFoundBlock,
-                totalSRAM: this.Module._nrf52832_get_sram_size(this.nrf52),
-            },
+        sendMessage("performance", {
+            loopTime: end - start,
+            ips: iterations / ((end - start) / 1000),
+            totalSRAM: this.Module._nrf52832_get_sram_size(this.nrf52),
         });
     }
 
@@ -158,7 +153,7 @@ class Emulator {
     start() {
         if (!this.runInterval) {
             this.runInterval = setInterval(() => this.run(), 0); // TODO: Maybe use 0 here?
-            postMessage({ type: "running", data: true });
+            sendMessage("running", true);
         }
     }
 
@@ -166,11 +161,50 @@ class Emulator {
         if (this.runInterval) {
             clearInterval(this.runInterval);
             this.runInterval = null;
-            postMessage({ type: "running", data: false });
+            sendMessage("running", false);
         }
     }
 
+    readDir(path: string) {
+        const bufferPtr = this.Module._spinorflash_get_buffer(this.spiFlash);
+        const lfs = this.Module._lfs_init(pointerAdd(bufferPtr, 0x0B4000), 0x400000 - 0x0B4000);
+
+        const dir = this.Module._lfs_dir_malloc();
+        const info = this.Module._lfs_info_malloc();
+        const pathBytes = this.Module.stringToNewUTF8(path);
+
+        let err = this.Module._lfs_dir_open(lfs, dir, pathBytes);
+
+        const files: LFSFile[] = [];
+
+        while (err >= 0) {
+            err = this.Module._lfs_dir_read(lfs, dir, info);
+            if (err < 0) {
+                throw new Error("Error reading dir: " + err);
+            }
+            else if (err > 0) {
+                const name = this.Module.UTF8ToString(this.Module._lfs_info_name(info));
+                files.push({
+                    name,
+                    size: this.Module._lfs_info_size(info),
+                });
+            }
+            else {
+                break; // No more files
+            }
+        }
+
+        this.Module._free(pointerToNumber(dir));
+        this.Module._free(pointerToNumber(info));
+        this.Module._free(pointerToNumber(pathBytes));
+        this.Module._lfs_free_wasm(lfs);
+
+        return files;
+    }
+
     doTouch(gesture: number, x: number, y: number, duration?: number) {
+        this.readDir("");
+
         this.Module._cst816s_do_touch(this.touch, gesture, x, y);
 
         if (duration && duration > 0)
@@ -204,7 +238,7 @@ createModule({
     },
 }).then((mod) => {
     Module = mod;
-    postMessage({ type: "ready" });
+    sendMessage("ready", undefined);
 });
 
 onmessage = event => {
@@ -213,7 +247,11 @@ onmessage = event => {
     switch (type) {
         case "loadProgram":
             if (!Module) {
-                postMessage({ type: "error", data: "Module not loaded" });
+                sendMessage("error", {
+                    message: "Module not loaded",
+                    stack: undefined,
+                    string: "Module not loaded",
+                });
                 return;
             }
 
@@ -255,6 +293,11 @@ onmessage = event => {
         case "releaseButton":
             if (emulator)
                 emulator.changePin(13, false);
+            break;
+
+        case "readDir":
+            if (emulator)
+                sendMessage("dirFiles", emulator.readDir(data));
             break;
     }
 }

@@ -92,7 +92,7 @@ const worker = new MyWorker();
 onUnmounted(() => worker.terminate());
 
 worker.onmessage = (event) => {
-    const { type, data } = event.data;
+    const { type, data } = event.data as MessageFromWorkerType;
 
     switch (type) {
         case "error":
@@ -100,13 +100,13 @@ worker.onmessage = (event) => {
             break;
 
         case "ready":
-            worker.postMessage({ type: "loadProgram", data: props.programFile });
+            sendMessage(worker, "setProgram", props.programFile);
             isReady.value = true;
             start();
             break;
         
         case "running":
-            isRunning.value = !!data;
+            isRunning.value = data;
             break;
 
         case "lcdSleeping":
@@ -129,7 +129,7 @@ worker.onmessage = (event) => {
             break;
 
         case "rttData":
-            const lines = (data as string).split("\n");
+            const lines = data.split("\n");
             consoleLines.value.push(...lines);
 
             if (consoleLines.value.length > 1000) {
@@ -142,23 +142,23 @@ worker.onmessage = (event) => {
 function onGotCanvas(canvas: HTMLCanvasElement) {
     const offscreen = canvas.transferControlToOffscreen();
 
-    worker.postMessage({ type: "setCanvas", data: offscreen }, [offscreen]);
+    sendMessage(worker, "setCanvas", offscreen, [offscreen]);
 }
 
 function start() {
-    worker.postMessage({ type: "start" });
+    sendMessage(worker, "start", undefined);
     isStarted.value = true;
 }
 
 function stop() {
-    worker.postMessage({ type: "stop" });
+    sendMessage(worker, "stop", undefined);
 }
 
 function onButtonDown(isDown: boolean) {
     if (isDown)
-        worker.postMessage({ type: "pressButton" });
+        sendMessage(worker, "pressButton", undefined);
     else
-        worker.postMessage({ type: "releaseButton" });
+        sendMessage(worker, "releaseButton", undefined);
 }
 
 const swipeCenter = (direction: Direction) => {
@@ -185,14 +185,14 @@ function onStartSwipe(direction: Direction, x: number, y: number) {
             return;
     }
 
-    worker.postMessage({ type: "doTouch", data: { gesture, x, y } });
+    sendMessage(worker, "doTouch", { gesture, x, y });
 }
 
 function clearTouch() {
-    worker.postMessage({ type: "clearTouch" });
+    sendMessage(worker, "clearTouch", undefined);
 }
 
 function onStartTouch(x: number, y: number) {
-    worker.postMessage({ type: "doTouch", data: { gesture: 0, x, y } });
+    sendMessage(worker, "doTouch", { gesture: 0, x, y });
 }
 </script>

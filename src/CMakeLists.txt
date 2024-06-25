@@ -50,9 +50,12 @@ set(SRC_FILES
     peripherals/nrf52832/twim.c
     peripherals/nrf52832/wdt.c
 
-    ../lib/littlefs/lfs.c #TODO: Make this better
+    ../lib/littlefs/lfs.c       # TODO: Include littlefs from root CMakeLists.txt
     ../lib/littlefs/lfs_util.c
 )
+
+# Disable warnings for littlefs
+set_source_files_properties(../lib/littlefs/lfs.c PROPERTIES COMPILE_FLAGS "-w")
 
 set(WASM_EXPORTS
     malloc free
@@ -60,10 +63,13 @@ set(WASM_EXPORTS
     pinetime_get_st7789 st7789_read_screen_rgba st7789_is_sleeping st7789_get_write_count st7789_is_sleeping
     pinetime_get_cst816s cst816s_do_touch cst816s_release_touch
     pinetime_get_nrf52832 nrf52832_get_sram_size nrf52832_get_pins pins_set pins_clear
+    pinetime_get_spinorflash spinorflash_get_buffer spinorflash_get_buffer_size
     nrf52832_get_cpu cpu_is_sleeping cpu_mem
     program_new program_load_binary program_load_elf
     commander_new commander_set_output commander_run_command commander_output
     rtt_new rtt_find_control rtt_flush_buffers
+    lfs_init lfs_free_wasm lfs_dir_open lfs_dir_read
+    lfs_dir_malloc lfs_info_malloc lfs_info_type lfs_info_size lfs_info_name
 )
 
 set(LIBS m tiny-aes capstone)

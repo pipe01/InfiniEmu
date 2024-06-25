@@ -1,5 +1,6 @@
 #include "pinetime.h"
 #include "components/spi/st7789.h"
+#include "littlefs/lfs.h"
 
 #include <emscripten.h>
 
@@ -44,7 +45,104 @@ void st7789_read_screen_rgba(st7789_t *st, uint8_t *screen_buffer, uint8_t *rgba
 
 void commander_output(const char *msg, void *userdata)
 {
-    EM_ASM({
-        console.log($0);
-    }, msg);
+    EM_ASM({ console.log("command output", $0); }, msg);
+}
+
+int lfs_read(const struct lfs_config *c, lfs_block_t block, lfs_off_t off, void *buffer, lfs_size_t size)
+{
+    memcpy(buffer, c->context + block * c->block_size + off, size);
+    return 0;
+}
+
+int lfs_prog(const struct lfs_config *c, lfs_block_t block, lfs_off_t off, const void *buffer, lfs_size_t size)
+{
+    memcpy(c->context + block * c->block_size + off, buffer, size);
+    return 0;
+}
+
+int lfs_erase(const struct lfs_config *c, lfs_block_t block)
+{
+    memset(c->context + block * c->block_size, 0xFF, c->block_size);
+    return 0;
+}
+
+int lfs_sync(const struct lfs_config *c)
+{
+    return 0;
+}
+
+const struct lfs_config lfs_cfg = {
+    .read_size = 16,
+    .prog_size = 8,
+    .block_size = 4096,
+    .block_count = 844,
+    .block_cycles = 1000,
+    .cache_size = 16,
+    .lookahead_size = 16,
+    .read = lfs_read,
+    .prog = lfs_prog,
+    .erase = lfs_erase,
+    .sync = lfs_sync,
+};
+
+lfs_t *lfs_init(uint8_t *data, size_t data_size)
+{
+    lfs_t *lfs = malloc(sizeof(lfs_t));
+
+    struct lfs_config *cfg = malloc(sizeof(struct lfs_config));
+    *cfg = lfs_cfg;
+    cfg->context = data;
+
+    lfs->cfg = cfg;
+
+    int err = lfs_mount(lfs, cfg);
+
+    if (err)
+    {
+        printf("Mounting failed (%d), formatting...\n", err);
+
+        lfs_format(lfs, cfg);
+        err = lfs_mount(lfs, cfg);
+        if (err)
+        {
+            printf("Formatting failed (%d)\n", err);
+
+            free(lfs);
+            free(cfg);
+            return NULL;
+        }
+    }
+
+    return lfs;
+}
+
+void lfs_free_wasm(lfs_t *lfs)
+{
+    free((void *)lfs->cfg);
+    free(lfs);
+}
+
+lfs_dir_t *lfs_dir_malloc()
+{
+    return malloc(sizeof(lfs_dir_t));
+}
+
+struct lfs_info *lfs_info_malloc()
+{
+    return malloc(sizeof(struct lfs_info));
+}
+
+uint8_t lfs_info_type(const struct lfs_info *info)
+{
+    return info->type;
+}
+
+lfs_size_t lfs_info_size(const struct lfs_info *info)
+{
+    return info->size;
+}
+
+const char *lfs_info_name(const struct lfs_info *info)
+{
+    return info->name;
 }

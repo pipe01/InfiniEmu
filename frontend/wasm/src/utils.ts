@@ -1,4 +1,5 @@
 import { customRef, onUnmounted, type Ref } from "vue";
+import type { MessageToWorkerType } from "./common";
 
 export function useAverage(interval: number): Ref<number> {
     let sum = 0;
@@ -29,4 +30,8 @@ export function useAverage(interval: number): Ref<number> {
             },
         }
     });
+}
+
+export function sendMessage<Type extends MessageToWorkerType["type"]>(worker: Worker, type: Type, data: Extract<MessageToWorkerType, { type: Type }>["data"], transfer?: Transferable[]) {
+    worker.postMessage({ type, data }, transfer ?? []);
 }
