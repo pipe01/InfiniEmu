@@ -34,7 +34,7 @@ const emit = defineEmits<{
     (e: "buttonDown", isDown: boolean): void
     (e: "startSwipe", direction: Direction, x: number, y: number): void
     (e: "endSwipe"): void
-    (e: "startTouch", x: number, y: number): void
+    (e: "startTouch", x: number, y: number, isLongTap: boolean): void
     (e: "endTouch"): void
     (e: "resized", width: number, height: number): void
 }>();
@@ -48,6 +48,7 @@ onMounted(() => {
 let isMouseDown = false, isButtonDown = false;
 let hasSwiped = false;
 let mouseDownX = 0, mouseDownY = 0;
+let mouseDownTime: Date;
 
 const sizeOffset = ref(0);
 
@@ -60,9 +61,10 @@ function onMouseDown(e: MouseEvent) {
 
     if (e.button == 0) {
         isMouseDown = true;
-
+        
         mouseDownX = normalizePos(e.offsetX);
         mouseDownY = normalizePos(e.offsetY);
+        mouseDownTime = new Date();
     } else if (e.button == 2) {
         isButtonDown = true;
 
@@ -92,7 +94,7 @@ function onMouseMove(e: MouseEvent) {
         if (Math.abs(distX) > Math.abs(distY)) {
             dir = distX > 0 ? Direction.Right : Direction.Left;
         } else {
-            dir = distY > 0 ? Direction.Up : Direction.Down;
+            dir = distY > 0 ? Direction.Down : Direction.Up;
         }
 
         emit("startSwipe", dir, x, y);
@@ -115,7 +117,7 @@ function onMouseUp(e: MouseEvent) {
             hasSwiped = false;
             emit("endSwipe");
         } else {
-            emit("startTouch", normalizePos(e.offsetX), normalizePos(e.offsetY));
+            emit("startTouch", normalizePos(e.offsetX), normalizePos(e.offsetY), new Date().getTime() - mouseDownTime.getTime() > 1000);
             setTimeout(() => emit("endTouch"), 200);
         }
     }

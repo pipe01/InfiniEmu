@@ -82,6 +82,15 @@ const props = defineProps<{
     programFile: ArrayBuffer;
 }>();
 
+const GESTURE_NONE = 0x00;
+const GESTURE_SLIDEDOWN = 0x01;
+const GESTURE_SLIDEUP = 0x02;
+const GESTURE_SLIDELEFT = 0x03;
+const GESTURE_SLIDERIGHT = 0x04;
+const GESTURE_SINGLETAP = 0x05;
+const GESTURE_DOUBLETAP = 0x0B;
+const GESTURE_LONGPRESS = 0x0C;
+
 const numberFmt = new Intl.NumberFormat();
 
 const isReady = ref(false);
@@ -201,16 +210,16 @@ function onStartSwipe(direction: Direction, x: number, y: number) {
     let gesture: number;
     switch (direction) {
         case Direction.Left:
-            gesture = 3;
+            gesture = GESTURE_SLIDELEFT;
             break;
         case Direction.Right:
-            gesture = 4;
+            gesture = GESTURE_SLIDERIGHT;
             break;
         case Direction.Up:
-            gesture = 1;
+            gesture = GESTURE_SLIDEUP;
             break;
         case Direction.Down:
-            gesture = 2;
+            gesture = GESTURE_SLIDEDOWN;
             break;
         default:
             return;
@@ -223,8 +232,8 @@ function clearTouch() {
     sendMessage(worker, "clearTouch", undefined);
 }
 
-function onStartTouch(x: number, y: number) {
-    sendMessage(worker, "doTouch", { gesture: 0, x, y });
+function onStartTouch(x: number, y: number, isLongPress = false) {
+    sendMessage(worker, "doTouch", { gesture: isLongPress ? GESTURE_LONGPRESS : GESTURE_SINGLETAP, x, y });
 }
 
 function reset() {
