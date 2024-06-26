@@ -3,7 +3,7 @@ import createModule from "../infiniemu.js"
 import type { FileInfo, MessageFromWorkerType, MessageToWorkerType } from "./common";
 import { joinLFSPaths } from "./utils.js";
 
-const iterations = 700000;
+const iterations = 100000;
 
 const fsStart = 0x0B4000;
 const fsEnd = 0x400000;
@@ -51,6 +51,8 @@ class Emulator {
     private isLcdSleeping = false;
     private isCPUSleeping = false;
 
+    turboMode = false;
+
     private rttFoundBlock = false;
 
     private instructionCount = 0;
@@ -79,12 +81,9 @@ class Emulator {
         this.rttReadBuffer = numberToPointer(Module._malloc(this.rttReadBufferSize));
     }
 
-    private async run() {
-        const start = performance.now();
-        let screenUpdated: boolean;
-
+    private doLoop(iterations: number) {
         try {
-            screenUpdated = this.Module._pinetime_loop(this.pinetime, iterations);
+            return this.Module._pinetime_loop(this.pinetime, iterations);
         } catch (error: any) {
             this.stop();
             sendMessage("error", {
@@ -92,10 +91,26 @@ class Emulator {
                 stack: "stack" in error ? error.stack : undefined,
                 string: error.toString(),
             });
-            return;
+            return false;
         }
+    }
 
-        this.instructionCount += iterations;
+    private run() {
+        const start = performance.now();
+        const instructionCountStart = this.instructionCount;
+        let screenUpdated = false;
+
+        if (this.turboMode) {
+            screenUpdated = this.Module._pinetime_loop(this.pinetime, iterations * 5);
+            this.instructionCount += iterations * 5;
+        }
+        else {
+            while (!screenUpdated && performance.now() - start < 16) {
+                screenUpdated = this.doLoop(iterations);
+
+                this.instructionCount += iterations;
+            }
+        }
 
         if (this.instructionCount < 1000000 && !this.rttFoundBlock) {
             this.rttFoundBlock = !!this.Module._rtt_find_control(this.rtt);
@@ -133,7 +148,7 @@ class Emulator {
 
         sendMessage("performance", {
             loopTime: end - start,
-            ips: iterations / ((end - start) / 1000),
+            ips: (this.instructionCount - instructionCountStart) / ((end - start) / 1000),
             totalSRAM: this.Module._nrf52832_get_sram_size(this.nrf52),
         });
     }
@@ -411,6 +426,11 @@ function handleMessage(msg: MessageToWorkerType) {
                 emulator.restoreFS(data);
                 sendMessage("done", undefined, msg.messageId);
             }
+            break;
+
+        case "turboMode":
+            if (emulator)
+                emulator.turboMode = data;
             break;
     }
 }

@@ -19,7 +19,7 @@
     p
         | InfiniEmu is an emulator that emulates a full PineTime smartwatch, which includes:
         ul
-            li NRF52832 along with its ARM Cortex M4 CPU and peripherals, 
+            li NRF52832 along with its ARM Cortex M4 CPU and peripherals
             li BMA425 I2C accelerometer
             li CST816S I2C touch screen controller
             li HRS3300 I2C heart rate sensor

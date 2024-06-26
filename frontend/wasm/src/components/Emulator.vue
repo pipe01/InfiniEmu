@@ -29,6 +29,9 @@ template(v-if="!isReady")
             .card
                 .card-body
                     h3.card-title Performance
+                    .form-check.form-switch
+                        input.form-check-input(type="checkbox" v-model="turboMode" id="turboMode")
+                        label.form-check-label(for="turboMode") Turbo mode
                     div Instructions per second: {{ numberFmt.format(performance.ips.value.toFixed(0)) }}
                     div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
                     div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
@@ -63,7 +66,7 @@ template(v-if="!isReady")
 </template>
 
 <script lang="ts" setup>
-import { onUnmounted, ref } from "vue";
+import { onUnmounted, ref, watch } from "vue";
 
 import MyWorker from "@/worker?worker";
 
@@ -82,6 +85,9 @@ const numberFmt = new Intl.NumberFormat();
 const isReady = ref(false);
 const isStarted = ref(false);
 const isRunning = ref(false);
+
+const turboMode = ref(false);
+watch(turboMode, value => sendMessage(worker, "turboMode", value));
 
 const wasRunningBeforeLoad = ref(false);
 
