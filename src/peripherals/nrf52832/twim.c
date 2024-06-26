@@ -128,6 +128,11 @@ OPERATION(twim)
         OP_INTENSET(twim)
         OP_INTENCLR(twim)
 
+    case 0x4C4: // ERRORSRC
+        if (OP_IS_READ(op))
+            *value = 0;
+        return MEMREG_RESULT_OK;
+
     case 0x500: // ENABLE
         if (OP_IS_READ(op))
         {
