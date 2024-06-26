@@ -48,7 +48,7 @@ template(v-if="!isReady")
                             tr
                                 td
                                 td
-                                    button.btn.btn-primary(@click="swipeCenter(Direction.Down)")
+                                    button.btn.btn-primary(@click="swipeCenter(Direction.Up)")
                                         i.bi-caret-up-fill
                             tr
                                 td
@@ -63,7 +63,7 @@ template(v-if="!isReady")
                             tr
                                 td
                                 td
-                                    button.btn.btn-primary(@click="swipeCenter(Direction.Up)")
+                                    button.btn.btn-primary(@click="swipeCenter(Direction.Down)")
                                         i.bi-caret-down-fill
 </template>
 
