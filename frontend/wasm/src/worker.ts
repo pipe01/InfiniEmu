@@ -129,11 +129,11 @@ class Emulator {
         let screenUpdated = false;
 
         if (this.turboMode) {
-            screenUpdated = this.Module._pinetime_loop(this.pinetime, iterations * 5);
+            screenUpdated ||= this.Module._pinetime_loop(this.pinetime, iterations * 5);
             this.instructionCount += iterations * 5;
         }
         else {
-            while (this.isRunning && !screenUpdated && performance.now() - start < 16) {
+            while (this.isRunning && !screenUpdated && performance.now() - start < 1000 / 60) {
                 screenUpdated = this.doLoop(iterations);
 
                 this.instructionCount += iterations;
