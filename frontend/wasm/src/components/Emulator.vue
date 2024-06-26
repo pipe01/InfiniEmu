@@ -24,6 +24,7 @@ template(v-if="!isReady")
         .d-flex.flex-column.align-items-stretch.mt-3
             button.btn.btn-success(v-if="!isRunning" @click="start") Start
             button.btn.btn-danger(v-else @click="stop") Stop
+            button.btn.btn-warning.mt-2(v-if="isStarted" @click="reset") Reset
     .col-3
         template(v-if="isStarted")
             .card
@@ -224,5 +225,9 @@ function clearTouch() {
 
 function onStartTouch(x: number, y: number) {
     sendMessage(worker, "doTouch", { gesture: 0, x, y });
+}
+
+function reset() {
+    sendMessage(worker, "reset", undefined);
 }
 </script>

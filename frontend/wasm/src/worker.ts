@@ -188,6 +188,10 @@ class Emulator {
         }
     }
 
+    reset() {
+        this.Module._pinetime_reset(this.pinetime);
+    }
+
     doTouch(gesture: number, x: number, y: number, duration?: number) {
         this.Module._cst816s_do_touch(this.touch, gesture, x, y);
 
@@ -433,6 +437,11 @@ function handleMessage(msg: MessageToWorkerType) {
         case "turboMode":
             if (emulator)
                 emulator.turboMode = data;
+            break;
+
+        case "reset":
+            if (emulator)
+                emulator.reset();
             break;
     }
 }

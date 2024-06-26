@@ -28,6 +28,7 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
     _pinetime_get_nrf52832(pt: Pinetime): NRF52832;
     _pinetime_get_spinorflash(pt: Pinetime): SPINorFlash;
     _pinetime_loop(pt: Pinetime, iterations: number): boolean;
+    _pinetime_reset(pt: Pinetime): void;
 
     _nrf52832_get_pins(nrf: NRF52832): Pins;
     _nrf52832_get_cpu(nrf: NRF52832): CPU;

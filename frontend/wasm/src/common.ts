@@ -19,7 +19,8 @@ export type MessageToWorkerType = { messageId?: number } & (
     { type: "createDir", data: string } |
     { type: "backupFS", data: void } |
     { type: "restoreFS", data: ArrayBuffer } |
-    { type: "turboMode", data: boolean }
+    { type: "turboMode", data: boolean } |
+    { type: "reset", data: void }
 );
 
 export type MessageFromWorkerType = { replyToId?: number } & (
