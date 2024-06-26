@@ -1,7 +1,9 @@
 <template lang="pug">
 div
-    button.btn.btn-primary(@click="refresh" :disabled="!isInitialized") Refresh
-    button.btn.btn-secondary.ms-2(@click="createFolder") Create folder
+    button.btn.btn-info(@click="refresh" :disabled="!isInitialized") Refresh
+    button.btn.btn-primary.ms-2(@click="createFolder") Create folder
+    button.btn.btn-secondary.ms-2(@click="createBackup") Backup FS
+    button.btn.btn-secondary.ms-2(@click="restoreBackup") Restore FS
 
 .mt-2.fs-5 /{{ currentPath }}
 
@@ -15,8 +17,8 @@ div
 <script lang="ts" setup>
 import { ref } from 'vue';
 
-import type { FileInfo, MessageFromWorkerType } from '@/common';
-import { downloadURL, joinLFSPaths, sendMessage } from '@/utils';
+import type { FileInfo } from '@/common';
+import { downloadBuffer, joinLFSPaths, sendMessageAndWait } from '@/utils';
 
 const props = defineProps<{
     worker: Worker,
@@ -32,21 +34,16 @@ const files = ref<FileInfo[]>([]);
 
 const currentPath = ref("");
 
-function refresh() {
-    const listener = (event: MessageEvent) => {
-        const { type, data } = event.data as MessageFromWorkerType;
+async function refresh(emitLoad = true) {
+    if (emitLoad)
+        emit("loadStart");
 
-        if (type === "dirFiles") {
-            files.value = data;
-            props.worker.removeEventListener("message", listener);
-            emit("loadEnd");
-        }
-    };
+    const data = await sendMessageAndWait(props.worker, "readDir", currentPath.value, "dirFiles")
 
-    emit("loadStart");
+    if (emitLoad)
+        emit("loadEnd");
 
-    props.worker.addEventListener("message", listener);
-    sendMessage(props.worker, "readDir", currentPath.value);
+    files.value = data;
 }
 
 function navigate(dir: FileInfo) {
@@ -68,48 +65,58 @@ function navigate(dir: FileInfo) {
     refresh();
 }
 
-function openFile(file: FileInfo) {
-    const listener = (event: MessageEvent) => {
-        const { type, data } = event.data as MessageFromWorkerType;
-
-        if (type == "fileData" && data.path == file.fullPath) {
-            props.worker.removeEventListener("message", listener);
-            emit("loadEnd");
-
-            const blob = new Blob([data.data], { type: "application/octet-stream" });
-            const url = URL.createObjectURL(blob);
-
-            downloadURL(url, file.name);
-
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-        }
-    };
-
+async function openFile(file: FileInfo) {
     emit("loadStart");
 
-    props.worker.addEventListener("message", listener);
-    sendMessage(props.worker, "readFile", file.fullPath);
+    const { data } = await sendMessageAndWait(props.worker, "readFile", file.fullPath, "fileData")
+
+    emit("loadEnd");
+
+    downloadBuffer(data, file.name);
 }
 
-function createFolder() {
+async function createFolder() {
     const folderName = prompt("Enter folder name");
 
     if (folderName) {
         const path = joinLFSPaths(currentPath.value, folderName);
 
-        const listener = (event: MessageEvent) => {
-            const { type, data } = event.data as MessageFromWorkerType;
+        emit("loadStart");
 
-            if (type == "createdDir" && data == path) {
-                props.worker.removeEventListener("message", listener);
-                emit("loadEnd");
-                refresh();
-            }
-        };
+        await sendMessageAndWait(props.worker, "createDir", path);
+        refresh(false);
 
-        props.worker.addEventListener("message", listener);
-        sendMessage(props.worker, "createDir", path);
+        emit("loadEnd");
     }
+}
+
+async function createBackup() {
+    emit("loadStart");
+
+    const data = await sendMessageAndWait(props.worker, "backupFS", undefined, "backupData");
+
+    emit("loadEnd");
+
+    downloadBuffer(data, "backup.bin");
+}
+
+async function restoreBackup() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = () => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+            emit("loadStart");
+
+            await sendMessageAndWait(props.worker, "restoreFS", reader.result as ArrayBuffer, undefined);
+
+            refresh(false);
+
+            emit("loadEnd");
+        };
+        reader.readAsArrayBuffer(input.files![0]);
+    }
+    input.click();
 }
 </script>
 

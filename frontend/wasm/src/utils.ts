@@ -1,5 +1,5 @@
 import { customRef, onUnmounted, type Ref } from "vue";
-import type { MessageToWorkerType } from "./common";
+import type { MessageFromWorkerType, MessageToWorkerType } from "./common";
 
 export function useAverage(interval: number): Ref<number> {
     let sum = 0;
@@ -33,10 +33,36 @@ export function useAverage(interval: number): Ref<number> {
 }
 
 export function sendMessage<Type extends MessageToWorkerType["type"]>(worker: Worker, type: Type, data: Extract<MessageToWorkerType, { type: Type }>["data"], transfer?: Transferable[]) {
+    const messageId = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+
     if (transfer)
-        worker.postMessage({ type, data }, transfer);
+        worker.postMessage({ type, data, messageId }, transfer);
     else
-        worker.postMessage({ type, data });
+        worker.postMessage({ type, data, messageId });
+
+    return messageId;
+}
+
+// I'm sorry
+export function sendMessageAndWait<Type extends MessageToWorkerType["type"], ReplyType extends MessageFromWorkerType["type"]>(
+    worker: Worker, type: Type,
+    data: Extract<MessageToWorkerType, { type: Type }>["data"], replyType: ReplyType = "done" as ReplyType, transfer?: Transferable[]):
+    Promise<Extract<MessageFromWorkerType, { type: ReplyType }>["data"]> {
+    return new Promise(resolve => {
+        let messageId: number;
+
+        const listener = (e: MessageEvent) => {
+            const message = e.data as MessageFromWorkerType;
+
+            if (message.type == replyType && message.replyToId == messageId) {
+                worker.removeEventListener("message", listener);
+                resolve(message.data as any);
+            }
+        };
+
+        worker.addEventListener("message", listener);
+        messageId = sendMessage(worker, type, data as any, transfer);
+    });
 }
 
 export function downloadURL(url: string, filename: string) {
@@ -46,6 +72,15 @@ export function downloadURL(url: string, filename: string) {
     document.body.appendChild(a);
     a.click();
     a.remove();
+}
+
+export function downloadBuffer(data: BlobPart, filename: string) {
+    const blob = new Blob([data], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+
+    downloadURL(url, filename);
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function joinLFSPaths(...paths: string[]) {

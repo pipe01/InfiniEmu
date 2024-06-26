@@ -5,6 +5,9 @@ import { joinLFSPaths } from "./utils.js";
 
 const iterations = 700000;
 
+const fsStart = 0x0B4000;
+const fsEnd = 0x400000;
+
 type PromiseResult<T> = T extends Promise<infer U> ? U : T;
 
 type Module = PromiseResult<ReturnType<typeof createModule>>;
@@ -19,8 +22,8 @@ function pointerAdd(ptr: Pointer, offset: number) {
     return numberToPointer(pointerToNumber(ptr) + offset);
 }
 
-function sendMessage<Type extends MessageFromWorkerType["type"]>(type: Type, data: Extract<MessageFromWorkerType, { type: Type }>["data"]) {
-    postMessage({ type, data });
+function sendMessage<Type extends MessageFromWorkerType["type"]>(type: Type, data: Extract<MessageFromWorkerType, { type: Type }>["data"], replyTo?: number) {
+    postMessage({ type, data, replyToId: replyTo });
 }
 
 class Emulator {
@@ -188,7 +191,7 @@ class Emulator {
 
     private useLFS<T>(fn: (lfs: LFS) => T) {
         const bufferPtr = this.Module._spinorflash_get_buffer(this.spiFlash);
-        const lfs = this.Module._lfs_init(pointerAdd(bufferPtr, 0x0B4000), 0x400000 - 0x0B4000);
+        const lfs = this.Module._lfs_init(pointerAdd(bufferPtr, fsStart), fsEnd - fsStart);
 
         let ret: T;
         try {
@@ -293,6 +296,20 @@ class Emulator {
             this.Module._free(pointerToNumber(pathBytes));
         });
     }
+
+    backupFS() {
+        const bufferPtr = this.Module._spinorflash_get_buffer(this.spiFlash);
+        const data = new Uint8Array(this.Module.HEAPU8.buffer, pointerToNumber(bufferPtr) + fsStart, fsEnd - fsStart);
+
+        return new Uint8Array(data);
+    }
+
+    restoreFS(backup: ArrayBuffer) {
+        const bufferPtr = this.Module._spinorflash_get_buffer(this.spiFlash);
+        const data = new Uint8Array(this.Module.HEAPU8.buffer, pointerToNumber(bufferPtr) + fsStart, fsEnd - fsStart);
+
+        data.set(new Uint8Array(backup));
+    }
 };
 
 let emulator: Emulator | null = null;
@@ -369,18 +386,30 @@ function handleMessage(msg: MessageToWorkerType) {
 
         case "readDir":
             if (emulator)
-                sendMessage("dirFiles", emulator.readDir(data));
+                sendMessage("dirFiles", emulator.readDir(data), msg.messageId);
             break;
 
         case "readFile":
             if (emulator)
-                sendMessage("fileData", { path: data, data: emulator.readFile(data) });
+                sendMessage("fileData", { path: data, data: emulator.readFile(data) }, msg.messageId);
             break;
 
         case "createDir":
             if (emulator) {
                 emulator.createDir(data);
-                sendMessage("createdDir", data);
+                sendMessage("done", undefined, msg.messageId);
+            }
+            break;
+
+        case "backupFS":
+            if (emulator)
+                sendMessage("backupData", emulator.backupFS().buffer, msg.messageId);
+            break;
+
+        case "restoreFS":
+            if (emulator) {
+                emulator.restoreFS(data);
+                sendMessage("done", undefined, msg.messageId);
             }
             break;
     }
