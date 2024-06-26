@@ -57,6 +57,10 @@ class Emulator {
 
     private instructionCount = 0;
 
+    get isRunning() {
+        return !!this.runInterval;
+    }
+
     constructor(private readonly Module: Module, programFile: Uint8Array) {
         const program = Module._program_new(0x800000);
 
@@ -105,7 +109,7 @@ class Emulator {
             this.instructionCount += iterations * 5;
         }
         else {
-            while (!screenUpdated && performance.now() - start < 16) {
+            while (this.isRunning && !screenUpdated && performance.now() - start < 16) {
                 screenUpdated = this.doLoop(iterations);
 
                 this.instructionCount += iterations;
@@ -171,7 +175,7 @@ class Emulator {
 
     start() {
         if (!this.runInterval) {
-            this.runInterval = setInterval(() => this.run(), 0); // TODO: Maybe use 0 here?
+            this.runInterval = setInterval(() => this.run(), 0);
             sendMessage("running", true);
         }
     }
@@ -185,8 +189,6 @@ class Emulator {
     }
 
     doTouch(gesture: number, x: number, y: number, duration?: number) {
-        this.readDir("");
-
         this.Module._cst816s_do_touch(this.touch, gesture, x, y);
 
         if (duration && duration > 0)

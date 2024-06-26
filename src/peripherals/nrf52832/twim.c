@@ -129,7 +129,7 @@ OPERATION(twim)
         OP_INTENCLR(twim)
 
     case 0x4C4: // ERRORSRC
-        if (OP_IS_READ(op))
+        if (OP_IS_READ(op)) // Stub
             *value = 0;
         return MEMREG_RESULT_OK;
 
