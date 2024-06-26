@@ -8,6 +8,30 @@ const iterations = 100000;
 const fsStart = 0x0B4000;
 const fsEnd = 0x400000;
 
+const LFS_O_RDONLY = 1;         // Open a file as read only
+const LFS_O_WRONLY = 2;         // Open a file as write only
+const LFS_O_RDWR = 3;         // Open a file as read and write
+const LFS_O_CREAT = 0x0100;    // Create a file if it does not exist
+const LFS_O_EXCL = 0x0200;    // Fail if a file already exists
+const LFS_O_TRUNC = 0x0400;    // Truncate the existing file to zero size
+const LFS_O_APPEND = 0x0800;    // Move to end of file on every write
+
+const LFS_ERR_OK = 0;    // No error
+const LFS_ERR_IO = -5;   // Error during device operation
+const LFS_ERR_CORRUPT = -84;  // Corrupted
+const LFS_ERR_NOENT = -2;   // No directory entry
+const LFS_ERR_EXIST = -17;  // Entry already exists
+const LFS_ERR_NOTDIR = -20;  // Entry is not a dir
+const LFS_ERR_ISDIR = -21;  // Entry is a dir
+const LFS_ERR_NOTEMPTY = -39;  // Dir is not empty
+const LFS_ERR_BADF = -9;   // Bad file number
+const LFS_ERR_FBIG = -27;  // File too large
+const LFS_ERR_INVAL = -22;  // Invalid parameter
+const LFS_ERR_NOSPC = -28;  // No space left on device
+const LFS_ERR_NOMEM = -12;  // No more memory available
+const LFS_ERR_NOATTR = -61;  // No data/attr available
+const LFS_ERR_NAMETOOLONG = -36;  // File name too long
+
 type PromiseResult<T> = T extends Promise<infer U> ? U : T;
 
 type Module = PromiseResult<ReturnType<typeof createModule>>;
@@ -266,7 +290,7 @@ class Emulator {
         return this.useLFS(lfs => {
             const pathBytes = this.Module.stringToNewUTF8(path);
 
-            const file = this.Module._lfs_open_file(lfs, pathBytes, 0);
+            const file = this.Module._lfs_open_file(lfs, pathBytes, LFS_O_RDONLY);
             if (!file)
                 throw new Error("Error opening file");
 
@@ -306,12 +330,35 @@ class Emulator {
         });
     }
 
+    writeFile(path: string, data: Uint8Array) {
+        return this.useLFS(lfs => {
+            const pathBytes = this.Module.stringToNewUTF8(path);
+
+            const file = this.Module._lfs_open_file(lfs, pathBytes, LFS_O_CREAT | LFS_O_WRONLY | LFS_O_TRUNC);
+            if (!file)
+                throw new Error("Error opening file");
+
+            const buffer = this.Module._malloc(data.length);
+            this.Module.HEAPU8.set(data, buffer);
+
+            const ret = this.Module._lfs_file_write(lfs, file, numberToPointer(buffer), data.length);
+            if (ret < 0)
+                throw new Error("Error writing file: " + ret);
+
+            this.Module._lfs_file_close(lfs, file);
+
+            this.Module._free(pointerToNumber(file as unknown as Pointer));
+            this.Module._free(buffer);
+            this.Module._free(pointerToNumber(pathBytes));
+        });
+    }
+
     createDir(path: string) {
         return this.useLFS(lfs => {
             const pathBytes = this.Module.stringToNewUTF8(path);
 
             const ret = this.Module._lfs_mkdir(lfs, pathBytes);
-            if (ret < 0)
+            if (ret < 0 && ret != LFS_ERR_EXIST)
                 throw new Error("Error creating dir: " + ret);
 
             this.Module._free(pointerToNumber(pathBytes));
@@ -338,7 +385,7 @@ let Module: Module | null = null;
 
 createModule({
     print(text) {
-        console.log("text", text);
+        console.log("stdout", text);
     },
     printErr(text) {
         console.log("got error", text);
@@ -416,10 +463,13 @@ function handleMessage(msg: MessageToWorkerType) {
             break;
 
         case "createDir":
-            if (emulator) {
+            if (emulator)
                 emulator.createDir(data);
-                sendMessage("done", undefined, msg.messageId);
-            }
+            break;
+
+        case "writeFile":
+            if (emulator)
+                emulator.writeFile(data.path, new Uint8Array(data.data));
             break;
 
         case "backupFS":
@@ -428,10 +478,8 @@ function handleMessage(msg: MessageToWorkerType) {
             break;
 
         case "restoreFS":
-            if (emulator) {
+            if (emulator)
                 emulator.restoreFS(data);
-                sendMessage("done", undefined, msg.messageId);
-            }
             break;
 
         case "turboMode":
@@ -444,6 +492,8 @@ function handleMessage(msg: MessageToWorkerType) {
                 emulator.reset();
             break;
     }
+
+    sendMessage("done", undefined, msg.messageId);
 }
 
 onmessage = event => {

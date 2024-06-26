@@ -16,6 +16,7 @@ export type MessageToWorkerType = { messageId?: number } & (
     { type: "setProgram", data: ArrayBuffer } |
     { type: "readDir", data: string } |
     { type: "readFile", data: string } |
+    { type: "writeFile", data: { path: string, data: ArrayBuffer } } |
     { type: "createDir", data: string } |
     { type: "backupFS", data: void } |
     { type: "restoreFS", data: ArrayBuffer } |

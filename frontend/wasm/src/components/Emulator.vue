@@ -25,6 +25,7 @@ template(v-if="!isReady")
             button.btn.btn-success(v-if="!isRunning" @click="start") Start
             button.btn.btn-danger(v-else @click="stop") Stop
             button.btn.btn-warning.mt-2(v-if="isStarted" @click="reset") Reset
+
     .col-3
         template(v-if="isStarted")
             .card
@@ -146,7 +147,6 @@ worker.onmessage = (event) => {
 
         case "rttFound":
             foundRTT.value = true;
-            console.log("RTT found");
             break;
 
         case "rttData":
