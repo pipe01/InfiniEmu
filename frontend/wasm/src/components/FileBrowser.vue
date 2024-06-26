@@ -1,9 +1,11 @@
 <template lang="pug">
 div
-    button.btn.btn-info(@click="refresh" :disabled="!isInitialized") Refresh
-    button.btn.btn-primary.ms-2(@click="createFolder") Create folder
-    button.btn.btn-secondary.ms-2(@click="createBackup") Backup FS
-    button.btn.btn-secondary.ms-2(@click="restoreBackup") Restore FS
+    button.btn.btn-info(@click="refresh" :disabled="!isInitialized" title="Refresh")
+        i.bi-arrow-clockwise
+    button.btn.btn-primary.ms-2(@click="createFolder" title="Create folder")
+        i.bi-folder-plus
+    button.btn.btn-secondary.ms-2(@click="createBackup") Backup
+    button.btn.btn-secondary.ms-2(@click="restoreBackup") Restore
 
 .mt-2.fs-5 /{{ currentPath }}
 
