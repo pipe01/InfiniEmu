@@ -293,8 +293,9 @@ void st7789_write(uint8_t byte, void *userdata)
 
 void st7789_reset(void *userdata)
 {
-    st7789_t *st7789 = malloc(sizeof(st7789_t));
+    st7789_t *st7789 = userdata;
 
+    memset(st7789, 0, sizeof(st7789_t));
     st7789->sleeping = true;
 }
 
