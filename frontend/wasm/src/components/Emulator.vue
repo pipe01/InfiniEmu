@@ -3,19 +3,17 @@ template(v-if="!isReady")
     h1 Loading worker...
 .row(v-else)
     .col
-        template(v-if="isStarted")
-            .card
-                .card-body
-                    h3.card-title File system
+        .card
+            .card-body
+                h3.card-title File system
 
-                    FileBrowser(:worker="worker" :is-initialized="isStarted" @loadStart="onFileLoadStart" @loadEnd="onFileLoadEnd")
+                FileBrowser(:worker="worker" :is-initialized="isStarted" @loadStart="onFileLoadStart" @loadEnd="onFileLoadEnd")
+        .card.mt-3(v-if="isStarted")
+            .card-body
+                h3.card-title Console
+                .text-danger(v-if="!foundRTT") Couldn't find Segger RTT block in memory
 
-            .card.mt-3
-                .card-body
-                    h3.card-title Console
-                    .text-danger(v-if="!foundRTT") Couldn't find Segger RTT block in memory
-
-                    Console(:lines="consoleLines" style="height: 400px")
+                Console(:lines="consoleLines" style="height: 400px")
 
     .col(style="flex-grow: 0")
         Display(:width="240" :height="240" :off="isLcdOff" @got-canvas="onGotCanvas"
@@ -79,7 +77,8 @@ import { sendMessage, useAverage } from "@/utils";
 import type { MessageFromWorkerType } from "@/common";
 
 const props = defineProps<{
-    programFile: ArrayBuffer;
+    programFile: ArrayBuffer,
+    autoStart: boolean,
 }>();
 
 const GESTURE_NONE = 0x00;
@@ -133,7 +132,10 @@ worker.onmessage = (event) => {
         case "ready":
             sendMessage(worker, "setProgram", props.programFile);
             isReady.value = true;
-            start();
+
+            if (props.autoStart)
+                start();
+
             break;
 
         case "running":

@@ -13,6 +13,10 @@
         h4 or 
             button.btn.btn-primary(@click="loadSampleFile") Load sample file
 
+        .form-check.form-switch
+            input.form-check-input(type="checkbox" v-model="autoStart" id="autoStart")
+            label.form-check-label(for="autoStart") Start emulation after loading file
+
         hr
 
         p
@@ -30,7 +34,7 @@
         a(href="https://github.com/pipe01/InfiniEmu") View on GitHub
 
     template(v-else)
-        Emulator(:programFile="pickedFile")
+        Emulator(:programFile="pickedFile" :autoStart="autoStart")
 </template>
 
 <script lang="ts" setup>
@@ -40,6 +44,8 @@ import Emulator from "@/components/Emulator.vue";
 
 const pickedFile = ref<ArrayBuffer | null>(null);
 const isLoading = ref(false);
+
+const autoStart = ref(true);
 
 async function loadSampleFile() {
     isLoading.value = true;

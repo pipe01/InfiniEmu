@@ -1,6 +1,6 @@
 <template lang="pug">
 div
-    button.btn.btn-info(@click="refresh" :disabled="!isInitialized" title="Refresh")
+    button.btn.btn-info(@click="refresh" title="Refresh")
         i.bi-arrow-clockwise
     button.btn.btn-primary.ms-2(@click="createFolder" title="Create folder")
         i.bi-folder-plus
@@ -21,7 +21,7 @@ div
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 import type { FileInfo } from '@/common';
 import { downloadBuffer, joinLFSPaths, sendMessageAndWait } from '@/utils';
