@@ -1,5 +1,7 @@
 #include "program.h"
 
+#include "demangle.h"
+
 #include <assert.h>
 #include <elf.h>
 #include <stdio.h>
@@ -10,6 +12,8 @@ struct program_t
 {
     size_t size;
     uint8_t *data;
+
+    const void *elf;
 };
 
 program_t *program_new(size_t size)
@@ -50,7 +54,7 @@ bool program_load_elf(program_t *program, size_t offset, const uint8_t *data, si
     if (size < sizeof(Elf32_Ehdr))
         return false;
 
-    const Elf32_Ehdr *ehdr = (Elf32_Ehdr *)data;
+    const Elf32_Ehdr *ehdr = (const Elf32_Ehdr *)data;
 
     if (memcmp(ehdr->e_ident, ELFMAG, SELFMAG) != 0)
         return false;
@@ -72,5 +76,73 @@ bool program_load_elf(program_t *program, size_t offset, const uint8_t *data, si
             memcpy(program->data + start, data + phdr->p_offset, phdr->p_filesz);
     }
 
+    program->elf = ehdr; // TODO: Don't do this
     return true;
+}
+
+bool program_find_symbol(const program_t *program, const char *name, size_t *address, size_t *size)
+{
+    const Elf32_Ehdr *ehdr = program->elf;
+
+    if (ehdr->e_shstrndx >= ehdr->e_shnum)
+        return false;
+
+    const Elf32_Shdr *shstr = (const Elf32_Shdr *)(program->elf + ehdr->e_shoff + ehdr->e_shstrndx * ehdr->e_shentsize);
+    const char *shstrtab = (const char *)(program->elf + shstr->sh_offset);
+
+    const char *strtab = NULL;
+
+    for (size_t i = 0; i < ehdr->e_shnum; i++)
+    {
+        const Elf32_Shdr *shdr = (const Elf32_Shdr *)(program->elf + ehdr->e_shoff + i * ehdr->e_shentsize);
+
+        if (shdr->sh_type == SHT_STRTAB && strcmp(".strtab", shstrtab + shdr->sh_name) == 0)
+        {
+            strtab = (const char *)(program->elf + shdr->sh_offset);
+        }
+    }
+
+    if (strtab == NULL)
+        return false;
+
+    for (size_t i = 0; i < ehdr->e_shnum; i++)
+    {
+        const Elf32_Shdr *shdr = (const Elf32_Shdr *)(program->elf + ehdr->e_shoff + i * ehdr->e_shentsize);
+
+        if (shdr->sh_type == SHT_SYMTAB)
+        {
+            size_t num_sym = shdr->sh_size / shdr->sh_entsize;
+
+            for (size_t j = 0; j < num_sym; j++)
+            {
+                const Elf32_Sym *sym = (const Elf32_Sym *)(program->elf + shdr->sh_offset + j * shdr->sh_entsize);
+
+                if (sym->st_name == 0)
+                    continue;
+
+                const char *sym_name = strtab + sym->st_name;
+
+                char *demangled = demangle(sym_name);
+
+                if (strcmp(name, demangled ? demangled : sym_name) == 0)
+                {
+                    if (address)
+                        *address = sym->st_value;
+
+                    if (size)
+                        *size = sym->st_size;
+
+                    if (demangled)
+                        free(demangled);
+
+                    return true;
+                }
+
+                if (demangled)
+                    free(demangled);
+            }
+        }
+    }
+
+    return false;
 }

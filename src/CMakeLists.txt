@@ -17,6 +17,8 @@ set(SRC_FILES
     segger_rtt.c
     ticker.c
 
+    demangle.cpp
+
     component/i2c/bma425.c
     component/i2c/cst816s.c
     component/i2c/hrs3300.c
@@ -80,6 +82,8 @@ add_compile_options(-Werror -Wall -Wextra -Wno-unused-parameter)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 add_compile_definitions(_POSIX_C_SOURCE=200809L)
+
+set_source_files_properties(demangle.c PROPERTIES LANGUAGE CXX)
 
 if(EMSCRIPTEN)
     list(APPEND SRC_FILES wasm.c)
