@@ -48,15 +48,20 @@ export function sendMessageAndWait<Type extends MessageToWorkerType["type"], Rep
     worker: Worker, type: Type,
     data: Extract<MessageToWorkerType, { type: Type }>["data"], replyType: ReplyType = "done" as ReplyType, transfer?: Transferable[]):
     Promise<Extract<MessageFromWorkerType, { type: ReplyType }>["data"]> {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
         let messageId: number;
 
         const listener = (e: MessageEvent) => {
             const message = e.data as MessageFromWorkerType;
 
-            if (message.type == replyType && message.replyToId == messageId) {
+            if (message.replyToId == messageId) {
                 worker.removeEventListener("message", listener);
-                resolve(message.data as any);
+
+                if (message.type == replyType) {
+                    resolve(message.data as any);
+                } else if (message.type == "error") {
+                    reject(message.data);
+                }
             }
         };
 
