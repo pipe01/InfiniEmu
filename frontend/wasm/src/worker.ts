@@ -1,5 +1,5 @@
 import { ZipEntry, ZipFileEntry, fs } from "@zip.js/zip.js";
-import type { CPU, CST816S, Commander, LFS, NRF52832, Pinetime, Pins, Pointer, RTT, SPINorFlash, ST7789 } from "../infiniemu.js"
+import type { CPU, CST816S, Commander, LFS, NRF52832, Pinetime, Pins, Pointer, Program, RTT, SPINorFlash, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
 import type { FileInfo, MessageFromWorkerType, MessageToWorkerType } from "./common";
 import { joinLFSPaths } from "./utils.js";
@@ -58,6 +58,7 @@ function isFile(file: ZipEntry): file is ZipFileEntry<void, void> {
 class Emulator {
     private readonly rttReadBufferSize = 1024;
 
+    private readonly program: Program;
     private readonly pinetime: Pinetime;
     private readonly nrf52: NRF52832;
     private readonly lcd: ST7789;
@@ -91,13 +92,13 @@ class Emulator {
     }
 
     constructor(private readonly Module: Module, programFile: Uint8Array) {
-        const program = Module._program_new(0x800000);
+        this.program = Module._program_new(0x800000);
 
-        const args = [program, 0, programFile, programFile.length];
+        const args = [this.program, 0, programFile, programFile.length];
         if (Module.ccall("program_load_elf", "number", ["number", "number", "array", "number"], args) === 0)
             Module.ccall("program_load_binary", null, ["number", "number", "array", "number"], args);
 
-        this.pinetime = Module._pinetime_new(program);
+        this.pinetime = Module._pinetime_new(this.program);
         this.nrf52 = Module._pinetime_get_nrf52832(this.pinetime);
         this.lcd = Module._pinetime_get_st7789(this.pinetime);
         this.touch = Module._pinetime_get_cst816s(this.pinetime);
@@ -427,6 +428,19 @@ class Emulator {
 
         data.set(new Uint8Array(backup));
     }
+
+    setBackupTime(date: Date) {
+        const name1 = this.Module.stringToNewUTF8("NoInit_MagicWord");
+        const name2 = this.Module.stringToNewUTF8("NoInit_BackUpTime");
+
+        if (this.Module._program_write_variable(this.program, this.cpu, name1, 0xDEAD0000, 0)) {
+            const unixNano = BigInt(date.getTime()) * BigInt(1000000);
+            this.Module._program_write_variable(this.program, this.cpu, name2, Number(unixNano & 0xFFFFFFFFn), Number(unixNano >> 32n));
+        }
+
+        this.Module._free(pointerToNumber(name1));
+        this.Module._free(pointerToNumber(name2));
+    }
 };
 
 let emulator: Emulator | null = null;
@@ -468,6 +482,10 @@ function handleMessage(msg: MessageToWorkerType) {
         switch (type) {
             case "setCanvas":
                 emulator.setCanvas(data);
+                break;
+
+            case "setBackupTime":
+                emulator.setBackupTime(data);
                 break;
 
             case "start":

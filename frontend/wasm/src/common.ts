@@ -7,6 +7,7 @@ export type FileInfo = {
 
 export type MessageToWorkerType = { messageId?: number } & (
     { type: "setCanvas", data: OffscreenCanvas } |
+    { type: "setBackupTime", data: Date } |
     { type: "start", data: void } |
     { type: "stop", data: void } |
     { type: "doTouch", data: { gesture: number, x: number, y: number } } |

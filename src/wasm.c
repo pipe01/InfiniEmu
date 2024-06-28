@@ -165,3 +165,35 @@ lfs_file_t *lfs_open_file(lfs_t *lfs, const char *path, int flags)
 
     return file;
 }
+
+bool program_write_variable(program_t *program, cpu_t *cpu, const char *name, uint32_t lower, uint32_t upper)
+{
+    size_t address, size;
+
+    if (!program_find_symbol(program, name, &address, &size))
+        return false;
+
+    memreg_t *mem = cpu_mem(cpu);
+
+    switch (size)
+    {
+    case 1:
+        memreg_write(mem, address, lower, SIZE_BYTE);
+        break;
+
+    case 2:
+        memreg_write(mem, address, lower, SIZE_HALFWORD);
+        break;
+
+    case 4:
+        memreg_write(mem, address, lower, SIZE_WORD);
+        break;
+
+    case 8:
+        memreg_write(mem, address, lower, SIZE_WORD);
+        memreg_write(mem, address + 4, upper, SIZE_WORD);
+        break;
+    }
+
+    return true;
+}

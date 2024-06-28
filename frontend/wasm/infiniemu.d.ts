@@ -21,6 +21,7 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
     ccall(name: string, returnType: string | null, argTypes: string[], args: any[]): any;
 
     _program_new(size: number): Program;
+    _program_write_variable(program: Program, cpu: CPU, name: Pointer, lower: number, upper: number): boolean;
 
     _pinetime_new(program: Program): Pinetime;
     _pinetime_get_st7789(pt: Pinetime): ST7789;

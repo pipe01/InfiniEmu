@@ -80,6 +80,7 @@ const props = defineProps<{
     programFile: ArrayBuffer,
     autoStart: boolean,
     initResources?: Uint8Array[],
+    initTime?: Date,
 }>();
 
 const GESTURE_NONE = 0x00;
@@ -138,6 +139,9 @@ worker.onmessage = async (event) => {
                 for (const res of props.initResources) {
                     await sendMessageAndWait(worker, "loadArchiveFS", { path: "", zipData: res });
                 }
+            }
+            if (props.initTime) {
+                await sendMessageAndWait(worker, "setBackupTime", props.initTime);
             }
 
             if (props.autoStart)

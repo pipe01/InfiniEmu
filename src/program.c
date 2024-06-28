@@ -13,7 +13,7 @@ struct program_t
     size_t size;
     uint8_t *data;
 
-    const void *elf;
+    void *elf;
 };
 
 program_t *program_new(size_t size)
@@ -22,12 +22,16 @@ program_t *program_new(size_t size)
     program->size = size;
     program->data = malloc(size);
     memset(program->data, 0xFF, size);
+    program->elf = NULL;
 
     return program;
 }
 
 void program_free(program_t *program)
 {
+    if (program->elf)
+        free(program->elf);
+
     free(program->data);
     free(program);
 }
@@ -76,7 +80,9 @@ bool program_load_elf(program_t *program, size_t offset, const uint8_t *data, si
             memcpy(program->data + start, data + phdr->p_offset, phdr->p_filesz);
     }
 
-    program->elf = ehdr; // TODO: Don't do this
+    program->elf = malloc(size);
+    memcpy(program->elf, data, size);
+
     return true;
 }
 

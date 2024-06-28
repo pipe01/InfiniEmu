@@ -11,12 +11,16 @@
             input.form-control(type="file" @change="loadFile($event.target.files[0])")
 
         h4 or 
-            a.btn.btn-primary(href="/?firmware=https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin&resources=https://share.pipe01.net/-LJ2sU2m3Yc/infinitime-resources-1.14.0.zip")
+            a.btn.btn-primary(:href="sampleUrl")
                 | Load sample file
 
         .form-check.form-switch
             input.form-check-input(type="checkbox" v-model="autoStart" id="autoStart")
             label.form-check-label(for="autoStart") Start emulation after loading file
+
+        .form-check.form-switch
+            input.form-check-input(type="checkbox" v-model="initTime" id="initTime")
+            label.form-check-label(for="initTime") Set time to current time on watch boot
 
         hr
 
@@ -35,11 +39,11 @@
         a(href="https://github.com/pipe01/InfiniEmu") View on GitHub
 
     template(v-else)
-        Emulator(:programFile="pickedFile" :autoStart="autoStart" :initResources="initResources")
+        Emulator(:programFile="pickedFile" :autoStart="autoStart" :initResources="initResources" :initTime="initTime ? new Date() : undefined")
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import Emulator from "@/components/Emulator.vue";
 
@@ -47,7 +51,17 @@ const pickedFile = ref<ArrayBuffer | null>(null);
 const isLoading = ref(false);
 
 const autoStart = ref(true);
+const initTime = ref(true);
 const initResources = ref<Uint8Array[]>([]);
+
+const sampleUrl = computed(() => {
+    const url = new URL(location.href);
+    url.searchParams.set("firmware", "https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin");
+    url.searchParams.set("resources", "https://share.pipe01.net/-LJ2sU2m3Yc/infinitime-resources-1.14.0.zip");
+    url.searchParams.set("initTime", initTime.value.toString());
+    url.searchParams.set("autoStart", autoStart.value.toString());
+    return url.toString();
+});
 
 async function parseOptions(params: URLSearchParams) {
     if (params.has("firmware")) {
@@ -60,6 +74,12 @@ async function parseOptions(params: URLSearchParams) {
 
             initResources.value.push(resource);
         }
+    }
+    if (params.has("autoStart")) {
+        autoStart.value = params.get("autoStart") == "true";
+    }
+    if (params.has("initTime")) {
+        initTime.value = params.get("initTime") == "true";
     }
 }
 parseOptions(new URLSearchParams(location.search));
