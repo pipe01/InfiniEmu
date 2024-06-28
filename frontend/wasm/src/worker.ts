@@ -1,3 +1,4 @@
+import { ZipEntry, ZipFileEntry, fs } from "@zip.js/zip.js";
 import type { CPU, CST816S, Commander, LFS, NRF52832, Pinetime, Pins, Pointer, RTT, SPINorFlash, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
 import type { FileInfo, MessageFromWorkerType, MessageToWorkerType } from "./common";
@@ -48,6 +49,10 @@ function pointerAdd(ptr: Pointer, offset: number) {
 
 function sendMessage<Type extends MessageFromWorkerType["type"]>(type: Type, data: Extract<MessageFromWorkerType, { type: Type }>["data"], replyTo?: number) {
     postMessage({ type, data, replyToId: replyTo });
+}
+
+function isFile(file: ZipEntry): file is ZipFileEntry<void, void> {
+    return !(file as any).directory;
 }
 
 class Emulator {
@@ -365,6 +370,54 @@ class Emulator {
         });
     }
 
+    async loadArchiveFS(toPath: string, data: Uint8Array) {
+        const zip = new fs.FS();
+        await zip.importUint8Array(data);
+
+        let importedResources = false;
+
+        const resourcesFile = zip.find("resources.json");
+        if (resourcesFile && isFile(resourcesFile))
+        {
+            const resourcesData = await resourcesFile.getText();
+            const manifest = JSON.parse(resourcesData) as { resources: { filename: string, path: string }[] };
+
+            if ("resources" in manifest)
+            {
+                const createdDirs = new Set<string>();
+                
+                for (const res of manifest.resources) {
+                    const file = zip.find(res.filename);
+                    if (file && isFile(file))
+                    {
+                        const path = joinLFSPaths(toPath, res.path);
+                        const fileData = await file.getUint8Array();
+
+                        const parts = res.path.split("/").reduce((acc, part) => [...acc, joinLFSPaths(...acc, part)], [] as string[]);
+                        for (const dir of parts.slice(1, -1)) {
+                            const path = joinLFSPaths(toPath, dir);
+                            
+                            if (!createdDirs.has(path)) {
+                                this.createDir(path);
+                                createdDirs.add(path);
+                            }
+                        }
+
+                        this.writeFile(path, fileData);
+                    }
+                }
+
+                importedResources = true;
+            }
+        }
+
+        if (!importedResources)
+        {
+            // TODO: Implement
+            alert("Only InfiniTime resource archives are supported at the moment.");
+        }
+    }
+
     backupFS() {
         const bufferPtr = this.Module._spinorflash_get_buffer(this.spiFlash);
         const data = new Uint8Array(this.Module.HEAPU8.buffer, pointerToNumber(bufferPtr) + fsStart, fsEnd - fsStart);
@@ -470,6 +523,11 @@ function handleMessage(msg: MessageToWorkerType) {
         case "writeFile":
             if (emulator)
                 emulator.writeFile(data.path, new Uint8Array(data.data));
+            break;
+
+        case "loadArchiveFS":
+            if (emulator)
+                emulator.loadArchiveFS(data.path, new Uint8Array(data.zipData));
             break;
 
         case "backupFS":

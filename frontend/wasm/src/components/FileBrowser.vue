@@ -21,11 +21,10 @@ div
 </template>
 
 <script lang="ts" setup>
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 
 import type { FileInfo } from '@/common';
 import { downloadBuffer, joinLFSPaths, sendMessageAndWait } from '@/utils';
-import { fs, type ZipFileEntry, type ZipEntry } from '@zip.js/zip.js';
 
 const props = defineProps<{
     worker: Worker,
@@ -143,59 +142,11 @@ function writeFile() {
     });
 }
 
-function isFile(file: ZipEntry): file is ZipFileEntry<void, void> {
-    return !(file as any).directory;
-}
-
 function writeArchive() {
     pickFile(async (data) => {
         emit("loadStart");
 
-        const zip = new fs.FS();
-        await zip.importUint8Array(new Uint8Array(data));
-
-        let importedResources = false;
-
-        const resourcesFile = zip.find("resources.json");
-        if (resourcesFile && isFile(resourcesFile))
-        {
-            const resourcesData = await resourcesFile.getText();
-            const manifest = JSON.parse(resourcesData) as { resources: { filename: string, path: string }[] };
-
-            if ("resources" in manifest)
-            {
-                const createdDirs = new Set<string>();
-                
-                for (const res of manifest.resources) {
-                    const file = zip.find(res.filename);
-                    if (file && isFile(file))
-                    {
-                        const path = joinLFSPaths(currentPath.value, res.path);
-                        const fileData = await file.getUint8Array();
-
-                        const parts = res.path.split("/").reduce((acc, part) => [...acc, joinLFSPaths(...acc, part)], [] as string[]);
-                        for (const dir of parts.slice(1, -1)) {
-                            const path = joinLFSPaths(currentPath.value, dir);
-                            
-                            if (!createdDirs.has(path)) {
-                                await sendMessageAndWait(props.worker, "createDir", path);
-                                createdDirs.add(path);
-                            }
-                        }
-
-                        await sendMessageAndWait(props.worker, "writeFile", { path, data: fileData });
-                    }
-                }
-
-                importedResources = true;
-            }
-        }
-
-        if (!importedResources)
-        {
-            // TODO: Implement
-            alert("Only InfiniTime resource archives are supported at the moment.");
-        }
+        await sendMessageAndWait(props.worker, "loadArchiveFS", { path: currentPath.value, zipData: data });
 
         refresh(false);
 
