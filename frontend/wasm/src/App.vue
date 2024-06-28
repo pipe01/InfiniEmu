@@ -11,7 +11,8 @@
             input.form-control(type="file" @change="loadFile($event.target.files[0])")
 
         h4 or 
-            a.btn.btn-primary(href="/?firmware=https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin") Load sample file
+            a.btn.btn-primary(href="/?firmware=https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin&resources=https://share.pipe01.net/-LJ2sU2m3Yc/infinitime-resources-1.14.0.zip")
+                | Load sample file
 
         .form-check.form-switch
             input.form-check-input(type="checkbox" v-model="autoStart" id="autoStart")

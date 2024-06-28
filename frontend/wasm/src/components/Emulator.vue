@@ -134,7 +134,6 @@ worker.onmessage = async (event) => {
             await sendMessageAndWait(worker, "setProgram", props.programFile);
             isReady.value = true;
 
-            console.log(props.initResources);
             if (props.initResources) {
                 for (const res of props.initResources) {
                     await sendMessageAndWait(worker, "loadArchiveFS", { path: "", zipData: res });
