@@ -73,12 +73,13 @@ import MyWorker from "@/worker?worker";
 import Display, { Direction } from "@/components/Display.vue";
 import Console from "@/components/Console.vue";
 import FileBrowser from "@/components/FileBrowser.vue";
-import { sendMessage, useAverage } from "@/utils";
+import { sendMessage, sendMessageAndWait, useAverage } from "@/utils";
 import type { MessageFromWorkerType } from "@/common";
 
 const props = defineProps<{
     programFile: ArrayBuffer,
     autoStart: boolean,
+    initResources?: Uint8Array[],
 }>();
 
 const GESTURE_NONE = 0x00;
@@ -121,7 +122,7 @@ worker.onerror = (event) => {
     console.error("worker error", event);
 };
 
-worker.onmessage = (event) => {
+worker.onmessage = async (event) => {
     const { type, data } = event.data as MessageFromWorkerType;
 
     switch (type) {
@@ -130,8 +131,15 @@ worker.onmessage = (event) => {
             break;
 
         case "ready":
-            sendMessage(worker, "setProgram", props.programFile);
+            await sendMessageAndWait(worker, "setProgram", props.programFile);
             isReady.value = true;
+
+            console.log(props.initResources);
+            if (props.initResources) {
+                for (const res of props.initResources) {
+                    await sendMessageAndWait(worker, "loadArchiveFS", { path: "", zipData: res });
+                }
+            }
 
             if (props.autoStart)
                 start();

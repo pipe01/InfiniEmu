@@ -11,7 +11,7 @@
             input.form-control(type="file" @change="loadFile($event.target.files[0])")
 
         h4 or 
-            button.btn.btn-primary(@click="loadSampleFile") Load sample file
+            a.btn.btn-primary(href="/?firmware=https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin") Load sample file
 
         .form-check.form-switch
             input.form-check-input(type="checkbox" v-model="autoStart" id="autoStart")
@@ -34,7 +34,7 @@
         a(href="https://github.com/pipe01/InfiniEmu") View on GitHub
 
     template(v-else)
-        Emulator(:programFile="pickedFile" :autoStart="autoStart")
+        Emulator(:programFile="pickedFile" :autoStart="autoStart" :initResources="initResources")
 </template>
 
 <script lang="ts" setup>
@@ -46,18 +46,38 @@ const pickedFile = ref<ArrayBuffer | null>(null);
 const isLoading = ref(false);
 
 const autoStart = ref(true);
+const initResources = ref<Uint8Array[]>([]);
 
-async function loadSampleFile() {
+async function parseOptions(params: URLSearchParams) {
+    if (params.has("firmware")) {
+        await loadFileFromURL(params.get("firmware")!);
+    }
+    if (params.has("resources")) {
+        for (const url of params.getAll("resources")) {
+            const response = await fetch(url);
+            const resource = new Uint8Array(await response.arrayBuffer());
+
+            initResources.value.push(resource);
+        }
+    }
+}
+parseOptions(new URLSearchParams(location.search));
+
+async function loadFileFromURL(url: string) {
     isLoading.value = true;
 
     try {
-        const response = await fetch("https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin");
+        const response = await fetch(url);
         const programFile = await response.arrayBuffer();
 
         pickedFile.value = programFile;
     } finally {
         isLoading.value = false;
     }
+}
+
+function loadSampleFile() {
+    location.search = "?firmware=https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin";
 }
 
 function loadFile(file: File) {

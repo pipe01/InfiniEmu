@@ -377,26 +377,23 @@ class Emulator {
         let importedResources = false;
 
         const resourcesFile = zip.find("resources.json");
-        if (resourcesFile && isFile(resourcesFile))
-        {
+        if (resourcesFile && isFile(resourcesFile)) {
             const resourcesData = await resourcesFile.getText();
             const manifest = JSON.parse(resourcesData) as { resources: { filename: string, path: string }[] };
 
-            if ("resources" in manifest)
-            {
+            if ("resources" in manifest) {
                 const createdDirs = new Set<string>();
-                
+
                 for (const res of manifest.resources) {
                     const file = zip.find(res.filename);
-                    if (file && isFile(file))
-                    {
+                    if (file && isFile(file)) {
                         const path = joinLFSPaths(toPath, res.path);
                         const fileData = await file.getUint8Array();
 
                         const parts = res.path.split("/").reduce((acc, part) => [...acc, joinLFSPaths(...acc, part)], [] as string[]);
                         for (const dir of parts.slice(1, -1)) {
                             const path = joinLFSPaths(toPath, dir);
-                            
+
                             if (!createdDirs.has(path)) {
                                 this.createDir(path);
                                 createdDirs.add(path);
@@ -411,8 +408,7 @@ class Emulator {
             }
         }
 
-        if (!importedResources)
-        {
+        if (!importedResources) {
             // TODO: Implement
             alert("Only InfiniTime resource archives are supported at the moment.");
         }
@@ -454,101 +450,95 @@ createModule({
 function handleMessage(msg: MessageToWorkerType) {
     const { type, data } = msg;
 
-    switch (type) {
-        case "setProgram":
-            if (!Module) {
-                sendMessage("error", {
-                    message: "Module not loaded",
-                    stack: undefined,
-                    string: "Module not loaded",
-                });
-                return;
-            }
+    if (type == "setProgram") {
+        if (!Module) {
+            sendMessage("error", {
+                message: "Module not loaded",
+                stack: undefined,
+                string: "Module not loaded",
+            });
+            return;
+        }
 
-            const buf = data as ArrayBuffer;
+        const buf = data as ArrayBuffer;
 
-            emulator = new Emulator(Module, new Uint8Array(buf));
-            break;
-
-        case "setCanvas":
-            if (emulator)
+        emulator = new Emulator(Module, new Uint8Array(buf));
+    }
+    else if (emulator) {
+        switch (type) {
+            case "setCanvas":
                 emulator.setCanvas(data);
-            break;
+                break;
 
-        case "start":
-            if (emulator)
+            case "start":
                 emulator.start();
-            break;
+                break;
 
-        case "stop":
-            if (emulator)
+            case "stop":
                 emulator.stop();
-            break;
+                break;
 
-        case "doTouch":
-            if (emulator)
+            case "doTouch":
                 emulator.doTouch(data.gesture, data.x, data.y);
-            break;
+                break;
 
-        case "clearTouch":
-            if (emulator)
+            case "clearTouch":
                 emulator.clearTouch();
-            break;
+                break;
 
-        case "pressButton":
-            if (emulator)
+            case "pressButton":
                 emulator.changePin(13, true);
-            break;
+                break;
 
-        case "releaseButton":
-            if (emulator)
+            case "releaseButton":
                 emulator.changePin(13, false);
-            break;
+                break;
 
-        case "readDir":
-            if (emulator)
+            case "readDir":
                 sendMessage("dirFiles", emulator.readDir(data), msg.messageId);
-            break;
+                break;
 
-        case "readFile":
-            if (emulator)
+            case "readFile":
                 sendMessage("fileData", { path: data, data: emulator.readFile(data) }, msg.messageId);
-            break;
+                break;
 
-        case "createDir":
-            if (emulator)
+            case "createDir":
                 emulator.createDir(data);
-            break;
+                break;
 
-        case "writeFile":
-            if (emulator)
+            case "writeFile":
                 emulator.writeFile(data.path, new Uint8Array(data.data));
-            break;
+                break;
 
-        case "loadArchiveFS":
-            if (emulator)
+            case "loadArchiveFS":
                 emulator.loadArchiveFS(data.path, new Uint8Array(data.zipData));
-            break;
+                break;
 
-        case "backupFS":
-            if (emulator)
+            case "backupFS":
                 sendMessage("backupData", emulator.backupFS().buffer, msg.messageId);
-            break;
+                break;
 
-        case "restoreFS":
-            if (emulator)
+            case "restoreFS":
                 emulator.restoreFS(data);
-            break;
+                break;
 
-        case "turboMode":
-            if (emulator)
+            case "turboMode":
                 emulator.turboMode = data;
-            break;
+                break;
 
-        case "reset":
-            if (emulator)
+            case "reset":
                 emulator.reset();
-            break;
+                break;
+        }
+    }
+    else {
+        sendMessage("error", {
+            message: "Emulator not initialized",
+            stack: undefined,
+            string: "Emulator not initialized",
+        });
+
+        return;
     }
 
     sendMessage("done", undefined, msg.messageId);
