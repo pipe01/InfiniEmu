@@ -121,19 +121,8 @@ class Emulator {
     }
 
     private doLoop(iterations: number) {
-        try {
-            return this.Module._pinetime_loop(this.pinetime, iterations);
-        } catch (error: any) {
-            this.stop();
-            sendMessage("error", {
-                message: "message" in error ? error.message : undefined,
-                stack: "stack" in error ? error.stack : undefined,
-                string: error.toString(),
-            });
-            return false;
-        } finally {
-            this.instructionCount += iterations;
-        }
+        this.instructionCount += iterations;
+        return this.Module._pinetime_loop(this.pinetime, iterations);
     }
 
     private run() {
