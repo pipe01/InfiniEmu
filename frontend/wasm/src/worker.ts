@@ -131,6 +131,8 @@ class Emulator {
                 string: error.toString(),
             });
             return false;
+        } finally {
+            this.instructionCount += iterations;
         }
     }
 
@@ -140,18 +142,15 @@ class Emulator {
         let screenUpdated = false;
 
         if (this.turboMode) {
-            screenUpdated ||= this.Module._pinetime_loop(this.pinetime, iterations * 5);
-            this.instructionCount += iterations * 5;
+            screenUpdated = this.doLoop(10000000);
         }
         else {
-            while (this.isRunning && !screenUpdated && performance.now() - start < 1000 / 60) {
-                screenUpdated = this.doLoop(iterations);
-
-                this.instructionCount += iterations;
+            while (this.isRunning && !screenUpdated && performance.now() - start < 50) {
+                screenUpdated ||= this.doLoop(iterations);
             }
         }
 
-        if (this.instructionCount < 1000000 && !this.rttFoundBlock) {
+        if (this.instructionCount < 10000000 && !this.rttFoundBlock) {
             this.rttFoundBlock = !!this.Module._rtt_find_control(this.rtt);
             if (this.rttFoundBlock)
                 sendMessage("rttFound", undefined);

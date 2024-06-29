@@ -13,7 +13,7 @@ template(v-if="!isReady")
                 h3.card-title Console
                 .text-danger(v-if="!foundRTT") Couldn't find Segger RTT block in memory
 
-                Console(:lines="consoleLines" style="height: 400px" @runCommand="sendMessage(worker, 'runCommand', $event)")
+                Console(:lines="consoleLines" canRunCommands style="height: 400px" @runCommand="sendMessage(worker, 'runCommand', $event)")
 
     .col(style="flex-grow: 0")
         Display(:width="240" :height="240" :off="isLcdOff" @got-canvas="onGotCanvas"
