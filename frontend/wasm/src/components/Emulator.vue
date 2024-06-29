@@ -13,7 +13,7 @@ template(v-if="!isReady")
                 h3.card-title Console
                 .text-danger(v-if="!foundRTT") Couldn't find Segger RTT block in memory
 
-                Console(:lines="consoleLines" style="height: 400px")
+                Console(:lines="consoleLines" style="height: 400px" @runCommand="sendMessage(worker, 'runCommand', $event)")
 
     .col(style="flex-grow: 0")
         Display(:width="240" :height="240" :off="isLcdOff" @got-canvas="onGotCanvas"
@@ -71,7 +71,7 @@ import { onUnmounted, ref, watch } from "vue";
 import MyWorker from "@/worker?worker";
 
 import Display, { Direction } from "@/components/Display.vue";
-import Console from "@/components/Console.vue";
+import Console, { type Line } from "@/components/Console.vue";
 import FileBrowser from "@/components/FileBrowser.vue";
 import { sendMessage, sendMessageAndWait, useAverage } from "@/utils";
 import type { MessageFromWorkerType } from "@/common";
@@ -108,7 +108,15 @@ const isCpuSleeping = ref(false);
 
 const foundRTT = ref(false);
 
-const consoleLines = ref<string[]>([]);
+const consoleLines = ref<Line[]>([]);
+
+function addConsoleLine(text: string, type: Line["type"]) {
+    consoleLines.value.push({ text, type });
+
+    if (consoleLines.value.length > 1000) {
+        consoleLines.value.splice(0, consoleLines.value.length - 1000);
+    }
+}
 
 const performance = {
     ips: useAverage(1000),
@@ -172,12 +180,11 @@ worker.onmessage = async (event) => {
             break;
 
         case "rttData":
-            const lines = data.split("\n");
-            consoleLines.value.push(...lines);
+            data.split("\n").forEach(o => addConsoleLine(o, "serial"));
+            break;
 
-            if (consoleLines.value.length > 1000) {
-                consoleLines.value.splice(0, consoleLines.value.length - 1000);
-            }
+        case "commandOutput":
+            addConsoleLine(data, "command");
             break;
     }
 };

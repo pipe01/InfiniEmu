@@ -108,7 +108,12 @@ class Emulator {
         this.rtt = Module._rtt_new(Module._cpu_mem(this.cpu));
         this.spiFlash = Module._pinetime_get_spinorflash(this.pinetime);
 
-        Module._commander_set_output(this.cmd, Module._commander_output);
+        (globalThis as any).commander_output = (msgPointer: Pointer) => {
+            const msg = Module.UTF8ToString(msgPointer);
+            sendMessage("commandOutput", msg);
+        };
+
+        Module._commander_set_wasm_output(this.cmd);
 
         this.displayBuffer = numberToPointer(Module._malloc(240 * 240 * 2));
         this.rgbaBuffer = numberToPointer(Module._malloc(240 * 240 * 4));
@@ -433,13 +438,25 @@ class Emulator {
         const name1 = this.Module.stringToNewUTF8("NoInit_MagicWord");
         const name2 = this.Module.stringToNewUTF8("NoInit_BackUpTime");
 
-        if (this.Module._program_write_variable(this.program, this.cpu, name1, 0xDEAD0000, 0)) {
-            const unixNano = BigInt(date.getTime()) * BigInt(1000000);
-            this.Module._program_write_variable(this.program, this.cpu, name2, Number(unixNano & 0xFFFFFFFFn), Number(unixNano >> 32n));
+        try {
+            if (this.Module._program_write_variable(this.program, this.cpu, name1, 0xDEAD0000, 0)) {
+                const unixNano = BigInt(date.getTime()) * BigInt(1000000);
+                this.Module._program_write_variable(this.program, this.cpu, name2, Number(unixNano & 0xFFFFFFFFn), Number(unixNano >> 32n));
+            }
+        } finally {
+            this.Module._free(pointerToNumber(name1));
+            this.Module._free(pointerToNumber(name2));
         }
+    }
 
-        this.Module._free(pointerToNumber(name1));
-        this.Module._free(pointerToNumber(name2));
+    runCommand(command: string) {
+        const commandBytes = this.Module.stringToNewUTF8(command);
+
+        try {
+            this.Module._commander_run_command(this.cmd, commandBytes);
+        } finally {
+            this.Module._free(pointerToNumber(commandBytes));
+        }
     }
 };
 
@@ -546,6 +563,10 @@ function handleMessage(msg: MessageToWorkerType) {
 
             case "reset":
                 emulator.reset();
+                break;
+
+            case "runCommand":
+                emulator.runCommand(data);
                 break;
         }
     }

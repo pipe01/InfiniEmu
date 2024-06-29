@@ -1,3 +1,4 @@
+#include "commander.h"
 #include "pinetime.h"
 #include "components/spi/st7789.h"
 #include "littlefs/lfs.h"
@@ -45,7 +46,12 @@ void st7789_read_screen_rgba(st7789_t *st, uint8_t *screen_buffer, uint8_t *rgba
 
 void commander_output(const char *msg, void *userdata)
 {
-    EM_ASM({ console.log("command output", $0); }, msg);
+    EM_ASM({ commander_output($0); }, msg);
+}
+
+void commander_set_wasm_output(commander_t *cmd)
+{
+    commander_set_output(cmd, commander_output, NULL);
 }
 
 int lfs_read(const struct lfs_config *c, lfs_block_t block, lfs_off_t off, void *buffer, lfs_size_t size)

@@ -52,7 +52,8 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
     _spinorflash_get_buffer_size(flash: SPINorFlash): number;
 
     _commander_new(pt: Pinetime): Commander;
-    _commander_set_output(cmd: Commander, output: Pointer): void;
+    _commander_set_wasm_output(cmd: Commander): void;
+    _commander_run_command(cmd: Commander, command: Pointer): void;
 
     _rtt_new(mem: Memory): RTT;
     _rtt_find_control(rtt: RTT): boolean;

@@ -68,7 +68,7 @@ set(WASM_EXPORTS
     pinetime_get_spinorflash spinorflash_get_buffer spinorflash_get_buffer_size
     nrf52832_get_cpu cpu_is_sleeping cpu_mem
     program_new program_load_binary program_load_elf program_write_variable
-    commander_new commander_set_output commander_run_command commander_output
+    commander_new commander_set_wasm_output commander_run_command commander_output
     rtt_new rtt_find_control rtt_flush_buffers
     lfs_init lfs_mkdir lfs_free_wasm lfs_open_dir lfs_dir_read
     lfs_open_file lfs_file_close lfs_file_read lfs_file_write

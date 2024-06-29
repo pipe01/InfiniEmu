@@ -23,7 +23,8 @@ export type MessageToWorkerType = { messageId?: number } & (
     { type: "restoreFS", data: ArrayBuffer } |
     { type: "loadArchiveFS", data: { path: string, zipData: ArrayBuffer } } |
     { type: "turboMode", data: boolean } |
-    { type: "reset", data: void }
+    { type: "reset", data: void } |
+    { type: "runCommand", data: string }
 );
 
 export type MessageFromWorkerType = { replyToId?: number } & (
@@ -38,5 +39,6 @@ export type MessageFromWorkerType = { replyToId?: number } & (
     { type: "lcdSleeping", data: boolean } |
     { type: "cpuSleeping", data: boolean } |
     { type: "performance", data: { loopTime: number, ips: number, totalSRAM: number } } |
-    { type: "backupData", data: ArrayBuffer }
+    { type: "backupData", data: ArrayBuffer } |
+    { type: "commandOutput", data: string }
 );
