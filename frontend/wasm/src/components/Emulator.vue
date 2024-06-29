@@ -19,10 +19,13 @@ template(v-if="!isReady")
         Display(:width="240" :height="240" :off="isLcdOff" @got-canvas="onGotCanvas"
             @button-down="onButtonDown" @start-swipe="onStartSwipe" @end-swipe="clearTouch"
             @start-touch="onStartTouch" @end-touch="clearTouch")
+
         .d-flex.flex-column.align-items-stretch.mt-3
-            button.btn.btn-success(v-if="!isRunning" @click="start") Start
-            button.btn.btn-danger(v-else @click="stop") Stop
-            button.btn.btn-warning.mt-2(v-if="isStarted" @click="reset") Reset
+            div.text-danger(v-if="isAborted") Emulator aborted
+    
+            button.btn.btn-success(v-if="!isRunning" @click="start" :disabled="isAborted") Start
+            button.btn.btn-danger(v-else @click="stop" :disabled="isAborted") Stop
+            button.btn.btn-warning.mt-2(v-if="isStarted" @click="reset" :disabled="isAborted") Reset
 
     .col-3
         template(v-if="isStarted")
@@ -37,7 +40,7 @@ template(v-if="!isReady")
                     div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
                     div RAM size: {{ numberFmt.format(performance.sramSize.value) }} bytes
 
-            .card.mt-3
+            .card.mt-3(v-if="isRunning")
                 .card-body
                     h3.card-title Controls
 
@@ -97,6 +100,7 @@ const numberFmt = new Intl.NumberFormat();
 const isReady = ref(false);
 const isStarted = ref(false);
 const isRunning = ref(false);
+const isAborted = ref(false);
 
 const turboMode = ref(false);
 watch(turboMode, value => sendMessage(worker, "turboMode", value));
@@ -185,6 +189,11 @@ worker.onmessage = async (event) => {
 
         case "commandOutput":
             addConsoleLine(data, "command");
+            break;
+
+        case "aborted":
+            isAborted.value = true;
+            isRunning.value = false;
             break;
     }
 };

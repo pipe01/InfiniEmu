@@ -471,7 +471,8 @@ createModule({
         console.log("got error", text);
     },
     onAbort(what: any) {
-        console.log("abort", what);
+        console.error("wasm aborted", what);
+        sendMessage("aborted", what);
     },
 }).then((mod) => {
     Module = mod;

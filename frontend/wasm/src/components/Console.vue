@@ -8,7 +8,7 @@
         input(type="checkbox" v-model="scrollToBottom" id="scrollToBottom")
         label.ms-1(for="scrollToBottom") Scroll to bottom
 
-    form.input-group(@submit.prevent="onSubmit")
+    form.input-group(v-if="canRunCommands" @submit.prevent="onSubmit")
         input.form-control(v-model="command" placeholder="Run command (e.g. 'help')")
         button.btn.btn-outline-primary Run
 </template>
@@ -24,7 +24,8 @@ export type Line = {
 import { nextTick, ref, watch } from 'vue';
 
 const props = defineProps<{
-    lines: Line[];
+    lines: Line[],
+    canRunCommands: boolean,
 }>();
 
 const emit = defineEmits<{
