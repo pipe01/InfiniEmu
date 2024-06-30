@@ -34,7 +34,7 @@ struct RTC_inst_t
 
     bool running;
 
-    size_t tick_interval_us;
+    double tick_interval_us;
     size_t last_check_us;
 
     inten_t inten, evten;
@@ -129,7 +129,7 @@ OPERATION(rtc)
         else
         {
             rtc->prescaler = *value;
-            rtc->tick_interval_us = ((size_t)(rtc->prescaler + 1) * 1e6) / 32768;
+            rtc->tick_interval_us = ((double)(rtc->prescaler + 1) * 1e6) / 32768.0;
         }
 
         return MEMREG_RESULT_OK;
@@ -203,7 +203,7 @@ uint32_t rtc_get_counter(RTC_t *rtc)
     return rtc->counter;
 }
 
-uint32_t rtc_get_tick_interval_us(RTC_t *rtc)
+double rtc_get_tick_interval_us(RTC_t *rtc)
 {
     return rtc->tick_interval_us;
 }

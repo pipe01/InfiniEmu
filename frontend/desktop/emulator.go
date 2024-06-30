@@ -107,12 +107,12 @@ func (r *RTCTracker) update(updateInterval time.Duration) {
 
 	ticks := uint32(C.rtc_get_counter(r.rtc))
 
-	interval := time.Duration(C.rtc_get_tick_interval_us(r.rtc)) * time.Microsecond
-	if interval == 0 {
+	usInterval := float64(C.rtc_get_tick_interval_us(r.rtc))
+	if usInterval == 0 {
 		return
 	}
 
-	r.TargetTicksPerSecond = 1e6 / uint32(interval.Microseconds())
+	r.TargetTicksPerSecond = uint32(1e6 / usInterval)
 	r.TicksPerSecond = (1e6 * (ticks - r.lastTicks)) / uint32(updateInterval.Microseconds())
 
 	r.lastTicks = ticks
@@ -294,7 +294,9 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 	}
 
 	ptProgram := C.program_new(flashSize)
-	C.program_load_binary(ptProgram, 0, (*C.uchar)(&flash[0]), C.size_t(len(flash)))
+	if !C.program_load_elf(ptProgram, 0, (*C.uchar)(&flash[0]), C.size_t(len(flash))) {
+		C.program_load_binary(ptProgram, 0, (*C.uchar)(&flash[0]), C.size_t(len(flash)))
+	}
 
 	pt := C.pinetime_new(ptProgram)
 	C.pinetime_reset(pt)
