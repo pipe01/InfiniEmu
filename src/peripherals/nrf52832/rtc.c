@@ -50,7 +50,7 @@ void rtc_tick(void *userdata)
     size_t elapsed = now - rtc->last_check_us;
     size_t elapsed_ticks = elapsed / rtc->tick_interval_us;
 
-    if (elapsed_ticks > 0)
+    while (elapsed_ticks--)
     {
         rtc->last_check_us = now;
 

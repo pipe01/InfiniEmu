@@ -260,9 +260,11 @@ void ppi_fire_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id, bool pe
 
     // printf("Firing event %d on peripheral %d\n", event_id, peripheral_id);
 
+    bool was_set = (periph->events & (1 << event_id)) != 0;
+
     periph->events |= (1 << event_id);
 
-    if (pend_exception)
+    if (!was_set && pend_exception)
         cpu_exception_set_pending(*ppi->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(peripheral_id));
 
     for (size_t i = 0; i < CHANNELS_COUNT + SHORTS_COUNT; i++)
