@@ -273,6 +273,8 @@ type Emulator struct {
 
 	mallocPC, freePC uint32
 	heap             *HeapTracker
+
+	runlog *C.runlog_t
 }
 
 var emulators = map[uint64]*Emulator{}
@@ -670,4 +672,31 @@ func (e *Emulator) FindFreeHeapBlocks() {
 
 		blockAddr += blockSize
 	}
+}
+
+func (e *Emulator) RecordRunlog(path string) error {
+	pathC := C.CString(path)
+	modeC := C.CString("wb")
+
+	defer C.free(unsafe.Pointer(pathC))
+	defer C.free(unsafe.Pointer(modeC))
+
+	file := C.fopen(pathC, modeC)
+	if file == nil {
+		return fmt.Errorf("failed to open file")
+	}
+
+	e.runlog = C.runlog_new(file)
+	C.cpu_set_runlog(e.cpu, e.runlog)
+	C.cpu_reset(e.cpu)
+
+	return nil
+}
+
+func (e *Emulator) CloseRunlog() {
+	if e.runlog == nil {
+		return
+	}
+
+	C.runlog_free(e.runlog)
 }

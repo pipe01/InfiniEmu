@@ -310,6 +310,7 @@ func main() {
 
 	runGDB := flag.Bool("gdb", false, "")
 	analyzeHeap := flag.Bool("heap", false, "")
+	emitRunlog := flag.Bool("runlog", false, "")
 	flag.BoolVar(&noScheduler, "no-sched", false, "")
 	flag.Parse()
 
@@ -330,6 +331,11 @@ func main() {
 	}
 
 	emulator := NewEmulator(program, extflashInit, true)
+
+	if *emitRunlog {
+		emulator.RecordRunlog("runlog.bin")
+		defer emulator.CloseRunlog()
+	}
 
 	if *analyzeHeap {
 		emulator.EnableHeapTracker()
