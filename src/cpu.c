@@ -39,8 +39,8 @@
 #define SIGNEXTEND8_32(value) ((uint32_t)(int8_t)((value) & 0xFF))
 #define SIGNEXTEND16_32(value) ((uint32_t)(int16_t)((value) & 0xFFFF))
 
-#define OPERAND(n) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], NULL)
-#define OPERAND_C(n) cpu_load_operand(cpu, &i->detail->arm.operands[(n)], &carry)
+#define OPERAND(n) load_operand(cpu, &i->detail->arm.operands[(n)], NULL)
+#define OPERAND_C(n) load_operand(cpu, &i->detail->arm.operands[(n)], &carry)
 #define OPERAND_REG(n) (assert(i->detail->arm.operands[(n)].type == ARM_OP_REG), cpu_reg_read(cpu, i->detail->arm.operands[(n)].reg))
 #define OPERAND_IMM(n) (assert(i->detail->arm.operands[(n)].type == ARM_OP_IMM), i->detail->arm.operands[(n)].imm)
 
@@ -233,7 +233,7 @@ struct cpu_inst_t
 
 cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc);
 
-static inline runlog_registers_t cpu_get_runlog_regs(cpu_t *cpu)
+static inline runlog_registers_t get_runlog_regs(cpu_t *cpu)
 {
     return (runlog_registers_t){
         .core = {
@@ -301,7 +301,7 @@ static inline runlog_register_t runlog_reg(arm_reg arm_reg)
     }
 }
 
-static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
+static uint32_t mem_operand_address(cpu_t *cpu, cs_arm_op *op)
 {
     uint32_t base = cpu_reg_read(cpu, op->mem.base);
 
@@ -321,7 +321,7 @@ static uint32_t cpu_mem_operand_address(cpu_t *cpu, cs_arm_op *op)
     return base + op->mem.disp;
 }
 
-static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, bool *carry_out)
+static uint32_t load_operand(cpu_t *cpu, cs_arm_op *op, bool *carry_out)
 {
     if (op->type == ARM_OP_IMM)
     {
@@ -345,7 +345,7 @@ static uint32_t cpu_load_operand(cpu_t *cpu, cs_arm_op *op, bool *carry_out)
     return value;
 }
 
-static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t size)
+static void store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t size)
 {
     switch (op->type)
     {
@@ -355,7 +355,7 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
 
     case ARM_OP_MEM:
     {
-        uint32_t addr = ALIGN4(cpu_mem_operand_address(cpu, op));
+        uint32_t addr = ALIGN4(mem_operand_address(cpu, op));
 
         memreg_write(cpu->mem, addr, value, size);
         break;
@@ -366,12 +366,12 @@ static void cpu_store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t 
     }
 }
 
-static bool cpu_in_it_block(cpu_t *cpu)
+static bool in_it_block(cpu_t *cpu)
 {
     return (cpu->itstate.value & 0xF) != 0;
 }
 
-static void cpu_it_advance(cpu_t *cpu)
+static void it_advance(cpu_t *cpu)
 {
     cpu->must_advance_it = false;
 
@@ -393,15 +393,15 @@ static void cpu_it_advance(cpu_t *cpu)
     }
 }
 
-static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
+static arm_cc current_cond(cpu_t *cpu, cs_insn *i)
 {
-    if (i->id == ARM_INS_B && !cpu_in_it_block(cpu))
+    if (i->id == ARM_INS_B && !in_it_block(cpu))
         return i->detail->arm.cc;
 
     if (cpu->itstate.value == 0)
         return ARM_CC_AL;
 
-    assert(cpu_in_it_block(cpu));
+    assert(in_it_block(cpu));
 
     cpu->must_advance_it = true;
 
@@ -446,9 +446,9 @@ static arm_cc cpu_current_cond(cpu_t *cpu, cs_insn *i)
     }
 }
 
-static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
+static bool condition_passed(cpu_t *cpu, cs_insn *i)
 {
-    arm_cc cc = cpu_current_cond(cpu, i);
+    arm_cc cc = current_cond(cpu, i);
 
     switch (cc)
     {
@@ -492,12 +492,12 @@ static bool cpu_condition_passed(cpu_t *cpu, cs_insn *i)
     }
 }
 
-static bool cpu_is_privileged(cpu_t *cpu)
+static bool is_privileged(cpu_t *cpu)
 {
     return cpu->mode == ARM_MODE_HANDLER || !cpu->control.nPRIV;
 }
 
-static int cpu_calculate_execution_priority(cpu_t *cpu)
+static int calculate_execution_priority(cpu_t *cpu)
 {
     int64_t highestpri = 256;
     int64_t boostedpri = 256;
@@ -543,12 +543,12 @@ static int cpu_calculate_execution_priority(cpu_t *cpu)
     return highestpri;
 }
 
-static void cpu_update_execution_priority(cpu_t *cpu)
+static void update_execution_priority(cpu_t *cpu)
 {
-    cpu->execution_priority = cpu_calculate_execution_priority(cpu);
+    cpu->execution_priority = calculate_execution_priority(cpu);
 }
 
-static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool sync)
+static uint32_t exception_return_address(cpu_t *cpu, arm_exception ex, bool sync)
 {
     uint32_t this_addr = cpu->core_regs[ARM_REG_PC];
 
@@ -574,7 +574,7 @@ static uint32_t cpu_exception_return_address(cpu_t *cpu, arm_exception ex, bool 
     }
 }
 
-static void cpu_enter_lockup(cpu_t *cpu)
+static void enter_lockup(cpu_t *cpu)
 {
     if (!cpu->is_locked_up)
     {
@@ -605,7 +605,7 @@ void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
     }
 }
 
-static arm_exception cpu_exception_get_pending(cpu_t *cpu)
+static arm_exception exception_get_pending(cpu_t *cpu)
 {
     if (cpu->pending_exception_count == 0)
         return 0;
@@ -657,7 +657,7 @@ bool cpu_exception_is_active(cpu_t *cpu, arm_exception ex)
     return cpu->exceptions[ex].active;
 }
 
-static void cpu_exception_set_active(cpu_t *cpu, arm_exception ex, bool active)
+static void exception_set_active(cpu_t *cpu, arm_exception ex, bool active)
 {
     assert(ex < ARM_EXC_EXTERNAL_END);
 
@@ -665,7 +665,7 @@ static void cpu_exception_set_active(cpu_t *cpu, arm_exception ex, bool active)
         return;
 
     cpu->exceptions[ex].active = active;
-    cpu_update_execution_priority(cpu);
+    update_execution_priority(cpu);
 
     if (active)
         cpu->running_exceptions[cpu->running_exception_count++] = ex;
@@ -690,7 +690,7 @@ bool cpu_exception_get_enabled(cpu_t *cpu, arm_exception ex)
     return cpu->exceptions[ex].enabled;
 }
 
-static inline void cpu_check_vfp_enabled(cpu_t *cpu)
+static inline void check_vfp_enabled(cpu_t *cpu)
 {
     uint32_t cpacr = scb_get_cpacr(cpu->scb);
 
@@ -698,9 +698,9 @@ static inline void cpu_check_vfp_enabled(cpu_t *cpu)
         fault_take(FAULT_CPU_FP_DISABLED);
 }
 
-static void cpu_execute_fp_check(cpu_t *cpu)
+static void execute_fp_check(cpu_t *cpu)
 {
-    cpu_check_vfp_enabled(cpu);
+    check_vfp_enabled(cpu);
 
     FPCCR_t fpccr = scb_fp_get_fpccr(cpu->scb_fp);
 
@@ -712,7 +712,7 @@ static void cpu_execute_fp_check(cpu_t *cpu)
     }
 }
 
-static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
+static void push_stack(cpu_t *cpu, arm_exception ex, bool sync)
 {
     // Copied as closely as possible from the ARMv7-M Architecture Reference Manual's pseudocode at B1.5.6
 
@@ -755,14 +755,14 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
     memreg_write(cpu->mem, frameptr + 0xC, cpu->core_regs[ARM_REG_R3], SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x10, cpu->core_regs[ARM_REG_R12], SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x14, cpu->core_regs[ARM_REG_LR], SIZE_WORD);
-    memreg_write(cpu->mem, frameptr + 0x18, cpu_exception_return_address(cpu, ex, sync), SIZE_WORD);
+    memreg_write(cpu->mem, frameptr + 0x18, exception_return_address(cpu, ex, sync), SIZE_WORD);
     memreg_write(cpu->mem, frameptr + 0x1C, (xpsr & ~(1 << 9)) | (frameptralign << 9), SIZE_WORD);
 
     if (cpu->control.FPCA)
     {
         // Ignore FPCCR.LSPEN and always save stack
 
-        cpu_check_vfp_enabled(cpu);
+        check_vfp_enabled(cpu);
         uint32_t ptr = frameptr + 0x20;
 
         for (size_t i = 0; i < 8; i++)
@@ -782,7 +782,7 @@ static void cpu_push_stack(cpu_t *cpu, arm_exception ex, bool sync)
         cpu_reg_write(cpu, ARM_REG_LR, x(FFFF, FFE9) | (~cpu->control.FPCA << 4) | (cpu->control.SPSEL << 2));
 }
 
-static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
+static void pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
 {
     uint32_t framesize;
     uint32_t forcealign;
@@ -815,7 +815,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     {
         // Ignore LSPACT
 
-        cpu_check_vfp_enabled(cpu);
+        check_vfp_enabled(cpu);
 
         uint32_t ptr = sp + 0x20;
 
@@ -849,7 +849,7 @@ static void cpu_pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     cpu_sysreg_write(cpu, ARM_SYSREG_XPSR, psr & 0xFF0FFDFF, true);
 }
 
-static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
+static void exception_taken(cpu_t *cpu, arm_exception ex)
 {
 #if ASSERT_EXCEPTION_REGISTERS
     for (size_t i = 0; i < sizeof(check_exc_registers) / sizeof(arm_reg); i++)
@@ -870,25 +870,25 @@ static void cpu_exception_taken(cpu_t *cpu, arm_exception ex)
     cpu->control.FPCA = 0;
     cpu->control.SPSEL = 0;
 
-    cpu_exception_set_active(cpu, ex, true);
+    exception_set_active(cpu, ex, true);
 
     // TODO: SCS_UpdateStatusRegs
 }
 
-static void cpu_exception_entry(cpu_t *cpu, arm_exception ex, bool sync)
+static void exception_entry(cpu_t *cpu, arm_exception ex, bool sync)
 {
     LOG_CPU_EX("Entering exception %d from 0x%08X", ex, cpu->core_regs[ARM_REG_PC]);
 
     if (cpu->runlog)
         runlog_exception_enter(cpu->runlog, ex);
 
-    cpu_push_stack(cpu, ex, sync);
-    cpu_exception_taken(cpu, ex);
+    push_stack(cpu, ex, sync);
+    exception_taken(cpu, ex);
 
     cpu_exception_clear_pending(cpu, ex);
 }
 
-static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
+static void exception_return(cpu_t *cpu, uint32_t exc_return)
 {
     assert(cpu->mode == ARM_MODE_HANDLER);
 
@@ -929,12 +929,12 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
         fault_take(FAULT_CPU_INVALID_EXCEPTION_RETURN);
     }
 
-    cpu_exception_set_active(cpu, returning_exception_number, false);
+    exception_set_active(cpu, returning_exception_number, false);
 
     if (cpu->xpsr.ipsr != 2)
         cpu->faultmask = 0;
 
-    cpu_pop_stack(cpu, frameptr, exc_return);
+    pop_stack(cpu, frameptr, exc_return);
 
 #if ASSERT_EXCEPTION_REGISTERS
     if (returning_exception_number != ARM_EXC_SVC && returning_exception_number != ARM_EXC_PENDSV)
@@ -959,12 +959,12 @@ static void cpu_exception_return(cpu_t *cpu, uint32_t exc_return)
     }
 #endif
 
-    cpu_update_execution_priority(cpu);
+    update_execution_priority(cpu);
 
-    arm_exception pending = cpu_exception_get_pending(cpu);
+    arm_exception pending = exception_get_pending(cpu);
     if (pending != 0)
     {
-        cpu_exception_entry(cpu, pending, false);
+        exception_entry(cpu, pending, false);
     }
 }
 
@@ -979,7 +979,7 @@ void cpu_set_branch_cb(cpu_t *cpu, branch_cb_t branch_cb, void *userdata)
     cpu->branch_cb_userdata = userdata;
 }
 
-static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_extend)
+static void do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_extend)
 {
     assert(detail->op_count == 2 || detail->op_count == 3);
     assert(detail->operands[0].type == ARM_OP_REG);
@@ -1060,7 +1060,7 @@ static void cpu_do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_
     }
 }
 
-static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
+static void do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
 {
     uint32_t base, offset_addr;
     bool is_long;
@@ -1127,7 +1127,7 @@ static void cpu_do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual
         cpu_reg_write(cpu, mem_op->mem.base, offset_addr);
 }
 
-static void cpu_add_arm_memregs(cpu_t *cpu, size_t priority_bits)
+static void add_arm_memregs(cpu_t *cpu, size_t priority_bits)
 {
     memreg_t *first = memreg_find_last(cpu->mem);
     memreg_t *last = first;
@@ -1139,7 +1139,7 @@ static void cpu_add_arm_memregs(cpu_t *cpu, size_t priority_bits)
     NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF, cpu, priority_bits);
 }
 
-static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op *reg_operands, uint8_t reg_count)
+static void do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op *reg_operands, uint8_t reg_count)
 {
     uint32_t address = cpu_reg_read(cpu, base_reg) - 4 * reg_count;
 
@@ -1156,7 +1156,7 @@ static void cpu_do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op
     }
 }
 
-static inline void cpu_decode_arithmetic(cpu_t *cpu, cs_insn *i, uint32_t *op0_val, uint32_t *op1_val, bool *carry)
+static inline void decode_arithmetic(cpu_t *cpu, cs_insn *i, uint32_t *op0_val, uint32_t *op1_val, bool *carry)
 {
     cs_arm *detail = &i->detail->arm;
 
@@ -1181,7 +1181,7 @@ static inline void cpu_decode_arithmetic(cpu_t *cpu, cs_insn *i, uint32_t *op0_v
     {
         // (register)
         assert(op2->type == ARM_OP_REG);
-        *op1_val = cpu_load_operand(cpu, op2, carry);
+        *op1_val = load_operand(cpu, op2, carry);
     }
 }
 
@@ -1194,7 +1194,7 @@ cpu_t *cpu_new(const uint8_t *program, size_t program_size, memreg_t *mem, size_
     cpu->mem = mem;
     cpu->exception_count = 16 + max_external_interrupts;
 
-    cpu_add_arm_memregs(cpu, priority_bits);
+    add_arm_memregs(cpu, priority_bits);
 
     if (cs_open(CS_ARCH_ARM, CS_MODE_THUMB + CS_MODE_MCLASS, &cpu->cs) != CS_ERR_OK)
     {
@@ -1279,13 +1279,13 @@ void cpu_reset(cpu_t *cpu)
     cpu->exceptions[ARM_EXC_SYSTICK].enabled = true;
     cpu->exceptions[ARM_EXC_SYSTICK].fixed_enabled = true;
 
-    cpu_update_execution_priority(cpu);
+    update_execution_priority(cpu);
 
     cpu_jump_exception(cpu, ARM_EXC_RESET);
 
     if (cpu->runlog)
     {
-        runlog_record_reset(cpu->runlog, cpu_get_runlog_regs(cpu));
+        runlog_record_reset(cpu->runlog, get_runlog_regs(cpu));
     }
 }
 
@@ -1349,9 +1349,9 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_IT:
         break;
     default:
-        if (!cpu_condition_passed(cpu, i))
+        if (!condition_passed(cpu, i))
         {
-            cpu_it_advance(cpu);
+            it_advance(cpu);
             return;
         }
 
@@ -1379,7 +1379,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         carry = cpu->xpsr.apsr_c;
         value = AddWithCarry(op0, op1, &carry, &overflow);
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZCV;
         break;
@@ -1508,7 +1508,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_BIC:
-        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
+        decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 & ~op1;
         cpu_reg_write(cpu, detail->operands[0].reg, value);
@@ -1572,7 +1572,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_CPS:
-        if (cpu_is_privileged(cpu))
+        if (is_privileged(cpu))
         {
             if (detail->cps_mode == ARM_CPSMODE_IE)
             {
@@ -1590,7 +1590,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
                     SET(cpu->faultmask, 0);
             }
 
-            cpu_update_execution_priority(cpu);
+            update_execution_priority(cpu);
         }
         break;
 
@@ -1605,7 +1605,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_EOR:
-        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
+        decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 ^ op1;
         cpu_reg_write(cpu, detail->operands[0].reg, value);
@@ -1692,31 +1692,31 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_LDR:
     case ARM_INS_LDREX:
-        cpu_do_load(cpu, detail, SIZE_WORD, false);
+        do_load(cpu, detail, SIZE_WORD, false);
         break;
 
     case ARM_INS_LDRB:
     case ARM_INS_LDREXB:
-        cpu_do_load(cpu, detail, SIZE_BYTE, false);
+        do_load(cpu, detail, SIZE_BYTE, false);
         break;
 
     case ARM_INS_LDRSB:
-        cpu_do_load(cpu, detail, SIZE_BYTE, true);
+        do_load(cpu, detail, SIZE_BYTE, true);
         break;
 
     case ARM_INS_LDRD:
-        value = cpu_mem_operand_address(cpu, &detail->operands[2]);
+        value = mem_operand_address(cpu, &detail->operands[2]);
 
-        cpu_store_operand(cpu, &detail->operands[0], memreg_read(cpu->mem, value), SIZE_WORD);
-        cpu_store_operand(cpu, &detail->operands[1], memreg_read(cpu->mem, value + 4), SIZE_WORD);
+        store_operand(cpu, &detail->operands[0], memreg_read(cpu->mem, value), SIZE_WORD);
+        store_operand(cpu, &detail->operands[1], memreg_read(cpu->mem, value + 4), SIZE_WORD);
         break;
 
     case ARM_INS_LDRH:
-        cpu_do_load(cpu, detail, SIZE_HALFWORD, false);
+        do_load(cpu, detail, SIZE_HALFWORD, false);
         break;
 
     case ARM_INS_LDRSH:
-        cpu_do_load(cpu, detail, SIZE_HALFWORD, true);
+        do_load(cpu, detail, SIZE_HALFWORD, true);
         break;
 
     case ARM_INS_LSL:
@@ -1726,7 +1726,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         carry = cpu->xpsr.apsr_c;
         value = Shift_C(op0, ARM_SFT_LSL, op1, &carry);
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
         break;
@@ -1738,7 +1738,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         carry = cpu->xpsr.apsr_c;
         value = Shift_C(op0, ARM_SFT_LSR, op1 & 0xFF, &carry);
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZC;
         break;
@@ -1826,7 +1826,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ORN:
-        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
+        decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 | ~op1;
 
@@ -1836,7 +1836,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ORR:
-        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
+        decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 | op1;
 
@@ -1872,14 +1872,14 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         {
             value = memreg_read(cpu->mem, op0);
 
-            cpu_store_operand(cpu, &detail->operands[n], value, SIZE_WORD);
+            store_operand(cpu, &detail->operands[n], value, SIZE_WORD);
 
             op0 += 4;
         }
         break;
 
     case ARM_INS_PUSH:
-        cpu_do_stmdb(cpu, ARM_REG_SP, true, &detail->operands[0], detail->op_count);
+        do_stmdb(cpu, ARM_REG_SP, true, &detail->operands[0], detail->op_count);
         break;
 
     case ARM_INS_RBIT:
@@ -2043,7 +2043,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_SBC:
-        cpu_decode_arithmetic(cpu, i, &op0, &op1, &carry);
+        decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         if (i->size == 4)
         {
@@ -2072,7 +2072,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         value = (op1 >> lsb) & ((1 << width) - 1);
         value = (value ^ mask) - mask; // Sign extend https://stackoverflow.com/a/17719010
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
         break;
     }
 
@@ -2222,15 +2222,15 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_STR:
-        cpu_do_store(cpu, detail, SIZE_WORD, false);
+        do_store(cpu, detail, SIZE_WORD, false);
         break;
 
     case ARM_INS_STRB:
-        cpu_do_store(cpu, detail, SIZE_BYTE, false);
+        do_store(cpu, detail, SIZE_BYTE, false);
         break;
 
     case ARM_INS_STRD:
-        cpu_do_store(cpu, detail, SIZE_WORD, true);
+        do_store(cpu, detail, SIZE_WORD, true);
         break;
 
     case ARM_INS_STREX:
@@ -2241,7 +2241,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[1].type == ARM_OP_REG);
         assert(detail->operands[2].type == ARM_OP_MEM);
 
-        op0 = cpu_mem_operand_address(cpu, &detail->operands[2]);
+        op0 = mem_operand_address(cpu, &detail->operands[2]);
 
         cpu_reg_write(cpu, detail->operands[0].reg, 0);
         memreg_write(cpu->mem, op0, cpu_reg_read(cpu, detail->operands[1].reg),
@@ -2250,11 +2250,11 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_STRH:
-        cpu_do_store(cpu, detail, SIZE_HALFWORD, false);
+        do_store(cpu, detail, SIZE_HALFWORD, false);
         break;
 
     case ARM_INS_STMDB:
-        cpu_do_stmdb(cpu, detail->operands[0].reg, detail->writeback, &detail->operands[1], detail->op_count - 1);
+        do_stmdb(cpu, detail->operands[0].reg, detail->writeback, &detail->operands[1], detail->op_count - 1);
         break;
 
     case ARM_INS_SUB:
@@ -2264,7 +2264,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         carry = true;
         value = AddWithCarry(op0, ~op1, &carry, &overflow);
 
-        cpu_store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
+        store_operand(cpu, &detail->operands[0], value, SIZE_WORD);
 
         UPDATE_NZCV
         break;
@@ -2320,7 +2320,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->op_count == 1);
         assert(detail->operands[0].type == ARM_OP_MEM);
 
-        op0 = cpu_mem_operand_address(cpu, &detail->operands[0]);
+        op0 = mem_operand_address(cpu, &detail->operands[0]);
         value = memreg_read(cpu->mem, op0) & (i->id == ARM_INS_TBB ? 0xFF : 0xFFFF);
 
         cpu_reg_write(cpu, ARM_REG_PC, (cpu_reg_read(cpu, ARM_REG_PC) + value * 2) | 1);
@@ -2451,7 +2451,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_VADD:
     {
         assert(detail->op_count == 2 || detail->op_count == 3);
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         if (IS_DOUBLE(detail->operands[0]))
         {
@@ -2471,7 +2471,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_VCVT:
         assert(detail->op_count == 2);
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         switch (detail->vector_data)
         {
@@ -2555,7 +2555,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_VDIV:
     {
         assert(detail->op_count == 3);
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         if (IS_DOUBLE(detail->operands[0]))
         {
@@ -2577,7 +2577,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_VFMS:
     {
         assert(detail->op_count == 3);
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         if (IS_DOUBLE(detail->operands[0]))
         {
@@ -2619,7 +2619,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             list_start = 1;
         }
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         uint8_t reg_count = detail->op_count - list_start;
 
@@ -2660,7 +2660,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_MEM);
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         uint32_t base = cpu_reg_read(cpu, detail->operands[1].mem.base);
         if (detail->operands[1].mem.base == ARM_REG_PC)
@@ -2689,7 +2689,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         cpu_reg_write(cpu, detail->operands[0].reg, cpu_reg_read(cpu, detail->operands[1].reg));
         break;
@@ -2700,7 +2700,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[1].type == ARM_OP_REG);
         assert(detail->operands[1].reg == ARM_REG_FPSCR);
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         cpu_reg_write(cpu, detail->operands[0].reg, scb_fp_get_fpscr(cpu->scb_fp));
         break;
@@ -2711,7 +2711,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].reg == ARM_REG_FPSCR);
         assert(detail->operands[1].type == ARM_OP_REG);
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         scb_fp_set_fpscr(cpu->scb_fp, cpu_reg_read(cpu, detail->operands[1].reg));
         break;
@@ -2720,7 +2720,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     {
         assert(detail->op_count == 2 || detail->op_count == 3);
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         bool is_dp = IS_DOUBLE(detail->operands[0]);
 
@@ -2747,7 +2747,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[1].type == ARM_OP_REG);
         assert(detail->vector_data == ARM_VECTORDATA_F32); // TODO: Support F64
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         float32_t v1 = FLOAT32_I(OPERAND_REG(detail->op_count == 3 ? 1 : 0));
         float32_t v2 = FLOAT32_I(OPERAND_REG(detail->op_count - 1));
@@ -2783,7 +2783,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             add = i->id == ARM_INS_VSTMIA;
         }
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         uint8_t reg_count = detail->op_count - list_start;
 
@@ -2824,7 +2824,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         float32_t val = FLOAT32_I(OPERAND_REG(1));
         float32_t result = FLOAT32_F(sqrtf(val.f));
@@ -2839,7 +2839,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_MEM);
 
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         uint32_t base = cpu_reg_read(cpu, detail->operands[1].mem.base);
         uint32_t address = detail->operands[1].subtracted ? base - detail->operands[1].mem.disp : base + detail->operands[1].mem.disp;
@@ -2861,7 +2861,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_VSUB:
     {
         assert(detail->op_count == 2 || detail->op_count == 3);
-        cpu_execute_fp_check(cpu);
+        execute_fp_check(cpu);
 
         if (IS_DOUBLE(detail->operands[0]))
         {
@@ -2885,7 +2885,7 @@ void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     if (cpu->must_advance_it)
-        cpu_it_advance(cpu);
+        it_advance(cpu);
 }
 
 void cpu_step(cpu_t *cpu)
@@ -2916,11 +2916,11 @@ void cpu_step(cpu_t *cpu)
     cpu_execute_instruction(cpu, i, next);
 
     if (cpu->runlog)
-        runlog_record_execute(cpu->runlog, cpu_get_runlog_regs(cpu));
+        runlog_record_execute(cpu->runlog, get_runlog_regs(cpu));
 
-    pending = cpu_exception_get_pending(cpu);
+    pending = exception_get_pending(cpu);
     if (pending != 0)
-        cpu_exception_entry(cpu, pending, false);
+        exception_entry(cpu, pending, false);
 
     if (!cpu->branched)
     {
@@ -2990,7 +2990,7 @@ void cpu_reg_write(cpu_t *cpu, arm_reg reg, uint32_t value)
         if (cpu->mode == ARM_MODE_HANDLER && (value & x(F000, 0000)) != 0)
         {
             // TODO: Only do this on certain instructions
-            cpu_exception_return(cpu, value & x(0FFF, FFFF));
+            exception_return(cpu, value & x(0FFF, FFFF));
             break;
         }
 
@@ -3113,17 +3113,17 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
 
     case ARM_SYSREG_FAULTMASK:
         cpu->faultmask = value;
-        cpu_update_execution_priority(cpu);
+        update_execution_priority(cpu);
         break;
 
     case ARM_SYSREG_BASEPRI:
         cpu->basepri = value;
-        cpu_update_execution_priority(cpu);
+        update_execution_priority(cpu);
         break;
 
     case ARM_SYSREG_PRIMASK:
         cpu->primask = value;
-        cpu_update_execution_priority(cpu);
+        update_execution_priority(cpu);
         break;
 
     default:
@@ -3161,7 +3161,7 @@ void cpu_jump_exception(cpu_t *cpu, arm_exception ex)
     uint32_t vector_addr = vtor + ex * 4;
 
     if (vector_addr >= cpu->program_size)
-        cpu_enter_lockup(cpu);
+        enter_lockup(cpu);
     else
         cpu_reg_write(cpu, ARM_REG_PC, READ_UINT32(cpu->program, vector_addr));
 }
@@ -3177,7 +3177,7 @@ void cpu_set_exception_priority(cpu_t *cpu, arm_exception ex, int16_t priority)
         fault_take(FAULT_CPU_FIXED_EXCEPTION);
 
     cpu->exceptions[ex].priority = priority;
-    cpu->execution_priority = cpu_calculate_execution_priority(cpu);
+    cpu->execution_priority = calculate_execution_priority(cpu);
 }
 
 bool cpu_is_sleeping(cpu_t *cpu)
