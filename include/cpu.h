@@ -11,6 +11,7 @@
 typedef struct cpu_inst_t cpu_t;
 
 typedef void (*branch_cb_t)(cpu_t *cpu, uint32_t old_pc, uint32_t new_pc, void *userdata);
+typedef void (*mem_watchpoint_cb_t)(cpu_t *cpu, bool isWrite, uint32_t addr, size_t size, uint32_t value_old, uint32_t value_new, void *userdata);
 
 cpu_t *cpu_new(const uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts, size_t priority_bits);
 void cpu_free(cpu_t *cpu);
@@ -18,8 +19,9 @@ void cpu_reset(cpu_t *cpu);
 void cpu_step(cpu_t *cpu);
 
 void cpu_set_runlog(cpu_t *cpu, runlog_t *runlog);
-
 void cpu_set_branch_cb(cpu_t *cpu, branch_cb_t cb, void *userdata);
+void cpu_set_memory_watchpoint(cpu_t *cpu, uint32_t addr, bool read, bool write, mem_watchpoint_cb_t cb, void *userdata);
+void cpu_clear_memory_watchpoint(cpu_t *cpu);
 
 memreg_t *cpu_mem(cpu_t *cpu);
 bool cpu_mem_read(cpu_t *cpu, uint32_t addr, uint8_t *value);

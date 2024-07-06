@@ -85,6 +85,7 @@ void memreg_reset(memreg_t *);
 void memreg_reset_all(memreg_t *);
 
 bool memreg_is_mapped(memreg_t *, uint32_t addr);
+void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32_t *value);
 uint32_t memreg_read(memreg_t *, uint32_t addr);
 uint8_t memreg_read_byte(memreg_t *, uint32_t addr);
 uint16_t memreg_read_halfword(memreg_t *, uint32_t addr);

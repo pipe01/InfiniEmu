@@ -63,13 +63,9 @@ const char target_xml[] = QUOTE(
 const char memory_map_xml[] = QUOTE(
     <?xml version="1.0"?>
     <memory-map>
-        <memory type="flash" start="0x0" length="0x80000">
-            <property name="blocksize">0x1000</property>
-        </memory>
-        <memory type="flash" start="0x10001000" length="0x400">
-            <property name="blocksize">0x400</property>
-        </memory>
-        <memory type="ram" start="0x20000000" length="0x20000" />
+        <memory type="flash" start="0x0" length="0x800000" />
+        <memory type="flash" start="0x10001000" length="0x400" />
+        <memory type="ram" start="0x20000000" length="0x20000000" />
         <memory type="ram" start="0xe0000000" length="0x40000" />
     </memory-map>
 );
@@ -224,6 +220,26 @@ void parse_hex(const char *str, size_t str_len, uint8_t *data)
 
         data[i / 2] = strtol(byte_str, NULL, 16);
     }
+}
+
+uint32_t parse_uint32(const char *str)
+{
+    if (strlen(str) > 2 && str[0] == '0' && str[1] == 'x')
+        return strtol(str + 2, NULL, 16);
+    else
+        return strtol(str, NULL, 10);
+}
+
+void mem_watchpoint_cb(cpu_t *cpu, bool isWrite, uint32_t addr, size_t size, uint32_t value_old, uint32_t value_new, void *userdata)
+{
+    gdb_t *gdb = userdata;
+
+    if (isWrite)
+        printf("Hit memory write watchpoint at 0x%08x: old value 0x%08X, new value 0x%08X\n", addr, value_old, value_new);
+    else
+        printf("Hit memory read watchpoint at 0x%08x: value 0x%08X\n", addr, value_new);
+
+    gdb->want_break = true;
 }
 
 void gdb_send_signal(gdbstub *gdb, int signal)
@@ -436,6 +452,16 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
             const char *resp = "Invalid pin number\n";
             send_response_bytes(gdb->fd, (uint8_t *)resp, strlen(resp));
         }
+    }
+    else if (strncmp(command, "brmemw ", 7) == 0)
+    {
+        const char *arg = command + 7;
+
+        uint32_t addr = parse_uint32(arg);
+
+        cpu_set_memory_watchpoint(nrf52832_get_cpu(gdb->gdb->nrf), addr, false, true, mem_watchpoint_cb, gdb->gdb);
+
+        send_response_str(gdb->fd, "OK");
     }
     else
     {

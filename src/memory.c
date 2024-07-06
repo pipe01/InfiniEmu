@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define MAX_BREAKPOINTS 5
+
 struct memreg_inst_t
 {
     memreg_t *next;
@@ -18,6 +20,9 @@ struct memreg_inst_t
 
     uint32_t start, end;
     memreg_operation_t operation;
+
+    uint32_t breakpoints[MAX_BREAKPOINTS];
+    size_t breakpoint_count;
 };
 
 static memreg_op_result_t simple_operation(uint32_t base, uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)
@@ -110,7 +115,7 @@ memreg_t *memreg_new_simple_copy(uint32_t start, const uint8_t *data, size_t dat
 
 memreg_t *memreg_new_operation(uint32_t start, size_t size, memreg_operation_t operation, void *data)
 {
-    memreg_t *region = malloc(sizeof(memreg_t));
+    memreg_t *region = calloc(1, sizeof(memreg_t));
 
     region->userdata = data;
     region->free_userdata = false;
