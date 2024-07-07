@@ -93,3 +93,5 @@ void *nrf52832_get_peripheral(NRF52832_t *, uint8_t instance_id);
 
 size_t nrf52832_get_used_sram(NRF52832_t *);
 size_t nrf52832_get_sram_size(NRF52832_t *);
+
+bool nrf52832_flash_write(NRF52832_t *, uint32_t addr, uint8_t value);

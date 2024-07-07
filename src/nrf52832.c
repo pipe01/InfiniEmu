@@ -39,7 +39,9 @@
 struct NRF52832_inst_t
 {
     cpu_t *cpu;
+
     uint8_t *flash;
+    size_t flash_size;
 
     uint8_t *sram;
     size_t sram_size;
@@ -96,9 +98,9 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
     chip->ticker = ticker_new();
     chip->dma = dma_new(ARM_SRAM_START, sram, sram_size);
 
-    size_t size = program_size(flash);
-    chip->flash = malloc(size);
-    program_write_to(flash, chip->flash, size);
+    chip->flash_size = program_size(flash);
+    chip->flash = malloc(chip->flash_size);
+    program_write_to(flash, chip->flash, chip->flash_size);
 
     chip->mem = memreg_new_simple(x(2000, 0000), sram, sram_size);
     memreg_t *last = chip->mem;
@@ -232,4 +234,15 @@ size_t nrf52832_get_used_sram(NRF52832_t *nrf)
 size_t nrf52832_get_sram_size(NRF52832_t *nrf)
 {
     return nrf->sram_size;
+}
+
+bool nrf52832_flash_write(NRF52832_t *nrf, uint32_t addr, uint8_t value)
+{
+    if (addr < nrf->flash_size)
+    {
+        nrf->flash[addr] = value;
+        return true;
+    }
+
+    return false;
 }

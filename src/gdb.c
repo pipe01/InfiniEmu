@@ -639,6 +639,12 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
 
     uint8_t buf[length];
 
+    if (!memreg_is_mapped(cpu_mem(cpu), start))
+    {
+        send_response_str(gdb->fd, "E01");
+        return msg;
+    }
+
     if (length == 4)
     {
         uint32_t value = memreg_read(cpu_mem(cpu), start);
@@ -696,7 +702,17 @@ char *gdb_queryWriteMemory(gdbstub *gdb, char *msg)
 
     for (size_t i = 0; i < length; i++)
     {
-        cpu_mem_write(cpu, start + i, data[i]);
+        size_t addr = start + i;
+
+        if (addr < 0x800000)
+        {
+            nrf52832_flash_write(nrf, addr, data[i]);
+            cpu_clear_instruction_cache(cpu);
+        }
+        else
+        {
+            cpu_mem_write(cpu, start + i, data[i]);
+        }
     }
 
     send_response_str(gdb->fd, "OK");
@@ -712,7 +728,7 @@ char *gdb_breakpoint(gdbstub *gdb, char *msg)
     char kind = msg[0];
     msg++;
 
-    if (kind != '1')
+    if (kind != '0' && kind != '1')
         return NULL;
 
     msg++; // Skip comma

@@ -56,8 +56,13 @@ OPERATION(nvmc)
         {
             OP_ASSERT_SIZE(op, WORD);
 
-            assert(nvmc->config.wen);
-            nvmc->data[offset] &= *value;
+            if (!nvmc->config.wen)
+                return MEMREG_RESULT_INVALID_ACCESS;
+
+            nvmc->data[offset] &= *value & 0xFF;
+            nvmc->data[offset + 1] &= (*value >> 8) & 0xFF;
+            nvmc->data[offset + 2] &= (*value >> 16) & 0xFF;
+            nvmc->data[offset + 3] &= (*value >> 24) & 0xFF;
         }
 
         return MEMREG_RESULT_OK;

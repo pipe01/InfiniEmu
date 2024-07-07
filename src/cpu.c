@@ -1385,7 +1385,7 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
     return cpu->last_external_inst;
 }
 
-void cpu_execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
+static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 {
     uint32_t op0, op1, value, address;
     cs_arm *detail = &i->detail->arm;
@@ -2966,7 +2966,7 @@ void cpu_step(cpu_t *cpu)
 
     cpu->branched = false;
 
-    cpu_execute_instruction(cpu, i, next);
+    execute_instruction(cpu, i, next);
 
     if (cpu->runlog)
         runlog_record_execute(cpu->runlog, get_runlog_regs(cpu));
@@ -3251,4 +3251,9 @@ void cpu_clear_memory_watchpoint(cpu_t *cpu)
 {
     cpu->memory_watchpoint.read = false;
     cpu->memory_watchpoint.write = false;
+}
+
+void cpu_clear_instruction_cache(cpu_t *cpu)
+{
+    memset(cpu->inst_by_pc, 0, (cpu->program_size / 2) * sizeof(cs_insn *));
 }
