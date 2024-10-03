@@ -1,14 +1,22 @@
 #include "fault.h"
 #include "gdb.h"
 #include "pinetime.h"
+#include "segger_rtt.h"
 #include "scheduler.h"
+
+#include <stdio.h>
 
 unsigned long inst_counter = 0;
 bool stop_loop = false;
 
+bool found_rtt = false;
+
+static char rtt_buffer[1024];
+static int rtt_read;
+
 extern void branch_callback(cpu_t *cpu, unsigned int old_pc, unsigned int new_pc, void *userdata);
 
-static void loop(pinetime_t *pt)
+static void loop(pinetime_t *pt, rtt_t *rtt)
 {
 	stop_loop = false;
 
@@ -16,6 +24,22 @@ static void loop(pinetime_t *pt)
 	{
 		pinetime_step(pt);
 		inst_counter++;
+
+		if (rtt && (found_rtt || inst_counter < 1000000))
+		{
+			if (inst_counter % 1000 == 0)
+			{
+				if (!found_rtt)
+					found_rtt = rtt_find_control(rtt);
+
+				rtt_read = rtt_flush_buffers(rtt, rtt_buffer, sizeof(rtt_buffer));
+				if (rtt_read > 0)
+				{
+					fwrite(rtt_buffer, 1, rtt_read, stdout);
+					fflush(stdout);
+				}
+			}
+		}
 	}
 }
 
@@ -24,7 +48,7 @@ scheduler_t *create_sched(pinetime_t *pt, size_t freq)
 	return scheduler_new((scheduler_cb_t)pinetime_step, pt, freq);
 }
 
-int run(int type, void *arg)
+int run(int type, void *arg, rtt_t *rtt)
 {
 	jmp_buf fault_jmp;
 
@@ -43,7 +67,7 @@ int run(int type, void *arg)
 		switch (type)
 		{
 		case 0:
-			loop((pinetime_t *)arg);
+			loop((pinetime_t *)arg, rtt);
 			break;
 
 		case 1:

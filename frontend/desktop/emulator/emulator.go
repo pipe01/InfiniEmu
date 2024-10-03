@@ -1,7 +1,7 @@
-package main
+package emulator
 
 /*
-#cgo CFLAGS: -I../../include -I../../lib/capstone/include
+#cgo CFLAGS: -I../../../include -I../../lib/capstone/include
 #cgo LDFLAGS: libinfiniemu.a
 
 #include <setjmp.h>
@@ -9,13 +9,14 @@ package main
 #include "gdb.h"
 #include "fault.h"
 #include "pinetime.h"
+#include "segger_rtt.h"
 #include "scheduler.h"
 
 extern unsigned long inst_counter;
 extern bool stop_loop;
 
 scheduler_t *create_sched(pinetime_t *pt, size_t freq);
-int run(int type, void *arg);
+int run(int type, void *arg, rtt_t *rtt);
 void set_cpu_branch_cb(cpu_t *cpu, void *userdata);
 */
 import "C"
@@ -33,9 +34,9 @@ import (
 )
 
 const (
-	displayWidth         = C.PINETIME_LCD_WIDTH
-	displayHeight        = C.PINETIME_LCD_HEIGHT
-	displayBytesPerPixel = C.BYTES_PER_PIXEL
+	DisplayWidth         = C.PINETIME_LCD_WIDTH
+	DisplayHeight        = C.PINETIME_LCD_HEIGHT
+	DisplayBytesPerPixel = C.BYTES_PER_PIXEL
 )
 
 const (
@@ -195,7 +196,7 @@ func (h *HeapTracker) GetAll() []HeapAllocation {
 //export branch_callback
 func branch_callback(cpu *C.cpu_t, old_pc, new_pc C.uint, userdata unsafe.Pointer) {
 	emulator := emulators[*(*uint64)(userdata)]
-	heap := emulator.heap
+	heap := emulator.Heap
 
 	if new_pc == C.uint(emulator.mallocPC) {
 		heap.pendingMallocReturnPC = uint32(C.cpu_reg_read(cpu, C.ARM_REG_LR)) &^ 1
@@ -254,6 +255,7 @@ type Emulator struct {
 	extflash    *C.spinorflash_t
 	pins        *C.pins_t
 	rtcs        []*C.RTC_t
+	rtt         *C.rtt_t
 
 	extflashContents   []byte
 	extflashWriteCount uint64
@@ -272,7 +274,7 @@ type Emulator struct {
 	longPinner runtime.Pinner
 
 	mallocPC, freePC uint32
-	heap             *HeapTracker
+	Heap             *HeapTracker
 
 	runlog *C.runlog_t
 }
@@ -318,8 +320,8 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 	C.spinorflash_set_buffer(extflash, (*C.uchar)(&extflashContents[0]))
 
 	// Active low pins with pull ups
-	C.pins_set(pins, pinCharging)
-	C.pins_set(pins, pinPowerPresent)
+	C.pins_set(pins, PinCharging)
+	C.pins_set(pins, PinPowerPresent)
 
 	rtcs := []*C.RTC_t{
 		(*C.RTC_t)(C.nrf52832_get_peripheral(nrf52, C.INSTANCE_RTC0)),
@@ -340,7 +342,7 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 		id:      id,
 		program: program,
 		pt:      pt,
-		sched:   C.create_sched(pt, baseFrequencyHZ),
+		sched:   C.create_sched(pt, BaseFrequencyHZ),
 
 		initialSP: binary.LittleEndian.Uint32(flash),
 
@@ -350,6 +352,7 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 		lcd:         C.pinetime_get_st7789(pt),
 		touchScreen: C.pinetime_get_cst816s(pt),
 		hrs:         C.pinetime_get_hrs3300(pt),
+		rtt:         C.rtt_new(C.cpu_mem(cpu)),
 		extflash:    extflash,
 		pins:        pins,
 		rtcs:        rtcs,
@@ -372,7 +375,7 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 		emulator.freePC = pc
 	}
 	if sym, ok := program.Symbols["ucHeap"]; ok {
-		emulator.heap = newHeapTracker(sym.Start, int(sym.Length))
+		emulator.Heap = newHeapTracker(sym.Start, int(sym.Length))
 	}
 
 	return &emulator
@@ -435,14 +438,14 @@ func (e *Emulator) Start(mode RunMode) {
 
 		switch mode {
 		case RunModeLoop:
-			fault = int(C.run(0, unsafe.Pointer(e.pt)))
+			fault = int(C.run(0, unsafe.Pointer(e.pt), e.rtt))
 
 		case RunModeScheduled:
-			fault = int(C.run(1, unsafe.Pointer(e.sched)))
+			fault = int(C.run(1, unsafe.Pointer(e.sched), nil))
 
 		case RunModeGDB:
 			gdb := C.gdb_new(e.pt, true)
-			fault = int(C.run(2, unsafe.Pointer(gdb)))
+			fault = int(C.run(2, unsafe.Pointer(gdb), nil))
 		}
 
 		pc := C.cpu_reg_read(e.cpu, C.ARM_REG_PC) - 4
@@ -487,7 +490,7 @@ func (e *Emulator) RTCTrackers() []*RTCTracker {
 }
 
 func (e *Emulator) EnableHeapTracker() {
-	if e.heap != nil {
+	if e.Heap != nil {
 		C.set_cpu_branch_cb(e.cpu, unsafe.Pointer(&e.id))
 	}
 }
@@ -501,9 +504,9 @@ func (e *Emulator) SetFrequency(hz uint) {
 }
 
 func (e *Emulator) Brightness() Brightness {
-	lcdLow := bool(C.pins_is_set(e.pins, pinLcdBacklightLow))
-	lcdMedium := bool(C.pins_is_set(e.pins, pinLcdBacklightMedium))
-	lcdHigh := bool(C.pins_is_set(e.pins, pinLcdBacklightHigh))
+	lcdLow := bool(C.pins_is_set(e.pins, PinLcdBacklightLow))
+	lcdMedium := bool(C.pins_is_set(e.pins, PinLcdBacklightMedium))
+	lcdHigh := bool(C.pins_is_set(e.pins, PinLcdBacklightHigh))
 
 	if !lcdLow && lcdMedium && lcdHigh {
 		return BrightnessLow
@@ -587,7 +590,7 @@ func (e *Emulator) IsDisplaySleeping() bool {
 }
 
 func (e *Emulator) ReadDisplayBuffer(p []byte) {
-	if len(p) != displayWidth*displayHeight*displayBytesPerPixel {
+	if len(p) != DisplayWidth*DisplayHeight*DisplayBytesPerPixel {
 		panic("invalid buffer size")
 	}
 
@@ -596,7 +599,7 @@ func (e *Emulator) ReadDisplayBuffer(p []byte) {
 
 	pinner.Pin(&p[0])
 
-	C.st7789_read_screen(e.lcd, (*C.uchar)(&p[0]), displayWidth, displayHeight)
+	C.st7789_read_screen(e.lcd, (*C.uchar)(&p[0]), DisplayWidth, DisplayHeight)
 }
 
 func (e *Emulator) SetHeartrateValue(val uint32) {
