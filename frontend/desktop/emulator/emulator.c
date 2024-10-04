@@ -1,5 +1,6 @@
 #include "fault.h"
 #include "gdb.h"
+#include "ie_time.h"
 #include "pinetime.h"
 #include "segger_rtt.h"
 #include "scheduler.h"
@@ -16,31 +17,70 @@ static int rtt_read;
 
 extern void branch_callback(cpu_t *cpu, unsigned int old_pc, unsigned int new_pc, void *userdata);
 
+static inline void loop_step(pinetime_t *pt, rtt_t *rtt)
+{
+	pinetime_step(pt);
+	inst_counter++;
+
+	if (rtt && (found_rtt || inst_counter < 1000000))
+	{
+		if (inst_counter % 1000 == 0)
+		{
+			if (!found_rtt)
+				found_rtt = rtt_find_control(rtt);
+
+			rtt_read = rtt_flush_buffers(rtt, rtt_buffer, sizeof(rtt_buffer));
+			if (rtt_read > 0)
+			{
+				fwrite(rtt_buffer, 1, rtt_read, stdout);
+				fflush(stdout);
+			}
+		}
+	}
+}
+
 static void loop(pinetime_t *pt, rtt_t *rtt)
 {
 	stop_loop = false;
 
 	while (!stop_loop)
 	{
-		pinetime_step(pt);
-		inst_counter++;
+		loop_step(pt, rtt);
+	}
+}
 
-		if (rtt && (found_rtt || inst_counter < 1000000))
+int run_iterations(pinetime_t *pt, rtt_t *rtt, unsigned long iterations, unsigned long iterations_per_us)
+{
+	unsigned long i;
+
+	jmp_buf fault_jmp;
+
+	int fault = setjmp(fault_jmp);
+
+	if (fault)
+	{
+		fault_clear_jmp();
+
+		return fault;
+	}
+	else
+	{
+		fault_set_jmp(&fault_jmp);
+
+		for (i = 0; i < iterations; i++)
 		{
-			if (inst_counter % 1000 == 0)
-			{
-				if (!found_rtt)
-					found_rtt = rtt_find_control(rtt);
+			loop_step(pt, rtt);
 
-				rtt_read = rtt_flush_buffers(rtt, rtt_buffer, sizeof(rtt_buffer));
-				if (rtt_read > 0)
-				{
-					fwrite(rtt_buffer, 1, rtt_read, stdout);
-					fflush(stdout);
-				}
+			if (iterations_per_us != 0 && (i % iterations_per_us) == 0)
+			{
+				time_increment_fake_microseconds(1);
 			}
 		}
 	}
+
+	fault_clear_jmp();
+
+	return 0;
 }
 
 scheduler_t *create_sched(pinetime_t *pt, size_t freq)

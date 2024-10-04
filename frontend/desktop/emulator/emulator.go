@@ -8,6 +8,7 @@ package emulator
 
 #include "gdb.h"
 #include "fault.h"
+#include "ie_time.h"
 #include "pinetime.h"
 #include "segger_rtt.h"
 #include "scheduler.h"
@@ -18,6 +19,7 @@ extern bool stop_loop;
 scheduler_t *create_sched(pinetime_t *pt, size_t freq);
 int run(int type, void *arg, rtt_t *rtt);
 void set_cpu_branch_cb(cpu_t *cpu, void *userdata);
+int run_iterations(pinetime_t *pt, rtt_t *rtt, unsigned long iterations, unsigned long iterations_per_us);
 */
 import "C"
 
@@ -25,6 +27,8 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"image"
+	"image/color"
 	"math/rand"
 	"runtime"
 	"sync"
@@ -456,6 +460,21 @@ func (e *Emulator) Start(mode RunMode) {
 	go e.perfLoop()
 }
 
+func (e *Emulator) RunIterations(iterations uint64, iterations_per_us uint64) int {
+	if !e.isRunning.CompareAndSwap(false, true) {
+		panic("emulator already running")
+	}
+	defer e.isRunning.Store(false)
+
+	C.time_use_real_time(false)
+
+	fault := int(C.run_iterations(e.pt, nil, C.ulong(iterations), C.ulong(iterations_per_us)))
+
+	C.time_use_real_time(true)
+
+	return fault
+}
+
 func (e *Emulator) Stop() {
 	if !e.isRunning.CompareAndSwap(true, false) {
 		return
@@ -702,4 +721,23 @@ func (e *Emulator) CloseRunlog() {
 	}
 
 	C.runlog_free(e.runlog)
+}
+
+func ConvertImage(raw []byte) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, DisplayWidth, DisplayHeight))
+
+	for x := 0; x < DisplayWidth; x++ {
+		for y := 0; y < DisplayHeight; y++ {
+			pixelIndex := (y*DisplayWidth + x) * 2
+			pixel16 := binary.BigEndian.Uint16(raw[pixelIndex:])
+
+			r := (pixel16 >> 11) & 0x1f
+			g := (pixel16 >> 5) & 0x3f
+			b := pixel16 & 0x1f
+
+			img.Set(x, y, color.RGBA{uint8((r*527 + 23) >> 6), uint8((g*259 + 33) >> 6), uint8((b*527 + 23) >> 6), 0xff})
+		}
+	}
+
+	return img
 }
