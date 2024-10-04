@@ -5,6 +5,7 @@ import (
 	"debug/elf"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/ianlancetaylor/demangle"
 )
@@ -342,4 +343,29 @@ func LoadBinary(r io.Reader) (*Program, error) {
 			},
 		},
 	}, nil
+}
+
+type ReadReaderAt interface {
+	io.ReaderAt
+	io.ReadSeeker
+}
+
+func LoadProgram(r ReadReaderAt) (*Program, error) {
+	var program *Program
+
+	program, err := LoadELF(r, true)
+	if err != nil {
+		if strings.Contains(err.Error(), "bad magic number") {
+			r.Seek(0, 0)
+
+			program, err = LoadBinary(r)
+			if err != nil {
+				return nil, fmt.Errorf("load binary file: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("load elf file: %w", err)
+		}
+	}
+
+	return program, nil
 }

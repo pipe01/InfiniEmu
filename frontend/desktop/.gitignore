@@ -1,6 +1,5 @@
 *.so
 __debug_bin*
 imgui.ini
-*.a
 spiflash.bin
 .vscode
