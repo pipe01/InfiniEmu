@@ -13,15 +13,11 @@ static inline uint64_t microseconds_now()
 
 #else
 
+#include <stdbool.h>
 #include <stddef.h>
-#include <sys/time.h>
 
-static inline uint64_t microseconds_now()
-{
-    static _Thread_local struct timeval tv;
-
-    gettimeofday(&tv, NULL);
-    return tv.tv_sec * 1e6 + tv.tv_usec;
-}
+uint64_t microseconds_now();
+void time_use_real_time(bool use);
+void time_increment_fake_microseconds(uint64_t inc);
 
 #endif

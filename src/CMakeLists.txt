@@ -16,6 +16,7 @@ set(SRC_FILES
     scheduler.c
     segger_rtt.c
     ticker.c
+    time.c
 
     demangle.cpp
 
