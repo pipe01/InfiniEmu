@@ -1099,18 +1099,12 @@ static void do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_exte
     }
 
     if (cpu->runlog)
-    {
         runlog_record_memory_load(cpu->runlog, offsetAddr, value, runlog_reg(detail->operands[0].reg), size);
-    }
-
-    cpu_reg_write(cpu, detail->operands[0].reg, value);
 
     if (detail->writeback)
-    {
-        address += offset;
+        cpu_reg_write(cpu, detail->operands[1].mem.base, address + offset);
 
-        cpu_reg_write(cpu, detail->operands[1].mem.base, address);
-    }
+    cpu_reg_write(cpu, detail->operands[0].reg, value);
 }
 
 static void do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
