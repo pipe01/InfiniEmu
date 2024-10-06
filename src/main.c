@@ -68,7 +68,11 @@ int main(int argc, char **argv)
     fseek(f, 0, SEEK_SET);
 
     uint8_t *program_data = malloc(fsize);
-    fread(program_data, fsize, 1, f);
+    if (fread(program_data, fsize, 1, f) != fsize)
+    {
+        fprintf(stderr, "Failed to read %s\n", program_path);
+        return -1;
+    }
     fclose(f);
 
     program_t *program = program_new(big_ram ? 0x800000 : NRF52832_FLASH_SIZE);
