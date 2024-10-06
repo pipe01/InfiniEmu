@@ -17,6 +17,8 @@ var ErrInvalidArguments = fmt.Errorf("invalid arguments")
 
 const iterationsPerMicrosecond = 64
 
+const maxScreenshots = 8
+
 func parseScriptInt(str string) (uint64, error) {
 	return strconv.ParseUint(strings.ReplaceAll(str, "_", ""), 10, 64)
 }
@@ -230,6 +232,10 @@ func Execute(e *emulator.Emulator, script []byte) ([]image.Image, error) {
 		args := strings.Fields(argsStr)
 
 		if cmd == "screenshot" {
+			if len(screenshots) >= maxScreenshots {
+				return nil, fmt.Errorf("too many screenshots")
+			}
+
 			e.ReadDisplayBuffer(screenBuffer)
 
 			screenshots = append(screenshots, emulator.ConvertImage(screenBuffer))
