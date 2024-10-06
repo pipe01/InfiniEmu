@@ -44,7 +44,8 @@ const (
 	RUNLOG_REG_MSP
 	RUNLOG_REG_PSP
 
-	RUNLOG_REG_MAX RunlogRegister = iota - 1
+	RUNLOG_REG_MAX     RunlogRegister = iota - 1
+	RUNLOG_REG_UNKNOWN RunlogRegister = 255
 )
 
 func (r RunlogRegister) String() string {
@@ -222,7 +223,7 @@ func ReadFrames(r io.Reader) (Frames, error) {
 			if _, ok := instCache[addr]; !ok {
 				ins, err := disasm.Disassemble(program[addr:], addr)
 				if err != nil {
-					return nil, fmt.Errorf("disassemble instruction: %v", err)
+					return nil, fmt.Errorf("disassemble instruction at 0x%x: %v", addr, err)
 				}
 
 				instCache[addr] = ins

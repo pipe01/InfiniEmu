@@ -92,13 +92,17 @@ func main() {
 			lastCommand = line
 		}
 
-		err = executeLine(line)
-		if err != nil {
-			if err == ErrExit {
-				break
-			}
+		parts := strings.Split(line, ";")
 
-			fmt.Println(err)
+		for _, part := range parts {
+			err = executeLine(part)
+			if err != nil {
+				if err == ErrExit {
+					break
+				}
+
+				fmt.Println(err)
+			}
 		}
 	}
 }

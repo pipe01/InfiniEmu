@@ -3,7 +3,9 @@ package main
 // #cgo LDFLAGS: -lcapstone
 // #include <capstone/capstone.h>
 import "C"
-import "fmt"
+import (
+	"fmt"
+)
 
 type Disassembler struct {
 	cs C.ulong
@@ -33,7 +35,9 @@ func (d *Disassembler) Disassemble(code []byte, addr uint32) (*Instruction, erro
 	var insn *C.cs_insn
 	count := C.cs_disasm(d.cs, (*C.uchar)(&code[0]), C.size_t(len(code)), C.uint64_t(addr), 1, &insn)
 	if count != 1 {
-		return nil, fmt.Errorf("failed to disassemble instruction")
+		err := C.cs_errno(d.cs)
+
+		return nil, fmt.Errorf("disassemble instruction: %d", err)
 	}
 	defer C.cs_free(insn, 1)
 

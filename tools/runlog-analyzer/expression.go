@@ -34,6 +34,10 @@ func ParseRegister(str string) (RunlogRegister, error) {
 	switch str {
 	case "sp":
 		return RUNLOG_REG_SP, nil
+	case "msp":
+		return RUNLOG_REG_MSP, nil
+	case "psp":
+		return RUNLOG_REG_PSP, nil
 	case "lr":
 		return RUNLOG_REG_LR, nil
 	case "pc":
@@ -117,7 +121,7 @@ func visitExpression(ctx *ExpressionContext, expr ast.Expr) uint32 {
 
 		reg, err := ParseRegister(expr.Name)
 		if err != nil {
-			panic(ExpressionError(fmt.Errorf("invalid register: %v", err)))
+			panic(ExpressionError(fmt.Errorf("parse register: %v", err)))
 		}
 
 		return ctx.Frames.Last().Registers[reg]
