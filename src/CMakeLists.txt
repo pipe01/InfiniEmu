@@ -57,6 +57,15 @@ set(SRC_FILES
     ../lib/littlefs/lfs_util.c
 )
 
+set(SRC_WASM_FILES
+    wasm.c
+)
+
+set(SRC_NATIVE_FILES
+    gdb.c
+    main.c
+)
+
 # Disable warnings for littlefs
 set_source_files_properties(../lib/littlefs/lfs.c PROPERTIES COMPILE_FLAGS "-w")
 
@@ -87,7 +96,7 @@ add_compile_definitions(_POSIX_C_SOURCE=200809L)
 set_source_files_properties(demangle.c PROPERTIES LANGUAGE CXX)
 
 if(EMSCRIPTEN)
-    list(APPEND SRC_FILES wasm.c)
+    list(APPEND SRC_FILES ${SRC_WASM_FILES})
     add_compile_definitions(WASM=1)
 
     add_executable(infiniemu-wasm ${SRC_FILES})
@@ -106,7 +115,9 @@ if(EMSCRIPTEN)
         -sEXPORT_ES6=1
     )
 else()
-    add_executable(infiniemu-cli ${SRC_FILES} main.c)
+    list(APPEND SRC_FILES ${SRC_NATIVE_FILES})
+
+    add_executable(infiniemu-cli ${SRC_FILES})
     add_library(infiniemu-lib STATIC ${SRC_FILES})
 
     target_link_libraries(infiniemu-cli PUBLIC ${LIBS})
