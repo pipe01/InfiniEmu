@@ -6,8 +6,10 @@
 #error This program only works on little endian systems
 #endif
 
-typedef union {
-    struct {
+typedef union
+{
+    struct
+    {
         uint8_t a : 8;
         uint8_t b : 8;
         uint8_t c : 8;
@@ -17,8 +19,10 @@ typedef union {
     uint32_t u32;
 } Register4;
 
-typedef union {
-    struct {
+typedef union
+{
+    struct
+    {
         uint16_t a : 16;
         uint16_t b : 16;
     };
@@ -26,17 +30,11 @@ typedef union {
     uint32_t u32;
 } Register2;
 
-#define READ_UINT16(arr, addr) (arr[(addr)] | (arr[(addr)+1] << 8))
-#define WRITE_UINT16(arr, addr, value) do { \
-    (arr)[(addr)] = (value) & 0xFF; \
-    (arr)[(addr)+1] = ((value) >> 8) & 0xFF; } while (0);
+#define READ_UINT16(arr, addr) (*((uint16_t *)((uint8_t *)(arr) + (addr))))
+#define WRITE_UINT16(arr, addr, value) (*(uint16_t *)((uint8_t *)(arr) + (addr)) = (value))
 
-#define READ_UINT32(arr, addr) (arr[(addr)] | (arr[(addr)+1] << 8) | (arr[(addr)+2] << 16) | (arr[(addr)+3] << 24))
-#define WRITE_UINT32(arr, addr, value) do { \
-    (arr)[(addr)] = (value) & 0xFF; \
-    (arr)[(addr)+1] = ((value) >> 8) & 0xFF; \
-    (arr)[(addr)+2] = ((value) >> 16) & 0xFF; \
-    (arr)[(addr)+3] = ((value) >> 24) & 0xFF; } while (0);
+#define READ_UINT32(arr, addr) (*((uint32_t *)((uint8_t *)(arr) + (addr))))
+#define WRITE_UINT32(arr, addr, value) (*(uint32_t *)((uint8_t *)(arr) + (addr)) = (value))
 
 #define x(high, low) 0x##high##low
 
