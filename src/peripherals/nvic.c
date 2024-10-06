@@ -22,19 +22,6 @@ struct NVIC_inst_t
     uint32_t priority_mask;
 };
 
-uint32_t get_pending_value(NVIC_t *nvic, uint32_t reg_index)
-{
-    uint32_t value = 0;
-
-    for (size_t i = 0; i < 32; i++)
-    {
-        if (cpu_exception_is_pending(nvic->cpu, ARM_EXTERNAL_INTERRUPT_NUMBER(i + (32 * reg_index))))
-            value |= 1 << i;
-    }
-
-    return value;
-}
-
 OPERATION(nvic)
 {
     NVIC_t *nvic = (NVIC_t *)userdata;
@@ -82,7 +69,7 @@ OPERATION(nvic)
 
         if (OP_IS_READ(op))
         {
-            *value = get_pending_value(nvic, reg_index);
+            *value = cpu_exception_get_pending_block(nvic->cpu, reg_index);
         }
         else
         {
@@ -104,7 +91,7 @@ OPERATION(nvic)
 
         if (OP_IS_READ(op))
         {
-            *value = get_pending_value(nvic, reg_index);
+            *value = cpu_exception_get_pending_block(nvic->cpu, reg_index);
         }
         else
         {

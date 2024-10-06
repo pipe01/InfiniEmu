@@ -228,6 +228,7 @@ struct cpu_inst_t
     size_t exception_count, pending_exception_count;
     exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
     arm_exception running_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
+    uint32_t pending_exceptions[ARM_EXCEPTION_COUNT / 32]; // Bitfield
     size_t running_exception_count;
     int execution_priority;
 
@@ -669,6 +670,7 @@ void cpu_exception_set_pending(cpu_t *cpu, arm_exception ex)
     {
         cpu->pending_exception_count++;
         cpu->exceptions[ex].pending = true;
+        cpu->pending_exceptions[ex / 32] |= 1 << (ex % 32);
 
         LOG_CPU_EX("Exception %d is now pending", ex);
     }
@@ -707,6 +709,7 @@ void cpu_exception_clear_pending(cpu_t *cpu, arm_exception ex)
     {
         cpu->pending_exception_count--;
         cpu->exceptions[ex].pending = false;
+        cpu->pending_exceptions[ex / 32] &= ~(1 << (ex % 32));
 
         LOG_CPU_EX("Exception %d is no longer pending", ex);
     }
@@ -716,7 +719,15 @@ bool cpu_exception_is_pending(cpu_t *cpu, arm_exception ex)
 {
     assert(ex < ARM_EXC_EXTERNAL_END);
 
-    return cpu->exceptions[ex].pending;
+    if (cpu->pending_exception_count == 0)
+        return false;
+
+    return cpu->pending_exceptions[ex / 32] & (1 << (ex % 32));
+}
+
+uint32_t cpu_exception_get_pending_block(cpu_t *cpu, int block_num)
+{
+    return cpu->pending_exceptions[block_num];
 }
 
 bool cpu_exception_is_active(cpu_t *cpu, arm_exception ex)

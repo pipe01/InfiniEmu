@@ -113,6 +113,8 @@ typedef enum
     ARM_EXC_EXTERNAL_END = 512
 } arm_exception;
 
+#define ARM_EXCEPTION_COUNT 512
+
 #define ARM_EXC_EXTERNAL(n) (ARM_EXC_EXTERNAL_START + (n))
 
 static inline arm_cc invert_cc(arm_cc cc)

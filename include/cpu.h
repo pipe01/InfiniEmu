@@ -45,6 +45,7 @@ void cpu_set_exception_priority(cpu_t *, arm_exception ex, int16_t priority);
 void cpu_exception_set_pending(cpu_t *, arm_exception ex);
 void cpu_exception_clear_pending(cpu_t *, arm_exception ex);
 bool cpu_exception_is_pending(cpu_t *, arm_exception ex);
+uint32_t cpu_exception_get_pending_block(cpu_t *, int block_num);
 bool cpu_exception_is_active(cpu_t *, arm_exception ex);
 void cpu_exception_set_enabled(cpu_t *, arm_exception ex, bool enabled);
 bool cpu_exception_get_enabled(cpu_t *, arm_exception ex);
