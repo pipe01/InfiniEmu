@@ -21,9 +21,14 @@ const (
 	artifactNamePrefix = "InfiniTime image"
 )
 
-var gh = github.NewClient(nil)
+var gh *github.Client
 
-func getPullRequestArtifact(ctx context.Context, id int) (*os.File, error) {
+type Artifact struct {
+	FirmwareFile *os.File
+	CommitSHA    string
+}
+
+func getPullRequestArtifact(ctx context.Context, id int) (*Artifact, error) {
 	pr, _, err := gh.PullRequests.Get(ctx, repositoryOwner, repositoryName, id)
 	if err != nil {
 		return nil, fmt.Errorf("list commits: %w", err)
@@ -32,7 +37,7 @@ func getPullRequestArtifact(ctx context.Context, id int) (*os.File, error) {
 	return getSHACommitArtifact(ctx, *pr.Head.SHA)
 }
 
-func getRefArtifact(ctx context.Context, refName string) (*os.File, error) {
+func getRefArtifact(ctx context.Context, refName string) (*Artifact, error) {
 	ref, _, err := gh.Git.GetRef(ctx, repositoryOwner, repositoryName, refName)
 	if err != nil {
 		return nil, fmt.Errorf("get ref: %w", err)
@@ -41,7 +46,7 @@ func getRefArtifact(ctx context.Context, refName string) (*os.File, error) {
 	return getSHACommitArtifact(ctx, *ref.Object.SHA)
 }
 
-func getSHACommitArtifact(ctx context.Context, sha string) (*os.File, error) {
+func getSHACommitArtifact(ctx context.Context, sha string) (*Artifact, error) {
 	runs, _, err := gh.Actions.ListWorkflowRunsByFileName(ctx, repositoryOwner, repositoryName, workflowFileName, &github.ListWorkflowRunsOptions{
 		HeadSHA: sha,
 	})
@@ -67,7 +72,15 @@ func getSHACommitArtifact(ctx context.Context, sha string) (*os.File, error) {
 		return 0
 	})
 
-	return getArtifact(ctx, *latest.ID)
+	f, err := getArtifact(ctx, *latest.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Artifact{
+		FirmwareFile: f,
+		CommitSHA:    sha,
+	}, nil
 }
 
 func getArtifact(ctx context.Context, workflowRunID int64) (*os.File, error) {
