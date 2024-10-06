@@ -5,6 +5,7 @@ import (
 	"debug/elf"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 
 	"github.com/ianlancetaylor/demangle"
@@ -297,7 +298,7 @@ func LoadELF(r io.ReaderAt, loadSymbols bool) (*Program, error) {
 				return nil, fmt.Errorf("load DWARF functions: %w", err)
 			}
 		} else {
-			fmt.Printf("failed to load DWARF data: %v\n", err)
+			log.Printf("failed to load DWARF data: %v\n", err)
 		}
 
 		sym, err := elff.Symbols()

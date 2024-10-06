@@ -6,6 +6,8 @@ package emulator
 
 #include <setjmp.h>
 
+#define ENABLE_RUNLOG 1
+
 #include "gdb.h"
 #include "fault.h"
 #include "ie_time.h"
