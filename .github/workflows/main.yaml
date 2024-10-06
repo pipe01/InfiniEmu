@@ -28,13 +28,16 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release ..
           make -j$(nproc) bundling_target
 
-      - name: Build desktop frontend
+      - name: Build frontends
         run: |
           cd frontend/desktop
-          go build -o infiniemu .
+          go build -o infiniemu ./cmd/infiniemu
+          go build -o previewer ./cmd/previewer
 
       - uses: actions/upload-artifact@v4
         with:
           name: InfiniEmu
-          path: frontend/desktop/infiniemu
+          path: |
+            frontend/desktop/infiniemu
+            frontend/desktop/previewer
           if-no-files-found: error
