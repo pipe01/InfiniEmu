@@ -68,7 +68,7 @@ int main(int argc, char **argv)
     fseek(f, 0, SEEK_SET);
 
     uint8_t *program_data = malloc(fsize);
-    if (fread(program_data, fsize, 1, f) != fsize)
+    if (fread(program_data, fsize, 1, f) != (size_t)fsize)
     {
         fprintf(stderr, "Failed to read %s\n", program_path);
         return -1;
