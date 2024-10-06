@@ -8,6 +8,8 @@ div
         .sleep-cover(v-if="off" :style="{ width: `${width + sizeOffset}px`, height: `${height + sizeOffset}px` }")
             span Screen is off
 
+    span.text-muted {{ screenMousePosition[0].toFixed(0) }}, {{ screenMousePosition[1].toFixed(0) }}
+
     .resize-handle.mt-2.mb-3(@mousedown="onResizeHandleMouseDown")
 </template>
 
@@ -41,6 +43,8 @@ const emit = defineEmits<{
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 
+const screenMousePosition = ref<[number, number]>([0, 0]);
+
 onMounted(() => {
     emit("gotCanvas", canvas.value!);
 });
@@ -73,15 +77,17 @@ function onMouseDown(e: MouseEvent) {
 }
 
 function onMouseMove(e: MouseEvent) {
+    const x = normalizePos(e.offsetX);
+    const y = normalizePos(e.offsetY);
+
+    screenMousePosition.value = [x, y];
+
     if (!isMouseDown) {
         return;
     }
 
     e.preventDefault();
 
-    const x = normalizePos(e.offsetX);
-    const y = normalizePos(e.offsetY);
-    
     const distX = x - mouseDownX;
     const distY = y - mouseDownY;
     const dist = Math.sqrt(distX * distX + distY * distY);
