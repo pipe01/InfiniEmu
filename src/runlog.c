@@ -74,11 +74,16 @@ void runlog_record_reset(runlog_t *runlog, runlog_registers_t regs)
     runlog_write_regs(runlog, regs);
 }
 
-void runlog_record_load_program(runlog_t *runlog, uint8_t *program, uint32_t size)
+void runlog_record_load_program(runlog_t *runlog, program_t *program)
 {
     runlog_write_type(runlog, RUNLOG_EV_LOAD_PROGRAM);
+
+    uint32_t size = program_size(program);
+    uint8_t *data = malloc(size);
+    program_write_to(program, data, size);
+
     runlog_write(runlog, &size, sizeof(size));
-    runlog_write(runlog, program, size);
+    runlog_write(runlog, data, size);
 }
 
 void runlog_record_fetch(runlog_t *runlog, uint32_t pc)

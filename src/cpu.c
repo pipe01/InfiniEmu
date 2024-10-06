@@ -243,6 +243,9 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc);
 
 static void memreg_write_traced(cpu_t *cpu, uint32_t addr, uint32_t value, byte_size_t size)
 {
+    if (cpu->runlog)
+        runlog_record_memory_store(cpu->runlog, RUNLOG_REG_UNKNOWN, value, addr, size);
+
     if (cpu->memory_watchpoint.write && cpu->memory_watchpoint.address == addr)
     {
         uint32_t old_value = memreg_read(cpu->mem, addr);
@@ -262,6 +265,9 @@ static uint32_t memreg_read_traced(cpu_t *cpu, uint32_t addr, size_t size)
     uint32_t value;
 
     memreg_do_operation(cpu->mem, addr, size, &value);
+
+    if (cpu->runlog)
+        runlog_record_memory_load(cpu->runlog, addr, value, RUNLOG_REG_UNKNOWN, size);
 
     if (cpu->memory_watchpoint.read && cpu->memory_watchpoint.address == addr)
     {
@@ -897,6 +903,9 @@ static void pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
     case 13:
         cpu->sp_process = (cpu->sp_process + framesize) | spmask;
         break;
+
+    default:
+        fault_take(FAULT_CPU_INVALID_EXCEPTION_RETURN);
     }
 
     cpu_sysreg_write(cpu, ARM_SYSREG_XPSR, psr & 0xFF0FFDFF, true);
@@ -1197,7 +1206,12 @@ static void do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op *re
     {
         assert(reg_operands[i].type == ARM_OP_REG);
 
-        memreg_write_traced(cpu, address, cpu_reg_read(cpu, reg_operands[i].reg), SIZE_WORD);
+        uint32_t value = cpu_reg_read(cpu, reg_operands[i].reg);
+
+        memreg_write_traced(cpu, address, value, SIZE_WORD);
+
+        if (cpu->runlog)
+            runlog_record_memory_store(cpu->runlog, runlog_reg(reg_operands[i].reg), value, address, SIZE_WORD);
 
         address += 4;
     }
