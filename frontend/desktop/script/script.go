@@ -191,6 +191,24 @@ var commands = map[string]func(*emulator.Emulator, []string) error{
 
 		return nil
 	},
+
+	// Shortcut for +button and -button
+	"button": func(e *emulator.Emulator, args []string) error {
+		if len(args) != 1 {
+			return ErrInvalidArguments
+		}
+
+		dur, err := time.ParseDuration(args[0])
+		if err != nil {
+			return fmt.Errorf("parse duration: %w", err)
+		}
+
+		e.PinSet(emulator.PinButton)
+		runEmulatorTime(e, dur)
+		e.PinClear(emulator.PinButton)
+
+		return nil
+	},
 }
 
 func Execute(e *emulator.Emulator, script []byte) ([]image.Image, error) {
