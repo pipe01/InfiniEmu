@@ -13,19 +13,12 @@ import (
 	"github.com/pipe01/InfiniEmu/frontend/desktop/emulator"
 )
 
-var ErrNeedsArguments = fmt.Errorf("needs arguments")
+var ErrInvalidArguments = fmt.Errorf("invalid arguments")
 
 const iterationsPerMicrosecond = 64
 
 func parseScriptInt(str string) (uint64, error) {
 	return strconv.ParseUint(strings.ReplaceAll(str, "_", ""), 10, 64)
-}
-
-func dropCR(data []byte) []byte {
-	if len(data) > 0 && data[len(data)-1] == '\r' {
-		return data[0 : len(data)-1]
-	}
-	return data
 }
 
 func parseTouchGesture(str string) (emulator.TouchGesture, error) {
@@ -58,7 +51,7 @@ func runEmulatorTime(e *emulator.Emulator, t time.Duration) {
 var commands = map[string]func(*emulator.Emulator, []string) error{
 	"run": func(e *emulator.Emulator, args []string) error {
 		if len(args) != 1 {
-			return ErrNeedsArguments
+			return ErrInvalidArguments
 		}
 
 		if dur, err := time.ParseDuration(args[0]); err == nil {
@@ -78,7 +71,7 @@ var commands = map[string]func(*emulator.Emulator, []string) error{
 
 	"setDateTime": func(e *emulator.Emulator, args []string) (err error) {
 		if len(args) != 1 {
-			return ErrNeedsArguments
+			return ErrInvalidArguments
 		}
 
 		var date time.Time
@@ -100,7 +93,7 @@ var commands = map[string]func(*emulator.Emulator, []string) error{
 
 	"+touch": func(e *emulator.Emulator, args []string) error {
 		if len(args) == 0 {
-			return ErrNeedsArguments
+			return ErrInvalidArguments
 		}
 
 		gesture, err := parseTouchGesture(args[0])
@@ -138,7 +131,7 @@ var commands = map[string]func(*emulator.Emulator, []string) error{
 	// Shortcut for +touch and -touch
 	"tap": func(e *emulator.Emulator, args []string) error {
 		if len(args) != 2 {
-			return ErrNeedsArguments
+			return ErrInvalidArguments
 		}
 
 		x, err := parseScriptInt(args[0])
@@ -163,7 +156,7 @@ var commands = map[string]func(*emulator.Emulator, []string) error{
 	// Shortcut for +touch and -touch
 	"swipe": func(e *emulator.Emulator, args []string) error {
 		if len(args) == 0 {
-			return ErrNeedsArguments
+			return ErrInvalidArguments
 		}
 
 		gesture, err := parseTouchGesture(args[0])
@@ -262,12 +255,19 @@ func Execute(e *emulator.Emulator, script []byte) ([]image.Image, error) {
 	return screenshots, nil
 }
 
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[0 : len(data)-1]
+	}
+	return data
+}
+
 func splitLinesSemicolon(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
 
-	semicolon := bytes.IndexByte(data, ';')
+	semicolon := bytes.IndexByte(data, ',')
 	newline := bytes.IndexByte(data, '\n')
 
 	if semicolon >= 0 && (newline == -1 || semicolon < newline) {
