@@ -27,7 +27,6 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
           make -j$(nproc) bundling_target
-          cp libinfiniemu_bundle.a ../frontend/desktop/libinfiniemu.a
 
       - name: Build desktop frontend
         run: |
