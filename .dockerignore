@@ -1,0 +1,5 @@
+.git
+build
+Dockerfile
+tools/simulrun/toolchain
+frontend/wasm/node_modules
