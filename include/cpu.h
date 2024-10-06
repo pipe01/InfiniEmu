@@ -20,7 +20,10 @@ void cpu_step(cpu_t *);
 
 void cpu_clear_instruction_cache(cpu_t *);
 
+#if ENABLE_RUNLOG
 void cpu_set_runlog(cpu_t *, runlog_t *runlog);
+#endif
+
 void cpu_set_branch_cb(cpu_t *, branch_cb_t cb, void *userdata);
 void cpu_set_memory_watchpoint(cpu_t *, uint32_t addr, bool read, bool write, mem_watchpoint_cb_t cb, void *userdata);
 void cpu_clear_memory_watchpoint(cpu_t *);

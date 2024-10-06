@@ -1,5 +1,7 @@
 #pragma once
 
+#if ENABLE_RUNLOG
+
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -53,3 +55,5 @@ void runlog_record_memory_load(runlog_t *, uint32_t addr, uint32_t value, runlog
 void runlog_record_memory_store(runlog_t *, runlog_register_t src, uint32_t value, uint32_t addr, byte_size_t size);
 void runlog_exception_enter(runlog_t *, uint16_t ex_num);
 void runlog_exception_exit(runlog_t *, uint16_t ex_num);
+
+#endif // ENABLE_RUNLOG

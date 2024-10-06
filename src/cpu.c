@@ -152,6 +152,14 @@ static_assert(sizeof(float64_t) == 8, "float64_t size is not 8 bytes");
 #define ROUNDF_TO_ZERO(val) ((val) > 0 ? floorf(val) : ceilf(val))
 #define ROUNDD_TO_ZERO(val) ((val) > 0 ? floor(val) : ceil(val))
 
+#if ENABLE_RUNLOG
+#define DO_RUNLOG(...) \
+    if (cpu->runlog)   \
+    __VA_ARGS__
+#else
+#define DO_RUNLOG(...)
+#endif
+
 #if ASSERT_EXCEPTION_REGISTERS
 arm_reg check_exc_registers[] = {
     ARM_REG_R0,
@@ -180,7 +188,9 @@ struct cpu_inst_t
 
     bool is_locked_up;
 
+#if ENABLE_RUNLOG
     runlog_t *runlog;
+#endif
 
     branch_cb_t branch_cb;
     void *branch_cb_userdata;
@@ -243,8 +253,7 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc);
 
 static void memreg_write_traced(cpu_t *cpu, uint32_t addr, uint32_t value, byte_size_t size)
 {
-    if (cpu->runlog)
-        runlog_record_memory_store(cpu->runlog, RUNLOG_REG_UNKNOWN, value, addr, size);
+    DO_RUNLOG(runlog_record_memory_store(cpu->runlog, RUNLOG_REG_UNKNOWN, value, addr, size));
 
     if (cpu->memory_watchpoint.write && cpu->memory_watchpoint.address == addr)
     {
@@ -266,8 +275,7 @@ static uint32_t memreg_read_traced(cpu_t *cpu, uint32_t addr, size_t size)
 
     memreg_do_operation(cpu->mem, addr, size, &value);
 
-    if (cpu->runlog)
-        runlog_record_memory_load(cpu->runlog, addr, value, RUNLOG_REG_UNKNOWN, size);
+    DO_RUNLOG(runlog_record_memory_load(cpu->runlog, addr, value, RUNLOG_REG_UNKNOWN, size));
 
     if (cpu->memory_watchpoint.read && cpu->memory_watchpoint.address == addr)
     {
@@ -292,6 +300,7 @@ static inline uint8_t memreg_read_traced_byte(cpu_t *cpu, uint32_t addr)
     return memreg_read_traced(cpu, addr, SIZE_BYTE);
 }
 
+#if ENABLE_RUNLOG
 static inline runlog_registers_t get_runlog_regs(cpu_t *cpu)
 {
     return (runlog_registers_t){
@@ -359,6 +368,7 @@ static inline runlog_register_t runlog_reg(arm_reg arm_reg)
         fault_take(FAULT_UNKNOWN);
     }
 }
+#endif
 
 static uint32_t mem_operand_address(cpu_t *cpu, cs_arm_op *op)
 {
@@ -941,8 +951,7 @@ static void exception_entry(cpu_t *cpu, arm_exception ex, bool sync)
 {
     LOG_CPU_EX("Entering exception %d from 0x%08X", ex, cpu->core_regs[ARM_REG_PC]);
 
-    if (cpu->runlog)
-        runlog_exception_enter(cpu->runlog, ex);
+    DO_RUNLOG(runlog_exception_enter(cpu->runlog, ex));
 
     push_stack(cpu, ex, sync);
     exception_taken(cpu, ex);
@@ -956,8 +965,7 @@ static void exception_return(cpu_t *cpu, uint32_t exc_return)
 
     arm_exception returning_exception_number = cpu->xpsr.ipsr;
 
-    if (cpu->runlog)
-        runlog_exception_exit(cpu->runlog, returning_exception_number);
+    DO_RUNLOG(runlog_exception_exit(cpu->runlog, returning_exception_number));
 
     assert(cpu->exceptions[returning_exception_number].active);
 
@@ -1030,10 +1038,12 @@ static void exception_return(cpu_t *cpu, uint32_t exc_return)
     }
 }
 
+#if ENABLE_RUNLOG
 void cpu_set_runlog(cpu_t *cpu, runlog_t *runlog)
 {
     cpu->runlog = runlog;
 }
+#endif
 
 void cpu_set_branch_cb(cpu_t *cpu, branch_cb_t branch_cb, void *userdata)
 {
@@ -1107,8 +1117,7 @@ static void do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_exte
         }
     }
 
-    if (cpu->runlog)
-        runlog_record_memory_load(cpu->runlog, offsetAddr, value, runlog_reg(detail->operands[0].reg), size);
+    DO_RUNLOG(runlog_record_memory_load(cpu->runlog, offsetAddr, value, runlog_reg(detail->operands[0].reg), size));
 
     if (detail->writeback)
         cpu_reg_write(cpu, detail->operands[1].mem.base, address + offset);
@@ -1168,10 +1177,7 @@ static void do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
 
     memreg_write_traced(cpu, address, value, size);
 
-    if (cpu->runlog)
-    {
-        runlog_record_memory_store(cpu->runlog, runlog_reg(detail->operands[0].reg), value, address, size);
-    }
+    DO_RUNLOG(runlog_record_memory_store(cpu->runlog, runlog_reg(detail->operands[0].reg), value, address, size));
 
     if (dual)
     {
@@ -1210,8 +1216,7 @@ static void do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op *re
 
         memreg_write_traced(cpu, address, value, SIZE_WORD);
 
-        if (cpu->runlog)
-            runlog_record_memory_store(cpu->runlog, runlog_reg(reg_operands[i].reg), value, address, SIZE_WORD);
+        DO_RUNLOG(runlog_record_memory_store(cpu->runlog, runlog_reg(reg_operands[i].reg), value, address, SIZE_WORD));
 
         address += 4;
     }
@@ -1344,10 +1349,7 @@ void cpu_reset(cpu_t *cpu)
 
     cpu_jump_exception(cpu, ARM_EXC_RESET);
 
-    if (cpu->runlog)
-    {
-        runlog_record_reset(cpu->runlog, get_runlog_regs(cpu));
-    }
+    DO_RUNLOG(runlog_record_reset(cpu->runlog, get_runlog_regs(cpu)));
 }
 
 cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
@@ -2967,8 +2969,7 @@ void cpu_step(cpu_t *cpu)
         fault_take(FAULT_CPU_INVALID_INSTRUCTION);
     }
 
-    if (cpu->runlog)
-        runlog_record_fetch(cpu->runlog, pc);
+    DO_RUNLOG(runlog_record_fetch(cpu->runlog, pc));
 
     uint32_t next = pc + i->size;
 
@@ -2976,8 +2977,7 @@ void cpu_step(cpu_t *cpu)
 
     execute_instruction(cpu, i, next);
 
-    if (cpu->runlog)
-        runlog_record_execute(cpu->runlog, get_runlog_regs(cpu));
+    DO_RUNLOG(runlog_record_execute(cpu->runlog, get_runlog_regs(cpu)));
 
     pending = exception_get_pending(cpu);
     if (pending != 0)

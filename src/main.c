@@ -25,7 +25,13 @@ int main(int argc, char **argv)
 
     int c;
 
-    while ((c = getopt(argc, argv, "bdf:l:")) != -1)
+    const char *optstring = "bdf:"
+#if ENABLE_RUNLOG
+                            "l:"
+#endif
+        ;
+
+    while ((c = getopt(argc, argv, optstring)) != -1)
     {
         switch (c)
         {
@@ -37,9 +43,11 @@ int main(int argc, char **argv)
             run_gdb = true;
             break;
 
+#if ENABLE_RUNLOG
         case 'l':
             runlog_path = optarg;
             break;
+#endif
 
         case 'b':
             big_ram = true;
@@ -93,6 +101,7 @@ int main(int argc, char **argv)
     char rtt_buffer[1024];
 #endif
 
+#if ENABLE_RUNLOG
     runlog_t *runlog = NULL;
 
     if (runlog_path)
@@ -111,6 +120,9 @@ int main(int argc, char **argv)
         cpu_set_runlog(cpu, runlog);
         cpu_reset(cpu);
     }
+#else
+    (void)runlog_path;
+#endif
 
     free(program);
 
@@ -179,8 +191,10 @@ int main(int argc, char **argv)
         }
     }
 
+#if ENABLE_RUNLOG
     if (runlog)
         runlog_free(runlog);
+#endif
 
     return 0;
 }
