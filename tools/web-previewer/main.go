@@ -15,39 +15,22 @@ import (
 	"time"
 )
 
-var previewLock sync.Mutex
+var (
+	previewLock    sync.Mutex
+	previewTimeout time.Duration
+	previewerPath  string
+)
 
 func main() {
-	previewerPath := flag.String("previewer", "", "Path to the previewer executable")
-	previewTimeoutStr := flag.String("preview-timeout", "20s", "Timeout for the previewer")
+	flag.StringVar(&previewerPath, "previewer", "", "Path to the previewer executable")
+	flag.DurationVar(&previewTimeout, "preview-timeout", 20*time.Second, "Timeout for the previewer")
 	flag.Parse()
 
-	previewerTimeout, err := time.ParseDuration(*previewTimeoutStr)
-	if err != nil {
-		panic(err)
-	}
-
-	if *previewerPath == "" {
+	if previewerPath == "" {
 		panic("previewer path is required")
 	}
 
-	http.HandleFunc("/preview", previewHandler(*previewerPath, previewerTimeout))
-
-	log.Println("Listening")
-
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		panic(err)
-	}
-}
-
-func previewHandler(previewerPath string, previewerTimeout time.Duration) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		previewLock.Lock()
-		defer previewLock.Unlock()
-
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-		defer cancel()
-
+	http.HandleFunc("/preview", func(w http.ResponseWriter, r *http.Request) {
 		fwSpecifiers, ok := r.URL.Query()["fw"]
 		if !ok || len(fwSpecifiers) != 1 {
 			http.Error(w, "missing or multiple 'fw' query parameters", http.StatusBadRequest)
@@ -63,56 +46,61 @@ func previewHandler(previewerPath string, previewerTimeout time.Duration) http.H
 			script = strings.Join(v, "\n")
 		}
 
-		fwFile, err := loadFirmware(ctx, r.URL.Query().Get("fw"))
-		if err != nil {
-			log.Printf("failed to load firmware: %v", err)
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		cancel()
-		defer os.Remove(fwFile.Name())
-
-		ctx, cancel = context.WithTimeout(r.Context(), previewerTimeout)
-		defer cancel()
-
-		screenshotFile, err := os.CreateTemp("/tmp", "*")
-		if err != nil {
-			log.Printf("failed to create temp file: %v", err)
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer os.Remove(screenshotFile.Name())
-		defer screenshotFile.Close()
-
-		cmd := exec.CommandContext(ctx, previewerPath, "-screenshot", screenshotFile.Name(), fwFile.Name(), "/dev/stdin")
-		cmd.Stdin = strings.NewReader(script)
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			log.Printf("failed to run previewer: %v", err)
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if _, err := screenshotFile.Seek(0, 0); err != nil {
-			log.Printf("failed to seek to start of file: %v", err)
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
 		w.Header().Set("Content-Type", "image/png")
 
-		if _, err := io.Copy(w, screenshotFile); err != nil {
-			log.Printf("failed to copy file to response: %v", err)
-
+		if err := previewHandler(r.Context(), w, fwSpecifiers[0], script); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
 		}
+	})
+
+	log.Println("Listening")
+
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		panic(err)
 	}
+}
+
+func previewHandler(ctx context.Context, rw io.Writer, fwSpecifier string, script string) error {
+	previewLock.Lock()
+	defer previewLock.Unlock()
+
+	fwctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	fwFile, err := loadFirmware(fwctx, fwSpecifier)
+	if err != nil {
+		return fmt.Errorf("load firmware: %w", err)
+	}
+	cancel()
+	defer os.Remove(fwFile.Name())
+
+	prctx, cancel := context.WithTimeout(ctx, previewTimeout)
+	defer cancel()
+
+	screenshotFile, err := os.CreateTemp("/tmp", "*")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	defer os.Remove(screenshotFile.Name())
+	defer screenshotFile.Close()
+
+	cmd := exec.CommandContext(prctx, previewerPath, "-screenshot", screenshotFile.Name(), fwFile.Name(), "/dev/stdin")
+	cmd.Stdin = strings.NewReader(script)
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("run previewer: %w", err)
+	}
+
+	if _, err := screenshotFile.Seek(0, 0); err != nil {
+		return fmt.Errorf("seek to beginning of screenshot file: %w", err)
+	}
+
+	if _, err := io.Copy(rw, screenshotFile); err != nil {
+		return fmt.Errorf("write screenshot: %w", err)
+	}
+
+	return nil
 }
 
 func loadFirmware(ctx context.Context, specifier string) (*os.File, error) {
