@@ -15,7 +15,6 @@ set(SRC_FILES
     scheduler.c
     segger_rtt.c
     ticker.c
-    time.c
 
     demangle.cpp
 
@@ -63,6 +62,7 @@ set(SRC_WASM_FILES
 set(SRC_NATIVE_FILES
     gdb.c
     main.c
+    time.c
 )
 
 # Disable warnings for littlefs
