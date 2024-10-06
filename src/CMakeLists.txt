@@ -62,12 +62,8 @@ set(SRC_NATIVE_FILES
     gdb.c
     main.c
     time.c
+    runlog.c
 )
-
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    list(APPEND SRC_FILES runlog.c)
-    add_compile_definitions(ENABLE_RUNLOG=1)
-endif()
 
 # Disable warnings for littlefs
 set_source_files_properties(../lib/littlefs/lfs.c PROPERTIES COMPILE_FLAGS "-w")
@@ -119,6 +115,7 @@ if(EMSCRIPTEN)
     )
 else()
     list(APPEND SRC_FILES ${SRC_NATIVE_FILES})
+    add_compile_definitions(ENABLE_RUNLOG=1)
 
     add_executable(infiniemu-cli ${SRC_FILES})
     add_library(infiniemu-lib STATIC ${SRC_FILES})

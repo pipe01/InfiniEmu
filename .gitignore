@@ -11,3 +11,5 @@ tests.out
 
 screen*.raw
 screen*.png
+
+__debug_bin*
