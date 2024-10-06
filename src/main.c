@@ -102,7 +102,7 @@ int main(int argc, char **argv)
 
         runlog = runlog_new(f);
 
-        runlog_record_load_program(runlog, program_data, fsize);
+        runlog_record_load_program(runlog, program);
 
         cpu_set_runlog(cpu, runlog);
         cpu_reset(cpu);
@@ -119,16 +119,21 @@ int main(int argc, char **argv)
     }
     else
     {
+        time_use_real_time(false);
+
 #if ENABLE_MEASUREMENT
         uint64_t start, now;
         start = microseconds_now();
+#endif
 
         size_t inst_counter = 0;
-#endif
 
         for (;;)
         {
             pinetime_step(pt);
+
+            if (inst_counter++ % 60 == 0)
+                time_increment_fake_microseconds(1);
 
 #if ENABLE_SEGGER_RTT
             if (found_rtt || rtt_counter < 1000000)

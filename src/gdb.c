@@ -2,6 +2,7 @@
 #include "config.h"
 #include "fault.h"
 #include "gdb.h"
+#include "ie_time.h"
 
 #include <math.h>
 #include <unistd.h>
@@ -775,6 +776,9 @@ void *gdb_run_cpu(void *userdata)
     jmp_buf fault_jmp;
     bool has_faulted = false;
 
+    time_use_real_time(false);
+    uint64_t i = 0;
+
     if (setjmp(fault_jmp))
     {
         has_faulted = true;
@@ -791,6 +795,9 @@ void *gdb_run_cpu(void *userdata)
                 break;
 
             pinetime_step(stub->gdb->pt);
+
+            if (i++ % 60 == 0)
+                time_increment_fake_microseconds(1);
         }
     }
 
