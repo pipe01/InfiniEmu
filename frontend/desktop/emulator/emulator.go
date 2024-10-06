@@ -2,7 +2,7 @@ package emulator
 
 /*
 #cgo CFLAGS: -I../../../include -I../../lib/capstone/include
-#cgo LDFLAGS: -lm -lstdc++ ./libinfiniemu.a
+#cgo LDFLAGS: -L.. -lm -lstdc++ -linfiniemu
 
 #include <setjmp.h>
 

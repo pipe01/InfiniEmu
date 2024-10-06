@@ -6,7 +6,7 @@
 /*.o
 build
 obj
-infiniemu
+./infiniemu
 tests.out
 
 screen*.raw
