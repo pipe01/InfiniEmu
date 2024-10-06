@@ -6,7 +6,6 @@ set(SRC_FILES
     cpu.c
     dma.c
     fault.c
-    gdb.c
     memory.c
     nrf52832.c
     pinetime.c
