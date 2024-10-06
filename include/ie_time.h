@@ -17,6 +17,7 @@ static inline uint64_t microseconds_now()
 #include <stddef.h>
 
 uint64_t microseconds_now();
+uint64_t microseconds_now_real();
 void time_use_real_time(bool use);
 void time_increment_fake_microseconds(uint64_t inc);
 

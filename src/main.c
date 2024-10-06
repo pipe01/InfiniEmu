@@ -76,7 +76,7 @@ int main(int argc, char **argv)
     fseek(f, 0, SEEK_SET);
 
     uint8_t *program_data = malloc(fsize);
-    if (fread(program_data, fsize, 1, f) != (size_t)fsize)
+    if (fread(program_data, 1, fsize, f) != (size_t)fsize)
     {
         fprintf(stderr, "Failed to read %s\n", program_path);
         return -1;
@@ -93,6 +93,8 @@ int main(int argc, char **argv)
 
     NRF52832_t *nrf = pinetime_get_nrf52832(pt);
     cpu_t *cpu = nrf52832_get_cpu(nrf);
+
+    (void)cpu;
 
 #if ENABLE_SEGGER_RTT
     rtt_t *rtt = rtt_new(cpu_mem(cpu));
@@ -139,7 +141,8 @@ int main(int argc, char **argv)
 
 #if ENABLE_MEASUREMENT
         uint64_t start, now;
-        start = microseconds_now();
+        size_t perf_counter = 0;
+        start = microseconds_now_real();
 #endif
 
         size_t inst_counter = 0;
@@ -172,20 +175,20 @@ int main(int argc, char **argv)
 #endif
 
 #if ENABLE_MEASUREMENT
-            if (++inst_counter == 1000000)
+            if (++perf_counter == 10000000)
             {
-                now = microseconds_now();
+                now = microseconds_now_real();
 
                 uint64_t elapsed = now - start;
 
                 start = now;
 
-                printf("Elapsed: %llu us\n", elapsed);
-                printf("Instructions ran: %lu\n", inst_counter);
-                printf("Instructions per second: %.0f\n", (1000000.f / elapsed) * inst_counter);
+                printf("Elapsed: %lu us\n", elapsed);
+                printf("Instructions ran: %lu\n", perf_counter);
+                printf("Instructions per second: %.0f\n", (1000000.f / elapsed) * perf_counter);
                 printf("\n");
 
-                inst_counter = 0;
+                perf_counter = 0;
             }
 #endif
         }
