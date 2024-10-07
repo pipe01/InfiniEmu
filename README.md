@@ -39,6 +39,9 @@ There is a hosted version of the web previewer at `tools/web-previewer` availabl
 > [!CAUTION]
 > When using a preview URL inside a GitHub markdown document (READMEs, issues, pull requests, etc) make sure to visit the URL on your browser before adding it to the markdown text, otherwise GitHub's servers will time out the request before the preview is generated.
 
+> [!NOTE]  
+> Previews can take a bit to generate depending on your script, please allow up to 30 seconds before giving up.
+
 ### Example:
 
 `https://pipe01.net/infiniemu/preview?fw=heads/main&info=true&script=run_1s,screenshot,swipe_right,run_300ms,screenshot,tap_180_180,run_300ms,screenshot,tap_120_200,run_300ms,screenshot,tap_36_203,run_300ms,screenshot,button_1s,run_300ms,screenshot`
