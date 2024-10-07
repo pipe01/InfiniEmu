@@ -27,10 +27,24 @@ There are currently no releases, the easiest way to run InfiniEmu is to download
 
 To run InfiniEmu, use the following command: `./InfiniEmu-x86_64.AppImage <firmware_path>`, where `<firmware_path>` is the path to the ELF or binary file containing the firmware to run. If an ELF file with symbols is passed, additional information such as FreeRTOS free heap size will be available.
 
-# Building from source
+## Online previewer
 
-TODO
+There is a hosted version of the web previewer at `tools/web-previewer` available at `https://pipe01.net/infiniemu/preview`. This endpoint can take the following parameters:
+
+- `fw`: specifies what firmware to run. This can be either a pull request number in the form `pr/123`, a Git commit hash or a Git ref like `heads/main` or `tags/1.10.0`.
+- `info`: include information about the run at the bottom of the image.
+- `no-cache`: do not reuse cached data about the run.
+- `script`: the script to run. A script consists of one or more commands separated by commas. You can use underscores where spaces would usually go for convenience when pasting the script into a URL. For an up to date list of commands check the [`script.go`](https://github.com/pipe01/InfiniEmu/blob/master/frontend/desktop/script/script.go) file, specifically the `commands` map.
+
+> [!CAUTION]
+> When using a preview URL inside a GitHub markdown document (READMEs, issues, pull requests, etc) make sure to visit the URL on your browser before adding it to the markdown text, otherwise GitHub's servers will time out the request before the preview is generated.
+
+### Example:
+
+`https://pipe01.net/infiniemu/preview?fw=heads/main&info=true&script=run_1s,screenshot,swipe_right,run_300ms,screenshot,tap_180_180,run_300ms,screenshot,tap_120_200,run_300ms,screenshot,tap_36_203,run_300ms,screenshot,button_1s,run_300ms,screenshot`
+
+![](https://pipe01.net/infiniemu/preview?fw=heads/main&info=true&script=run_1s,screenshot,swipe_right,run_300ms,screenshot,tap_180_180,run_300ms,screenshot,tap_120_200,run_300ms,screenshot,tap_36_203,run_300ms,screenshot,button_1s,run_300ms,screenshot)
 
 # Screenshots
 
-![asd](docs/screenshot.jpg)
+![](docs/screenshot.jpg)
