@@ -45,7 +45,7 @@ type PreviewJob struct {
 
 func main() {
 	flag.StringVar(&previewerPath, "previewer", "", "Path to the previewer executable")
-	flag.DurationVar(&previewTimeout, "preview-timeout", 2*time.Second, "Timeout for the previewer")
+	flag.DurationVar(&previewTimeout, "preview-timeout", 30*time.Second, "Timeout for the previewer")
 	flag.Parse()
 
 	addr := os.Getenv("ADDR")
