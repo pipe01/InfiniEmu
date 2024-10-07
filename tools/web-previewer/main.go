@@ -72,6 +72,7 @@ func main() {
 		}
 
 		showInfo := r.URL.Query().Get("info") == "true"
+		noCache := r.URL.Query().Get("no-cache") == "true"
 
 		log.Info().Str("fw", fwSpecifiers[0]).Str("script", script).Msg("got request")
 
@@ -90,7 +91,7 @@ func main() {
 			ShowInfo:     showInfo,
 		}
 
-		if err := previewHandler(r.Context(), w, job); err != nil {
+		if err := previewHandler(r.Context(), w, job, noCache); err != nil {
 			log.Err(err).Msg("failed to generate preview")
 
 			var fwErr FirmwareLoadError
@@ -110,28 +111,29 @@ func main() {
 	}
 }
 
-func previewHandler(ctx context.Context, rw io.Writer, job PreviewJob) error {
+func previewHandler(ctx context.Context, rw io.Writer, job PreviewJob, noCache bool) error {
 	previewLock.Lock()
 	defer previewLock.Unlock()
 
 	fwctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	fwFile, err := loadFirmware(fwctx, job.FirmwareSpec)
+	fwFile, err := loadFirmware(fwctx, job.FirmwareSpec, noCache)
 	if err != nil {
 		return fmt.Errorf("load firmware: %w", err)
 	}
 	cancel()
-	defer os.Remove(fwFile.FirmwareFile.Name())
 
-	if pr, ok := GetCachedPreview(job, fwFile.CommitSHA); ok {
-		defer pr.Close()
+	if !noCache {
+		if pr, ok := GetCachedPreview(job, fwFile.CommitSHA); ok {
+			defer pr.Close()
 
-		if _, err := io.Copy(rw, pr); err != nil {
-			return fmt.Errorf("write cached preview: %w", err)
+			if _, err := io.Copy(rw, pr); err != nil {
+				return fmt.Errorf("write cached preview: %w", err)
+			}
+
+			return nil
 		}
-
-		return nil
 	}
 
 	prctx, cancel := context.WithTimeout(ctx, previewTimeout)
@@ -139,7 +141,7 @@ func previewHandler(ctx context.Context, rw io.Writer, job PreviewJob) error {
 
 	var scrshotData bytes.Buffer
 
-	cmd := exec.CommandContext(prctx, previewerPath, "-screenshot", "/dev/stdout", fwFile.FirmwareFile.Name(), "/dev/stdin")
+	cmd := exec.CommandContext(prctx, previewerPath, "-screenshot", "/dev/stdout", fwFile.FirmwareFilePath, "/dev/stdin")
 	cmd.Stdout = &scrshotData
 	cmd.Stdin = strings.NewReader(job.Script)
 	cmd.Stderr = os.Stderr
@@ -177,21 +179,21 @@ func previewHandler(ctx context.Context, rw io.Writer, job PreviewJob) error {
 	return nil
 }
 
-func loadFirmware(ctx context.Context, specifier string) (*Artifact, error) {
+func loadFirmware(ctx context.Context, specifier string, noCache bool) (*Artifact, error) {
 	if prIDStr, ok := strings.CutPrefix(specifier, "pr/"); ok {
 		prID, err := strconv.Atoi(prIDStr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid PR ID")
 		}
 
-		return getPullRequestArtifact(ctx, prID)
+		return getPullRequestArtifact(ctx, prID, noCache)
 	}
 
 	if strings.HasPrefix(specifier, "heads/") || strings.HasPrefix(specifier, "tags/") {
-		return getRefArtifact(ctx, specifier)
+		return getRefArtifact(ctx, specifier, noCache)
 	}
 
-	return getSHACommitArtifact(ctx, specifier)
+	return getSHACommitArtifact(ctx, specifier, noCache)
 }
 
 func drawInfoImage(scrshotData io.Reader, out io.Writer, info string) error {

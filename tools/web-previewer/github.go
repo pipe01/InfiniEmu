@@ -4,14 +4,20 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/v66/github"
+	"github.com/jellydator/ttlcache/v3"
 )
 
 const (
@@ -21,17 +27,26 @@ const (
 	artifactNamePrefix = "InfiniTime image"
 )
 
+const firmwareCachePath = "/tmp/firmware-cache"
+
 var gh *github.Client
+var ghCache = ttlcache.New[string, string]()
 
 type Artifact struct {
-	FirmwareFile *os.File
-	CommitSHA    string
+	FirmwareFilePath string
+	CommitSHA        string
 }
 
 type FirmwareLoadError string
 
 func (e FirmwareLoadError) Error() string {
 	return string(e)
+}
+
+func init() {
+	if err := os.MkdirAll(firmwareCachePath, 0755); err != nil {
+		panic(err)
+	}
 }
 
 func isNotFoundError(err error) bool {
@@ -42,7 +57,13 @@ func isNotFoundError(err error) bool {
 	return false
 }
 
-func getPullRequestArtifact(ctx context.Context, id int) (*Artifact, error) {
+func getPullRequestArtifact(ctx context.Context, id int, noCache bool) (*Artifact, error) {
+	key := fmt.Sprintf("pr-%d", id)
+
+	if !noCache && ghCache.Has(key) {
+		return getSHACommitArtifact(ctx, ghCache.Get(key).Value(), noCache)
+	}
+
 	pr, _, err := gh.PullRequests.Get(ctx, repositoryOwner, repositoryName, id)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -52,10 +73,18 @@ func getPullRequestArtifact(ctx context.Context, id int) (*Artifact, error) {
 		return nil, fmt.Errorf("list commits: %w", err)
 	}
 
-	return getSHACommitArtifact(ctx, *pr.Head.SHA)
+	ghCache.Set(key, *pr.Head.SHA, 5*time.Minute)
+
+	return getSHACommitArtifact(ctx, *pr.Head.SHA, noCache)
 }
 
-func getRefArtifact(ctx context.Context, refName string) (*Artifact, error) {
+func getRefArtifact(ctx context.Context, refName string, noCache bool) (*Artifact, error) {
+	key := fmt.Sprintf("ref-%s", refName)
+
+	if !noCache && ghCache.Has(key) {
+		return getSHACommitArtifact(ctx, ghCache.Get(key).Value(), noCache)
+	}
+
 	ref, _, err := gh.Git.GetRef(ctx, repositoryOwner, repositoryName, refName)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -65,109 +94,150 @@ func getRefArtifact(ctx context.Context, refName string) (*Artifact, error) {
 		return nil, fmt.Errorf("get ref: %w", err)
 	}
 
-	return getSHACommitArtifact(ctx, *ref.Object.SHA)
+	ghCache.Set(key, *ref.Object.SHA, 5*time.Minute)
+
+	return getSHACommitArtifact(ctx, *ref.Object.SHA, noCache)
 }
 
-func getSHACommitArtifact(ctx context.Context, sha string) (*Artifact, error) {
-	runs, _, err := gh.Actions.ListWorkflowRunsByFileName(ctx, repositoryOwner, repositoryName, workflowFileName, &github.ListWorkflowRunsOptions{
-		HeadSHA: sha,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list workflow runs: %w", err)
-	}
+func getSHACommitArtifact(ctx context.Context, sha string, noCache bool) (*Artifact, error) {
+	key := fmt.Sprintf("commit-%s", sha)
 
-	if len(runs.WorkflowRuns) == 0 {
-		return nil, FirmwareLoadError(fmt.Sprintf("no workflow runs found for commit '%s'", sha))
-	}
+	var latestID int64
 
-	latest := slices.MaxFunc(runs.WorkflowRuns, func(a, b *github.WorkflowRun) int {
-		at := a.CreatedAt.GetTime()
-		bt := b.CreatedAt.GetTime()
-
-		if at.Before(*bt) {
-			return -1
-		}
-		if at.After(*bt) {
-			return 1
+	if !noCache && ghCache.Has(key) {
+		latestID, _ = strconv.ParseInt(ghCache.Get(key).Value(), 10, 64)
+	} else {
+		runs, _, err := gh.Actions.ListWorkflowRunsByFileName(ctx, repositoryOwner, repositoryName, workflowFileName, &github.ListWorkflowRunsOptions{
+			HeadSHA: sha,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list workflow runs: %w", err)
 		}
 
-		return 0
-	})
+		if len(runs.WorkflowRuns) == 0 {
+			return nil, FirmwareLoadError(fmt.Sprintf("no workflow runs found for commit '%s'", sha))
+		}
 
-	f, err := getArtifact(ctx, *latest.ID)
+		latestID = *slices.MaxFunc(runs.WorkflowRuns, func(a, b *github.WorkflowRun) int {
+			at := a.CreatedAt.GetTime()
+			bt := b.CreatedAt.GetTime()
+
+			if at.Before(*bt) {
+				return -1
+			}
+			if at.After(*bt) {
+				return 1
+			}
+
+			return 0
+		}).ID
+
+		ghCache.Set(key, fmt.Sprintf("%d", latestID), 15*time.Minute)
+	}
+
+	f, err := fetchRunArtifact(ctx, latestID, noCache)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Artifact{
-		FirmwareFile: f,
-		CommitSHA:    sha,
+		FirmwareFilePath: f,
+		CommitSHA:        sha,
 	}, nil
 }
 
-func getArtifact(ctx context.Context, workflowRunID int64) (*os.File, error) {
-	artifacts, _, err := gh.Actions.ListWorkflowRunArtifacts(ctx, repositoryOwner, repositoryName, workflowRunID, nil)
-	if err != nil {
-		return nil, fmt.Errorf("list workflow run artifacts: %w", err)
+func fetchRunArtifact(ctx context.Context, workflowRunID int64, noCache bool) (string, error) {
+	key := fmt.Sprintf("run-%d", workflowRunID)
+
+	var artifactID int64
+
+	if !noCache && ghCache.Has(key) {
+		artifactID, _ = strconv.ParseInt(ghCache.Get(key).Value(), 10, 64)
+	} else {
+		artifacts, _, err := gh.Actions.ListWorkflowRunArtifacts(ctx, repositoryOwner, repositoryName, workflowRunID, nil)
+		if err != nil {
+			return "", fmt.Errorf("list workflow run artifacts: %w", err)
+		}
+
+		if len(artifacts.Artifacts) == 0 {
+			return "", FirmwareLoadError("no artifacts found")
+		}
+
+		found := false
+
+		for _, artifact := range artifacts.Artifacts {
+			if strings.HasPrefix(*artifact.Name, artifactNamePrefix) {
+				artifactID = *artifact.ID
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return "", FirmwareLoadError("no firmware artifact found")
+		}
+
+		ghCache.Set(key, fmt.Sprintf("%d", artifactID), 24*time.Hour)
 	}
 
-	if len(artifacts.Artifacts) == 0 {
-		return nil, FirmwareLoadError("no artifacts found")
-	}
+	downloadURL := fmt.Sprintf("https://nightly.link/%s/%s/actions/artifacts/%d.zip", repositoryOwner, repositoryName, artifactID)
 
-	for _, artifact := range artifacts.Artifacts {
-		if strings.HasPrefix(*artifact.Name, artifactNamePrefix) {
-			downloadURL := fmt.Sprintf("https://nightly.link/%s/%s/actions/artifacts/%d.zip", repositoryOwner, repositoryName, *artifact.ID)
+	return downloadArtifactFirmware(ctx, downloadURL, noCache)
+}
 
-			return downloadArtifactFirmware(ctx, downloadURL)
+func downloadArtifactFirmware(ctx context.Context, url string, noCache bool) (string, error) {
+	sum := md5.Sum([]byte(url))
+	key := hex.EncodeToString(sum[:])
+
+	cachePath := filepath.Join(firmwareCachePath, key)
+
+	if !noCache {
+		s, err := os.Stat(cachePath)
+		if err == nil && s.Size() > 0 {
+			return cachePath, nil
 		}
 	}
 
-	return nil, FirmwareLoadError("no firmware artifact found")
-}
-
-func downloadArtifactFirmware(ctx context.Context, url string) (*os.File, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return "", fmt.Errorf("create request: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("download artifact: %w", err)
+		return "", fmt.Errorf("download artifact: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read artifact: %w", err)
+		return "", fmt.Errorf("read artifact: %w", err)
 	}
 	resp.Body.Close()
 
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
-		return nil, fmt.Errorf("open zip: %w", err)
+		return "", fmt.Errorf("open zip: %w", err)
 	}
 
 	if len(zr.File) != 1 || !strings.HasSuffix(zr.File[0].Name, ".out") {
-		return nil, FirmwareLoadError("invalid artifact file contents")
+		return "", FirmwareLoadError("invalid artifact file contents")
 	}
 
 	f, err := zr.File[0].Open()
 	if err != nil {
-		return nil, fmt.Errorf("open zip file: %w", err)
+		return "", fmt.Errorf("open zip file: %w", err)
 	}
 	defer f.Close()
 
-	outf, err := os.CreateTemp("/tmp", "*")
+	outf, err := os.Create(cachePath)
 	if err != nil {
-		return nil, fmt.Errorf("create temp file: %w", err)
+		return "", fmt.Errorf("create cache file: %w", err)
 	}
-	defer outf.Close()
 
 	if _, err := io.Copy(outf, f); err != nil {
-		return nil, fmt.Errorf("copy file: %w", err)
+		return "", fmt.Errorf("copy file: %w", err)
 	}
 
-	return outf, nil
+	return cachePath, nil
 }
