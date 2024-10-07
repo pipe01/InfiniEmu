@@ -31,6 +31,12 @@ var (
 	previewerPath  string
 )
 
+type PreviewError string
+
+func (e PreviewError) Error() string {
+	return string(e)
+}
+
 type PreviewJob struct {
 	FirmwareSpec string
 	Script       string
@@ -39,7 +45,7 @@ type PreviewJob struct {
 
 func main() {
 	flag.StringVar(&previewerPath, "previewer", "", "Path to the previewer executable")
-	flag.DurationVar(&previewTimeout, "preview-timeout", 20*time.Second, "Timeout for the previewer")
+	flag.DurationVar(&previewTimeout, "preview-timeout", 2*time.Second, "Timeout for the previewer")
 	flag.Parse()
 
 	addr := os.Getenv("ADDR")
@@ -94,7 +100,7 @@ func main() {
 		if err := previewHandler(r.Context(), w, job, noCache); err != nil {
 			log.Err(err).Msg("failed to generate preview")
 
-			var fwErr FirmwareLoadError
+			var fwErr PreviewError
 
 			if errors.As(err, &fwErr) {
 				generateErrorImage(w, string(fwErr))
@@ -149,6 +155,10 @@ func previewHandler(ctx context.Context, rw io.Writer, job PreviewJob, noCache b
 	start := time.Now()
 
 	if err := cmd.Run(); err != nil {
+		if prctx.Err() != nil {
+			return PreviewError("preview timed out")
+		}
+
 		return fmt.Errorf("run previewer: %w", err)
 	}
 
