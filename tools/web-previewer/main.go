@@ -31,6 +31,12 @@ var (
 	previewerPath  string
 )
 
+type PreviewJob struct {
+	FirmwareSpec string
+	Script       string
+	ShowInfo     bool
+}
+
 func main() {
 	flag.StringVar(&previewerPath, "previewer", "", "Path to the previewer executable")
 	flag.DurationVar(&previewTimeout, "preview-timeout", 20*time.Second, "Timeout for the previewer")
@@ -72,10 +78,20 @@ func main() {
 		w.Header().Set("Content-Type", "image/png")
 		w.Header().Set("Cache-Control", "no-store")
 
-		if err := previewHandler(r.Context(), w, fwSpecifiers[0], script, showInfo); err != nil {
-			log.Err(err).Msg("failed to generate preview")
+		w.WriteHeader(http.StatusOK)
 
-			w.WriteHeader(http.StatusInternalServerError)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+
+		job := PreviewJob{
+			FirmwareSpec: fwSpecifiers[0],
+			Script:       script,
+			ShowInfo:     showInfo,
+		}
+
+		if err := previewHandler(r.Context(), w, job); err != nil {
+			log.Err(err).Msg("failed to generate preview")
 
 			var fwErr FirmwareLoadError
 
@@ -94,19 +110,29 @@ func main() {
 	}
 }
 
-func previewHandler(ctx context.Context, rw io.Writer, fwSpecifier string, script string, showInfo bool) error {
+func previewHandler(ctx context.Context, rw io.Writer, job PreviewJob) error {
 	previewLock.Lock()
 	defer previewLock.Unlock()
 
 	fwctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	fwFile, err := loadFirmware(fwctx, fwSpecifier)
+	fwFile, err := loadFirmware(fwctx, job.FirmwareSpec)
 	if err != nil {
 		return fmt.Errorf("load firmware: %w", err)
 	}
 	cancel()
 	defer os.Remove(fwFile.FirmwareFile.Name())
+
+	if pr, ok := GetCachedPreview(job, fwFile.CommitSHA); ok {
+		defer pr.Close()
+
+		if _, err := io.Copy(rw, pr); err != nil {
+			return fmt.Errorf("write cached preview: %w", err)
+		}
+
+		return nil
+	}
 
 	prctx, cancel := context.WithTimeout(ctx, previewTimeout)
 	defer cancel()
@@ -115,7 +141,7 @@ func previewHandler(ctx context.Context, rw io.Writer, fwSpecifier string, scrip
 
 	cmd := exec.CommandContext(prctx, previewerPath, "-screenshot", "/dev/stdout", fwFile.FirmwareFile.Name(), "/dev/stdin")
 	cmd.Stdout = &scrshotData
-	cmd.Stdin = strings.NewReader(script)
+	cmd.Stdin = strings.NewReader(job.Script)
 	cmd.Stderr = os.Stderr
 
 	start := time.Now()
@@ -126,16 +152,24 @@ func previewHandler(ctx context.Context, rw io.Writer, fwSpecifier string, scrip
 
 	previewerRunTime := time.Since(start)
 
-	log.Info().Str("fw", fwSpecifier).Str("commit", fwFile.CommitSHA).Dur("time", previewerRunTime).Msg("preview done")
+	log.Info().Str("fw", job.FirmwareSpec).Str("commit", fwFile.CommitSHA).Dur("time", previewerRunTime).Msg("preview done")
 
-	if showInfo {
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	defer pr.Close()
+
+	out := io.MultiWriter(rw, pw)
+
+	go CachePreview(job, fwFile.CommitSHA, pr)
+
+	if job.ShowInfo {
 		info := fmt.Sprintf("%s %dms %s", fwFile.CommitSHA[:7], previewerRunTime.Milliseconds(), time.Now().UTC().Format(time.DateTime))
 
-		if err := drawInfoImage(&scrshotData, rw, info); err != nil {
+		if err := drawInfoImage(&scrshotData, out, info); err != nil {
 			return fmt.Errorf("draw info image: %w", err)
 		}
 	} else {
-		if _, err := scrshotData.WriteTo(rw); err != nil {
+		if _, err := scrshotData.WriteTo(out); err != nil {
 			return fmt.Errorf("write screenshot: %w", err)
 		}
 	}
