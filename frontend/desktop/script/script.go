@@ -214,7 +214,7 @@ func Execute(e *emulator.Emulator, script []byte) ([]image.Image, error) {
 	screenBuffer := make([]byte, emulator.DisplayWidth*emulator.DisplayHeight*emulator.DisplayBytesPerPixel)
 
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
+		line := strings.ReplaceAll(strings.TrimSpace(sc.Text()), "_", " ")
 
 		hashtag := strings.Index(line, "#")
 		if hashtag != -1 {
