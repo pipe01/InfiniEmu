@@ -28,9 +28,27 @@ type Artifact struct {
 	CommitSHA    string
 }
 
+type FirmwareLoadError string
+
+func (e FirmwareLoadError) Error() string {
+	return string(e)
+}
+
+func isNotFoundError(err error) bool {
+	if gerr, ok := err.(*github.ErrorResponse); ok {
+		return gerr.Response.StatusCode == http.StatusNotFound
+	}
+
+	return false
+}
+
 func getPullRequestArtifact(ctx context.Context, id int) (*Artifact, error) {
 	pr, _, err := gh.PullRequests.Get(ctx, repositoryOwner, repositoryName, id)
 	if err != nil {
+		if isNotFoundError(err) {
+			return nil, FirmwareLoadError("pull request not found")
+		}
+
 		return nil, fmt.Errorf("list commits: %w", err)
 	}
 
@@ -40,6 +58,10 @@ func getPullRequestArtifact(ctx context.Context, id int) (*Artifact, error) {
 func getRefArtifact(ctx context.Context, refName string) (*Artifact, error) {
 	ref, _, err := gh.Git.GetRef(ctx, repositoryOwner, repositoryName, refName)
 	if err != nil {
+		if isNotFoundError(err) {
+			return nil, FirmwareLoadError("ref not found")
+		}
+
 		return nil, fmt.Errorf("get ref: %w", err)
 	}
 
@@ -55,7 +77,7 @@ func getSHACommitArtifact(ctx context.Context, sha string) (*Artifact, error) {
 	}
 
 	if len(runs.WorkflowRuns) == 0 {
-		return nil, fmt.Errorf("no workflow runs found")
+		return nil, FirmwareLoadError(fmt.Sprintf("no workflow runs found for commit '%s'", sha))
 	}
 
 	latest := slices.MaxFunc(runs.WorkflowRuns, func(a, b *github.WorkflowRun) int {
@@ -90,7 +112,7 @@ func getArtifact(ctx context.Context, workflowRunID int64) (*os.File, error) {
 	}
 
 	if len(artifacts.Artifacts) == 0 {
-		return nil, fmt.Errorf("no artifacts found")
+		return nil, FirmwareLoadError("no artifacts found")
 	}
 
 	for _, artifact := range artifacts.Artifacts {
@@ -101,7 +123,7 @@ func getArtifact(ctx context.Context, workflowRunID int64) (*os.File, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no firmware artifact found")
+	return nil, FirmwareLoadError("no firmware artifact found")
 }
 
 func downloadArtifactFirmware(ctx context.Context, url string) (*os.File, error) {
@@ -128,7 +150,7 @@ func downloadArtifactFirmware(ctx context.Context, url string) (*os.File, error)
 	}
 
 	if len(zr.File) != 1 || !strings.HasSuffix(zr.File[0].Name, ".out") {
-		return nil, fmt.Errorf("invalid zip file contents")
+		return nil, FirmwareLoadError("invalid artifact file contents")
 	}
 
 	f, err := zr.File[0].Open()

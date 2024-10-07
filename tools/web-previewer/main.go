@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"image"
@@ -33,17 +34,22 @@ var (
 func main() {
 	flag.StringVar(&previewerPath, "previewer", "", "Path to the previewer executable")
 	flag.DurationVar(&previewTimeout, "preview-timeout", 20*time.Second, "Timeout for the previewer")
-	addr := flag.String("addr", ":80", "Address to listen on")
-	githubToken := flag.String("github-token", "", "GitHub token")
 	flag.Parse()
 
-	gh = github.NewClient(nil).WithAuthToken(*githubToken)
+	addr := os.Getenv("ADDR")
+	if addr == "" {
+		addr = ":80"
+	}
+
+	githubToken := os.Getenv("GITHUB_TOKEN")
+
+	gh = github.NewClient(nil).WithAuthToken(githubToken)
 
 	if previewerPath == "" {
 		panic("previewer path is required")
 	}
 
-	http.HandleFunc("/preview", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /preview", func(w http.ResponseWriter, r *http.Request) {
 		fwSpecifiers, ok := r.URL.Query()["fw"]
 		if !ok || len(fwSpecifiers) != 1 {
 			http.Error(w, "missing or multiple 'fw' query parameters", http.StatusBadRequest)
@@ -64,17 +70,26 @@ func main() {
 		log.Info().Str("fw", fwSpecifiers[0]).Str("script", script).Msg("got request")
 
 		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "no-store")
 
 		if err := previewHandler(r.Context(), w, fwSpecifiers[0], script, showInfo); err != nil {
 			log.Err(err).Msg("failed to generate preview")
 
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+
+			var fwErr FirmwareLoadError
+
+			if errors.As(err, &fwErr) {
+				generateErrorImage(w, string(fwErr))
+			} else {
+				generateErrorImage(w, "failed to generate preview")
+			}
 		}
 	})
 
-	log.Info().Str("addr", *addr).Msg("listening")
+	log.Info().Str("addr", addr).Msg("listening")
 
-	if err := http.ListenAndServe(*addr, nil); err != nil {
+	if err := http.ListenAndServe(addr, nil); err != nil {
 		panic(err)
 	}
 }
@@ -132,7 +147,7 @@ func loadFirmware(ctx context.Context, specifier string) (*Artifact, error) {
 	if prIDStr, ok := strings.CutPrefix(specifier, "pr/"); ok {
 		prID, err := strconv.Atoi(prIDStr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid PR ID: %v", err)
+			return nil, fmt.Errorf("invalid PR ID")
 		}
 
 		return getPullRequestArtifact(ctx, prID)
@@ -165,4 +180,17 @@ func drawInfoImage(scrshotData io.Reader, out io.Writer, info string) error {
 	g.DrawString(info, 5, float64(img.Bounds().Dy())+bottomBarHeight/2+h/2)
 
 	return g.EncodePNG(out)
+}
+
+func generateErrorImage(w io.Writer, msg string) error {
+	const size = 240
+
+	g := gg.NewContext(size, size)
+	g.SetColor(color.Black)
+	g.Clear()
+
+	g.SetColor(color.RGBA{255, 0, 0, 255})
+	g.DrawStringWrapped(msg, size/2, size/2, 0.5, 0.5, 200, 1, gg.AlignCenter)
+
+	return g.EncodePNG(w)
 }
