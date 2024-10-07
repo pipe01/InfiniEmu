@@ -44,6 +44,10 @@ There is a hosted version of the web previewer at `tools/web-previewer` availabl
 
 ### Example:
 
+`https://pipe01.net/infiniemu/preview?fw=heads/main&script=run_1s,screenshot`
+
+![](https://pipe01.net/infiniemu/preview?fw=heads/main&script=run_1s,screenshot)
+
 `https://pipe01.net/infiniemu/preview?fw=heads/main&info=true&script=run_1s,screenshot,swipe_right,run_300ms,screenshot,tap_180_180,run_300ms,screenshot,tap_120_200,run_300ms,screenshot,tap_36_203,run_300ms,screenshot,button_1s,run_300ms,screenshot`
 
 ![](https://pipe01.net/infiniemu/preview?fw=heads/main&info=true&script=run_1s,screenshot,swipe_right,run_300ms,screenshot,tap_180_180,run_300ms,screenshot,tap_120_200,run_300ms,screenshot,tap_36_203,run_300ms,screenshot,button_1s,run_300ms,screenshot)
