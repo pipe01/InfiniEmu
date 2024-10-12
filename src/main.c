@@ -8,8 +8,10 @@
 #include "pinetime.h"
 #include "gdb.h"
 #include "ie_time.h"
+#include "pcap.h"
 #include "program.h"
 #include "segger_rtt.h"
+#include "peripherals/nrf52832/radio.h"
 
 void commander_output(const char *msg, void *userdata)
 {
@@ -125,6 +127,9 @@ int main(int argc, char **argv)
 #else
     (void)runlog_path;
 #endif
+
+    pcap_t *pcap = pcap_create("bluetooth.pcap");
+    radio_set_pcap(nrf52832_get_peripheral(nrf, INSTANCE_RADIO), pcap);
 
     free(program);
 

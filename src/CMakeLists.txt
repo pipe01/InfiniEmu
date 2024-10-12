@@ -61,8 +61,9 @@ set(SRC_WASM_FILES
 set(SRC_NATIVE_FILES
     gdb.c
     main.c
-    time.c
+    pcap.c
     runlog.c
+    time.c
 )
 
 # Disable warnings for littlefs

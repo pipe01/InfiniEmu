@@ -2,7 +2,9 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include "byte_util.h"
 #include "fault.h"
 #include "nrf52832.h"
 #include "peripherals/nrf52832/ppi.h"
@@ -106,7 +108,7 @@ static_assert(sizeof(shorts_t) == 4, "shorts_t size is not 4 bytes");
 
 typedef union
 {
-    uint8_t byte[4];
+    uint8_t ap[4];
     uint32_t value;
 } prefix_t;
 
@@ -137,6 +139,8 @@ typedef enum
 struct RADIO_inst_t
 {
     ticker_t *ticker;
+    dma_t *dma;
+    pcap_t *pcap;
 
     bool powered_on;
     radio_state_t state, next_state;
@@ -181,6 +185,8 @@ void radio_do_state_change(void *userdata)
     radio_state_t old_state = radio->state;
 
     radio->state = radio->next_state;
+
+    printf("Radio state change: %d -> %d\n", old_state, radio->state);
 
     bool request_update = false;
 
@@ -320,11 +326,70 @@ PPI_TASK_HANDLER(radio_task_handler)
         switch (radio->state)
         {
         case STATE_TXIDLE:
+            if (radio->pcap)
+            {
+                uint8_t packet[256];
+                dma_read(radio->dma, radio->packetptr, 256, packet);
+
+                size_t ptr = 0;
+
+                uint8_t s0[radio->pcnf0.S0LEN];
+                memcpy(s0, &packet[ptr], radio->pcnf0.S0LEN);
+                ptr += radio->pcnf0.S0LEN;
+
+                uint16_t length = READ_UINT16(packet, ptr);
+                length &= (1 << radio->pcnf0.LFLEN) - 1;
+                ptr += (radio->pcnf0.LFLEN + 7) / 8; // Round up to the nearest byte
+
+                if (radio->pcnf0.S1LEN > 0)
+                {
+                    fault_take(FAULT_NOT_IMPLEMENTED);
+                }
+                else if (radio->pcnf0.S1INCL == 1)
+                {
+                    ptr++;
+                }
+
+                uint8_t payload[length];
+                memcpy(payload, &packet[ptr], length);
+
+                uint8_t address[4];
+
+                assert(radio->pcnf1.BALEN == 3);
+
+                switch (radio->txaddress)
+                {
+                case 0:
+                    WRITE_UINT32(address, 0, radio->base0 >> 8);
+                    address[3] = radio->prefix0.ap[0];
+                    break;
+
+                default:
+                    WRITE_UINT32(address, 0, radio->base1 >> 8);
+                    address[3] = radio->prefix1.ap[radio->txaddress & 7];
+                    break;
+                }
+
+                uint8_t crc[3] = {0}; // TODO: Implement CRC
+
+                // Excludes preamble
+                uint8_t ll_packet[sizeof(address) + radio->pcnf0.S0LEN + sizeof(length) + sizeof(payload) + sizeof(crc)];
+                memcpy(ll_packet, address, sizeof(address));
+                memcpy(&ll_packet[sizeof(address)], s0, radio->pcnf0.S0LEN);
+                memcpy(&ll_packet[sizeof(address) + radio->pcnf0.S0LEN], &length, sizeof(length));
+                memcpy(&ll_packet[sizeof(address) + radio->pcnf0.S0LEN + sizeof(length)], payload, sizeof(payload));
+                memcpy(&ll_packet[sizeof(address) + radio->pcnf0.S0LEN + sizeof(length) + sizeof(payload)], crc, sizeof(crc));
+
+                pcap_write_packet(radio->pcap, ll_packet, sizeof(ll_packet));
+            }
+
             radio->next_state = STATE_TX;
             break;
+
         case STATE_RXIDLE:
             radio->next_state = STATE_RX;
             break;
+
         default:
             break;
         }
@@ -350,6 +415,8 @@ PPI_TASK_HANDLER(radio_task_handler)
 
     case TASK_ID(RADIO_TASKS_RSSISTART):
     case TASK_ID(RADIO_TASKS_RSSISTOP):
+        break;
+
     case TASK_ID(RADIO_TASKS_BCSTART):
     case TASK_ID(RADIO_TASKS_BCSTOP):
         fault_take(FAULT_NOT_IMPLEMENTED);
@@ -523,8 +590,14 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
 {
     RADIO_t *radio = calloc(1, sizeof(RADIO_t));
     radio->ticker = ctx.ticker;
+    radio->dma = ctx.dma;
 
     ppi_add_peripheral(ctx.ppi, ctx.id, radio_task_handler, radio);
 
     return radio;
+}
+
+void radio_set_pcap(RADIO_t *radio, pcap_t *pcap)
+{
+    radio->pcap = pcap;
 }

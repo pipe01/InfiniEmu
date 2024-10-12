@@ -7,7 +7,7 @@
 #include "fault.h"
 #include "peripherals/nrf52832/ppi.h"
 
-#define TICK_INTERVAL 20
+#define TICK_INTERVAL 1950
 
 enum
 {
