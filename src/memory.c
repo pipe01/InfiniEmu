@@ -221,7 +221,7 @@ void memory_bucket_add_region(membucket_t *bucket, memreg_t *region)
     bucket->regions_count++;
 }
 
-inline membucket_t *memory_map_find_bucket(memory_map_t *map, uint32_t addr)
+inline static membucket_t *memory_map_find_bucket(memory_map_t *map, uint32_t addr)
 {
     uint8_t bucket1 = (addr >> 28) & 0xF;
     uint8_t bucket2 = (addr >> 12) & 0xFF;
