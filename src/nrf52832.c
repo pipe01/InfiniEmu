@@ -48,7 +48,7 @@ struct NRF52832_inst_t
 
     uint64_t cycle_counter;
 
-    memreg_t *mem;
+    memory_map_t *mem;
     bus_spi_t *bus_spi;
     bus_i2c_t *bus_i2c;
     pins_t *pins;
@@ -76,12 +76,12 @@ struct NRF52832_inst_t
     SPI_t *spi[3];
 };
 
-#define NEW_NRF52_PERIPH(chip, type, name, field, idn, ...)                                                                               \
-    do                                                                                                                                    \
-    {                                                                                                                                     \
-        ctx.id = idn;                                                                                                                     \
-        (chip)->field = name##_new(ctx, ##__VA_ARGS__);                                                                                   \
-        last = memreg_set_next(last, memreg_new_operation(0x40000000 | (((idn) & 0xFF) << 12), 0x1000, name##_operation, (chip)->field)); \
+#define NEW_NRF52_PERIPH(chip, type, name, field, idn, ...)                                                                                     \
+    do                                                                                                                                          \
+    {                                                                                                                                           \
+        ctx.id = idn;                                                                                                                           \
+        (chip)->field = name##_new(ctx, ##__VA_ARGS__);                                                                                         \
+        memory_map_add_region((chip)->mem, memreg_new_operation(0x40000000 | (((idn) & 0xFF) << 12), 0x1000, name##_operation, (chip)->field)); \
     } while (0)
 
 NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
@@ -102,8 +102,9 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
     chip->flash = malloc(chip->flash_size);
     program_write_to(flash, chip->flash, chip->flash_size);
 
-    chip->mem = memreg_new_simple(x(2000, 0000), sram, sram_size);
-    memreg_t *last = chip->mem;
+    chip->mem = memory_map_new();
+
+    memory_map_add_region(chip->mem, memreg_new_simple(x(2000, 0000), sram, sram_size));
 
     // PPI must be created first to allow for other peripherals to subscribe to it
     NEW_PERIPH(chip, PPI, ppi, ppi, x(4001, F000), 0x1000, &chip->cpu);
@@ -120,7 +121,7 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
     };
 
     NEW_NRF52_PERIPH(chip, NVMC, nvmc, nvmc, INSTANCE_NVMC, chip->flash, program_size(flash));
-    last = memreg_set_next(last, memreg_new_operation(0, program_size(flash), nvmc_operation, chip->nvmc));
+    memory_map_add_region(chip->mem, memreg_new_operation(0, program_size(flash), nvmc_operation, chip->nvmc));
 
     NEW_NRF52_PERIPH(chip, CLOCK, clock, clock, INSTANCE_CLOCK);
     NEW_NRF52_PERIPH(chip, POWER, power, power, INSTANCE_POWER);
@@ -151,9 +152,9 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
     NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[2], INSTANCE_RTC2, 4);
     NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000, ctx);
 
-    last = memreg_set_next(last, memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len));
-    last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len));
-    last = memreg_set_next(last, memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len));
+    memory_map_add_region(chip->mem, memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len));
+    memory_map_add_region(chip->mem, memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len));
+    memory_map_add_region(chip->mem, memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len));
 
     chip->cpu = cpu_new(chip->flash, program_size(flash), chip->mem, NRF52832_MAX_EXTERNAL_INTERRUPTS, NRF52832_PRIORITY_BITS);
 
@@ -164,7 +165,7 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 {
     nrf52832->cycle_counter = 0;
 
-    memreg_reset_all(nrf52832->mem);
+    memory_map_reset(nrf52832->mem);
     pins_reset(nrf52832->pins);
     bus_spi_reset(nrf52832->bus_spi);
     i2c_reset(nrf52832->bus_i2c);
@@ -206,15 +207,10 @@ pins_t *nrf52832_get_pins(NRF52832_t *chip)
 void *nrf52832_get_peripheral(NRF52832_t *chip, uint8_t instance_id)
 {
     uint32_t want_start = x(4000, 0000) | (instance_id << 12);
-    memreg_t *region = chip->mem;
+    memreg_t *region = memory_map_get_region(chip->mem, want_start);
 
-    while (region)
-    {
-        if (memreg_get_start(region) == want_start)
-            return memreg_get_userdata(region);
-
-        region = memreg_get_next(region);
-    }
+    if (region)
+        return memreg_get_userdata(region);
 
     return NULL;
 }

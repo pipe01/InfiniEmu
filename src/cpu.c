@@ -241,7 +241,7 @@ struct cpu_inst_t
 
     bool branched;
 
-    memreg_t *mem;
+    memory_map_t *mem;
 
     DWT_t *dwt;
     SCB_t *scb;
@@ -252,29 +252,29 @@ struct cpu_inst_t
 
 cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc);
 
-static void memreg_write_traced(cpu_t *cpu, uint32_t addr, uint32_t value, byte_size_t size)
+static void memory_map_write_traced(cpu_t *cpu, uint32_t addr, uint32_t value, byte_size_t size)
 {
     DO_RUNLOG(runlog_record_memory_store(cpu->runlog, RUNLOG_REG_UNKNOWN, value, addr, size));
 
     if (cpu->memory_watchpoint.write && cpu->memory_watchpoint.address == addr)
     {
-        uint32_t old_value = memreg_read(cpu->mem, addr);
+        uint32_t old_value = memory_map_read(cpu->mem, addr);
 
-        memreg_write(cpu->mem, addr, value, size);
+        memory_map_write(cpu->mem, addr, value, size);
 
         cpu->memory_watchpoint.cb(cpu, true, addr, size, old_value, value, cpu->memory_watchpoint.userdata);
     }
     else
     {
-        memreg_write(cpu->mem, addr, value, size);
+        memory_map_write(cpu->mem, addr, value, size);
     }
 }
 
-static uint32_t memreg_read_traced(cpu_t *cpu, uint32_t addr, size_t size)
+static uint32_t memory_map_read_traced(cpu_t *cpu, uint32_t addr, size_t size)
 {
     uint32_t value;
 
-    memreg_do_operation(cpu->mem, addr, size, &value);
+    memory_map_do_operation(cpu->mem, addr, size, &value);
 
     DO_RUNLOG(runlog_record_memory_load(cpu->runlog, addr, value, RUNLOG_REG_UNKNOWN, size));
 
@@ -286,19 +286,19 @@ static uint32_t memreg_read_traced(cpu_t *cpu, uint32_t addr, size_t size)
     return value;
 }
 
-static inline uint32_t memreg_read_traced_word(cpu_t *cpu, uint32_t addr)
+static inline uint32_t memory_map_read_traced_word(cpu_t *cpu, uint32_t addr)
 {
-    return memreg_read_traced(cpu, addr, SIZE_WORD);
+    return memory_map_read_traced(cpu, addr, SIZE_WORD);
 }
 
-static inline uint16_t memreg_read_traced_halfword(cpu_t *cpu, uint32_t addr)
+static inline uint16_t memory_map_read_traced_halfword(cpu_t *cpu, uint32_t addr)
 {
-    return memreg_read_traced(cpu, addr, SIZE_HALFWORD);
+    return memory_map_read_traced(cpu, addr, SIZE_HALFWORD);
 }
 
-static inline uint8_t memreg_read_traced_byte(cpu_t *cpu, uint32_t addr)
+static inline uint8_t memory_map_read_traced_byte(cpu_t *cpu, uint32_t addr)
 {
-    return memreg_read_traced(cpu, addr, SIZE_BYTE);
+    return memory_map_read_traced(cpu, addr, SIZE_BYTE);
 }
 
 #if ENABLE_RUNLOG
@@ -427,7 +427,7 @@ static void store_operand(cpu_t *cpu, cs_arm_op *op, uint32_t value, size_t size
     {
         uint32_t addr = ALIGN4(mem_operand_address(cpu, op));
 
-        memreg_write_traced(cpu, addr, value, size);
+        memory_map_write_traced(cpu, addr, value, size);
         break;
     }
     default:
@@ -829,14 +829,14 @@ static void push_stack(cpu_t *cpu, arm_exception ex, bool sync)
 
     uint32_t xpsr = cpu_sysreg_read(cpu, ARM_SYSREG_XPSR);
 
-    memreg_write_traced(cpu, frameptr, cpu->core_regs[ARM_REG_R0], SIZE_WORD);
-    memreg_write_traced(cpu, frameptr + 0x4, cpu->core_regs[ARM_REG_R1], SIZE_WORD);
-    memreg_write_traced(cpu, frameptr + 0x8, cpu->core_regs[ARM_REG_R2], SIZE_WORD);
-    memreg_write_traced(cpu, frameptr + 0xC, cpu->core_regs[ARM_REG_R3], SIZE_WORD);
-    memreg_write_traced(cpu, frameptr + 0x10, cpu->core_regs[ARM_REG_R12], SIZE_WORD);
-    memreg_write_traced(cpu, frameptr + 0x14, cpu->core_regs[ARM_REG_LR], SIZE_WORD);
-    memreg_write_traced(cpu, frameptr + 0x18, exception_return_address(cpu, ex, sync), SIZE_WORD);
-    memreg_write_traced(cpu, frameptr + 0x1C, (xpsr & ~(1 << 9)) | (frameptralign << 9), SIZE_WORD);
+    memory_map_write_traced(cpu, frameptr, cpu->core_regs[ARM_REG_R0], SIZE_WORD);
+    memory_map_write_traced(cpu, frameptr + 0x4, cpu->core_regs[ARM_REG_R1], SIZE_WORD);
+    memory_map_write_traced(cpu, frameptr + 0x8, cpu->core_regs[ARM_REG_R2], SIZE_WORD);
+    memory_map_write_traced(cpu, frameptr + 0xC, cpu->core_regs[ARM_REG_R3], SIZE_WORD);
+    memory_map_write_traced(cpu, frameptr + 0x10, cpu->core_regs[ARM_REG_R12], SIZE_WORD);
+    memory_map_write_traced(cpu, frameptr + 0x14, cpu->core_regs[ARM_REG_LR], SIZE_WORD);
+    memory_map_write_traced(cpu, frameptr + 0x18, exception_return_address(cpu, ex, sync), SIZE_WORD);
+    memory_map_write_traced(cpu, frameptr + 0x1C, (xpsr & ~(1 << 9)) | (frameptralign << 9), SIZE_WORD);
 
     if (cpu->control.FPCA)
     {
@@ -847,13 +847,13 @@ static void push_stack(cpu_t *cpu, arm_exception ex, bool sync)
 
         for (size_t i = 0; i < 8; i++)
         {
-            memreg_write_traced(cpu, ptr, cpu->d[i].lower, SIZE_WORD);
-            memreg_write_traced(cpu, ptr + 4, cpu->d[i].upper, SIZE_WORD);
+            memory_map_write_traced(cpu, ptr, cpu->d[i].lower, SIZE_WORD);
+            memory_map_write_traced(cpu, ptr + 4, cpu->d[i].upper, SIZE_WORD);
 
             ptr += 8;
         }
 
-        memreg_write_traced(cpu, ptr, cpu_reg_read(cpu, ARM_REG_FPSCR), SIZE_WORD);
+        memory_map_write_traced(cpu, ptr, cpu_reg_read(cpu, ARM_REG_FPSCR), SIZE_WORD);
     }
 
     if (cpu->mode == ARM_MODE_HANDLER)
@@ -880,14 +880,14 @@ static void pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
         forcealign = scb_get_ccr(cpu->scb).STKALIGN;
     }
 
-    cpu->core_regs[ARM_REG_R0] = memreg_read_traced_word(cpu, sp);
-    cpu->core_regs[ARM_REG_R1] = memreg_read_traced_word(cpu, sp + 0x4);
-    cpu->core_regs[ARM_REG_R2] = memreg_read_traced_word(cpu, sp + 0x8);
-    cpu->core_regs[ARM_REG_R3] = memreg_read_traced_word(cpu, sp + 0xC);
-    cpu->core_regs[ARM_REG_R12] = memreg_read_traced_word(cpu, sp + 0x10);
-    cpu->core_regs[ARM_REG_LR] = memreg_read_traced_word(cpu, sp + 0x14);
-    cpu_reg_write(cpu, ARM_REG_PC, memreg_read_traced_word(cpu, sp + 0x18) | 1);
-    uint32_t psr = memreg_read_traced_word(cpu, sp + 0x1C);
+    cpu->core_regs[ARM_REG_R0] = memory_map_read_traced_word(cpu, sp);
+    cpu->core_regs[ARM_REG_R1] = memory_map_read_traced_word(cpu, sp + 0x4);
+    cpu->core_regs[ARM_REG_R2] = memory_map_read_traced_word(cpu, sp + 0x8);
+    cpu->core_regs[ARM_REG_R3] = memory_map_read_traced_word(cpu, sp + 0xC);
+    cpu->core_regs[ARM_REG_R12] = memory_map_read_traced_word(cpu, sp + 0x10);
+    cpu->core_regs[ARM_REG_LR] = memory_map_read_traced_word(cpu, sp + 0x14);
+    cpu_reg_write(cpu, ARM_REG_PC, memory_map_read_traced_word(cpu, sp + 0x18) | 1);
+    uint32_t psr = memory_map_read_traced_word(cpu, sp + 0x1C);
 
     LOG_CPU_EX("Returning from exception to 0x%08X", cpu->core_regs[ARM_REG_PC]);
 
@@ -901,13 +901,13 @@ static void pop_stack(cpu_t *cpu, uint32_t sp, uint32_t exc_return)
 
         for (size_t i = 0; i < 8; i++)
         {
-            cpu->d[i].lower = memreg_read_traced_word(cpu, ptr);
-            cpu->d[i].upper = memreg_read_traced_word(cpu, ptr + 4);
+            cpu->d[i].lower = memory_map_read_traced_word(cpu, ptr);
+            cpu->d[i].upper = memory_map_read_traced_word(cpu, ptr + 4);
 
             ptr += 8;
         }
 
-        cpu_reg_write(cpu, ARM_REG_FPSCR, memreg_read_traced_word(cpu, ptr));
+        cpu_reg_write(cpu, ARM_REG_FPSCR, memory_map_read_traced_word(cpu, ptr));
     }
 
     cpu->control.FPCA = frametype == 0;
@@ -1095,15 +1095,15 @@ static void do_load(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool sign_exte
     switch (size)
     {
     case SIZE_WORD:
-        value = memreg_read_traced_word(cpu, offsetAddr);
+        value = memory_map_read_traced_word(cpu, offsetAddr);
         break;
 
     case SIZE_HALFWORD:
-        value = memreg_read_traced_halfword(cpu, offsetAddr);
+        value = memory_map_read_traced_halfword(cpu, offsetAddr);
         break;
 
     case SIZE_BYTE:
-        value = memreg_read_traced_byte(cpu, offsetAddr);
+        value = memory_map_read_traced_byte(cpu, offsetAddr);
         break;
 
     default:
@@ -1186,14 +1186,14 @@ static void do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
     uint32_t value = cpu_reg_read(cpu, detail->operands[0].reg) & size_mask(size);
     uint32_t address = detail->post_index ? base : offset_addr;
 
-    memreg_write_traced(cpu, address, value, size);
+    memory_map_write_traced(cpu, address, value, size);
 
     DO_RUNLOG(runlog_record_memory_store(cpu->runlog, runlog_reg(detail->operands[0].reg), value, address, size));
 
     if (dual)
     {
         value = cpu_reg_read(cpu, detail->operands[1].reg);
-        memreg_write_traced(cpu, address + 4, value, size);
+        memory_map_write_traced(cpu, address + 4, value, size);
     }
 
     if (detail->writeback)
@@ -1202,9 +1202,6 @@ static void do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
 
 static void add_arm_memregs(cpu_t *cpu, size_t priority_bits)
 {
-    memreg_t *first = memreg_find_last(cpu->mem);
-    memreg_t *last = first;
-
     NEW_PERIPH(cpu, DWT, dwt, dwt, x(E000, 1000), 0x1000);
     NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90, cpu);
     NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110);
@@ -1225,7 +1222,7 @@ static void do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op *re
 
         uint32_t value = cpu_reg_read(cpu, reg_operands[i].reg);
 
-        memreg_write_traced(cpu, address, value, SIZE_WORD);
+        memory_map_write_traced(cpu, address, value, SIZE_WORD);
 
         DO_RUNLOG(runlog_record_memory_store(cpu->runlog, runlog_reg(reg_operands[i].reg), value, address, SIZE_WORD));
 
@@ -1262,7 +1259,7 @@ static inline void decode_arithmetic(cpu_t *cpu, cs_insn *i, uint32_t *op0_val, 
     }
 }
 
-cpu_t *cpu_new(const uint8_t *program, size_t program_size, memreg_t *mem, size_t max_external_interrupts, size_t priority_bits)
+cpu_t *cpu_new(const uint8_t *program, size_t program_size, memory_map_t *mem, size_t max_external_interrupts, size_t priority_bits)
 {
     cpu_t *cpu = calloc(1, sizeof(cpu_t));
 
@@ -1387,7 +1384,7 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
         return *insn;
     }
 
-    uint32_t code = memreg_read_traced_word(cpu, pc);
+    uint32_t code = memory_map_read_traced_word(cpu, pc);
 
     if (cpu->last_external_inst)
         cs_free(cpu->last_external_inst, 1);
@@ -1733,7 +1730,7 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         for (int n = 0; n < detail->op_count - 1; n++)
         {
-            value = memreg_read_traced_word(cpu, address);
+            value = memory_map_read_traced_word(cpu, address);
             address += 4;
 
             cpu_reg_write(cpu, detail->operands[n + 1].reg, value);
@@ -1753,7 +1750,7 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         for (int n = 0; n < detail->op_count - 1; n++)
         {
-            value = memreg_read_traced_word(cpu, address);
+            value = memory_map_read_traced_word(cpu, address);
             address += 4;
 
             cpu_reg_write(cpu, detail->operands[n + 1].reg, value);
@@ -1781,8 +1778,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_LDRD:
         value = mem_operand_address(cpu, &detail->operands[2]);
 
-        store_operand(cpu, &detail->operands[0], memreg_read_traced_word(cpu, value), SIZE_WORD);
-        store_operand(cpu, &detail->operands[1], memreg_read_traced_word(cpu, value + 4), SIZE_WORD);
+        store_operand(cpu, &detail->operands[0], memory_map_read_traced_word(cpu, value), SIZE_WORD);
+        store_operand(cpu, &detail->operands[1], memory_map_read_traced_word(cpu, value + 4), SIZE_WORD);
         break;
 
     case ARM_INS_LDRH:
@@ -1944,7 +1941,7 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         for (int n = 0; n < detail->op_count; n++)
         {
-            value = memreg_read_traced_word(cpu, op0);
+            value = memory_map_read_traced_word(cpu, op0);
 
             store_operand(cpu, &detail->operands[n], value, SIZE_WORD);
 
@@ -2286,7 +2283,7 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         {
             assert(detail->operands[n].type == ARM_OP_REG);
 
-            memreg_write_traced(cpu, op0, cpu_reg_read(cpu, detail->operands[n].reg), SIZE_WORD);
+            memory_map_write_traced(cpu, op0, cpu_reg_read(cpu, detail->operands[n].reg), SIZE_WORD);
 
             op0 += 4;
         }
@@ -2318,7 +2315,7 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         op0 = mem_operand_address(cpu, &detail->operands[2]);
 
         cpu_reg_write(cpu, detail->operands[0].reg, 0);
-        memreg_write_traced(cpu, op0, cpu_reg_read(cpu, detail->operands[1].reg),
+        memory_map_write_traced(cpu, op0, cpu_reg_read(cpu, detail->operands[1].reg),
                             i->id == ARM_INS_STREXB ? SIZE_BYTE : i->id == ARM_INS_STREXH ? SIZE_HALFWORD
                                                                                           : SIZE_WORD);
         break;
@@ -2395,7 +2392,7 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         assert(detail->operands[0].type == ARM_OP_MEM);
 
         op0 = mem_operand_address(cpu, &detail->operands[0]);
-        value = memreg_read_traced_word(cpu, op0) & (i->id == ARM_INS_TBB ? 0xFF : 0xFFFF);
+        value = memory_map_read_traced_word(cpu, op0) & (i->id == ARM_INS_TBB ? 0xFF : 0xFFFF);
 
         cpu_reg_write(cpu, ARM_REG_PC, (cpu_reg_read(cpu, ARM_REG_PC) + value * 2) | 1);
         break;
@@ -2705,7 +2702,7 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         {
             if (single_regs)
             {
-                cpu_reg_write(cpu, detail->operands[n].reg, memreg_read_traced_word(cpu, address));
+                cpu_reg_write(cpu, detail->operands[n].reg, memory_map_read_traced_word(cpu, address));
 
                 address += 4;
             }
@@ -2713,8 +2710,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             {
                 assert(IS_DOUBLE(detail->operands[n]));
 
-                uint32_t word1 = memreg_read_traced_word(cpu, address);
-                uint32_t word2 = memreg_read_traced_word(cpu, address + 4);
+                uint32_t word1 = memory_map_read_traced_word(cpu, address);
+                uint32_t word2 = memory_map_read_traced_word(cpu, address + 4);
 
                 cpu->d[detail->operands[n].reg - ARM_REG_D0].value = (uint64_t)word1 | ((uint64_t)word2 << 32);
 
@@ -2744,14 +2741,14 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         if (detail->operands[0].reg >= ARM_REG_S0 && detail->operands[0].reg <= ARM_REG_S31)
         {
-            cpu_reg_write(cpu, detail->operands[0].reg, memreg_read_traced_word(cpu, address));
+            cpu_reg_write(cpu, detail->operands[0].reg, memory_map_read_traced_word(cpu, address));
         }
         else
         {
             assert(IS_DOUBLE(detail->operands[0]));
 
-            uint32_t word1 = memreg_read_traced_word(cpu, address);
-            uint32_t word2 = memreg_read_traced_word(cpu, address + 4);
+            uint32_t word1 = memory_map_read_traced_word(cpu, address);
+            uint32_t word2 = memory_map_read_traced_word(cpu, address + 4);
 
             cpu->d[detail->operands[0].reg - ARM_REG_D0].value = (uint64_t)word1 | ((uint64_t)word2 << 32);
         }
@@ -2874,7 +2871,7 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         {
             if (single_regs)
             {
-                memreg_write_traced(cpu, address, cpu_reg_read(cpu, detail->operands[n].reg), SIZE_WORD);
+                memory_map_write_traced(cpu, address, cpu_reg_read(cpu, detail->operands[n].reg), SIZE_WORD);
 
                 address += 4;
             }
@@ -2882,8 +2879,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
             {
                 assert(IS_DOUBLE(detail->operands[n]));
 
-                memreg_write_traced(cpu, address, cpu->d[detail->operands[n].reg - ARM_REG_D0].lower, SIZE_WORD);
-                memreg_write_traced(cpu, address + 4, cpu->d[detail->operands[n].reg - ARM_REG_D0].upper, SIZE_WORD);
+                memory_map_write_traced(cpu, address, cpu->d[detail->operands[n].reg - ARM_REG_D0].lower, SIZE_WORD);
+                memory_map_write_traced(cpu, address + 4, cpu->d[detail->operands[n].reg - ARM_REG_D0].upper, SIZE_WORD);
 
                 address += 8;
             }
@@ -2920,14 +2917,14 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         if (detail->operands[0].reg >= ARM_REG_S0 && detail->operands[0].reg <= ARM_REG_S31)
         {
-            memreg_write_traced(cpu, address, cpu_reg_read(cpu, detail->operands[0].reg), SIZE_WORD);
+            memory_map_write_traced(cpu, address, cpu_reg_read(cpu, detail->operands[0].reg), SIZE_WORD);
         }
         else
         {
             assert(IS_DOUBLE(detail->operands[0]));
 
-            memreg_write_traced(cpu, address, cpu->d[detail->operands[0].reg - ARM_REG_D0].lower, SIZE_WORD);
-            memreg_write_traced(cpu, address + 4, cpu->d[detail->operands[0].reg - ARM_REG_D0].upper, SIZE_WORD);
+            memory_map_write_traced(cpu, address, cpu->d[detail->operands[0].reg - ARM_REG_D0].lower, SIZE_WORD);
+            memory_map_write_traced(cpu, address + 4, cpu->d[detail->operands[0].reg - ARM_REG_D0].upper, SIZE_WORD);
         }
         break;
     }
@@ -3204,26 +3201,26 @@ void cpu_sysreg_write(cpu_t *cpu, arm_sysreg reg, uint32_t value, bool can_updat
     }
 }
 
-memreg_t *cpu_mem(cpu_t *cpu)
+memory_map_t *cpu_mem(cpu_t *cpu)
 {
     return cpu->mem;
 }
 
 bool cpu_mem_read(cpu_t *cpu, uint32_t addr, uint8_t *value)
 {
-    if (!memreg_is_mapped(cpu->mem, addr))
+    if (!memory_map_get_region(cpu->mem, addr))
         return false;
 
-    *value = memreg_read_traced_word(cpu, addr);
+    *value = memory_map_read_traced_word(cpu, addr);
     return true;
 }
 
 bool cpu_mem_write(cpu_t *cpu, uint32_t addr, uint8_t value)
 {
-    if (!memreg_is_mapped(cpu->mem, addr))
+    if (!memory_map_get_region(cpu->mem, addr))
         return false;
 
-    memreg_write_traced(cpu, addr, value, SIZE_BYTE);
+    memory_map_write_traced(cpu, addr, value, SIZE_BYTE);
     return true;
 }
 

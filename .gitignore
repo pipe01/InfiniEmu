@@ -13,3 +13,6 @@ screen*.raw
 screen*.png
 
 __debug_bin*
+
+callgrind.out.*
+vgcore.*

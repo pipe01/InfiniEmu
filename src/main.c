@@ -20,6 +20,12 @@ void commander_output(const char *msg, void *userdata)
 
 int main(int argc, char **argv)
 {
+    memory_map_t *map = memory_map_new();
+
+    memory_map_add_region(map, memreg_new_simple(0x4001A000, NULL, 100));
+    memory_map_add_region(map, memreg_new_simple(0x4000D000, NULL, 100));
+    memory_map_add_region(map, memreg_new_simple(0xE0001000, NULL, 200));
+
     char *program_path = NULL;
     bool run_gdb = false;
     char *runlog_path = NULL;

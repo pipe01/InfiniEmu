@@ -186,7 +186,7 @@ void radio_do_state_change(void *userdata)
 
     radio->state = radio->next_state;
 
-    printf("Radio state change: %d -> %d\n", old_state, radio->state);
+    // printf("Radio state change: %d -> %d\n", old_state, radio->state);
 
     bool request_update = false;
 
@@ -419,7 +419,8 @@ PPI_TASK_HANDLER(radio_task_handler)
 
     case TASK_ID(RADIO_TASKS_BCSTART):
     case TASK_ID(RADIO_TASKS_BCSTOP):
-        fault_take(FAULT_NOT_IMPLEMENTED);
+        // TODO: fault_take(FAULT_NOT_IMPLEMENTED);
+        break;
     }
 
     if (radio->next_state != radio->state)

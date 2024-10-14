@@ -360,7 +360,7 @@ char *gdb_qSearchMemory(gdbstub *gdb, char *msg)
         msg++;
     } while (*msg != '#');
 
-    uint32_t match_addr = memreg_find_data(cpu_mem(cpu), start, length, (uint8_t *)pattern, pattern_size);
+    uint32_t match_addr = memory_map_find_data(cpu_mem(cpu), start, length, (uint8_t *)pattern, pattern_size);
     if (match_addr != MEMREG_FIND_NOT_FOUND)
     {
         char resp[30];
@@ -640,7 +640,7 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
 
     uint8_t buf[length];
 
-    if (!memreg_is_mapped(cpu_mem(cpu), start))
+    if (!memory_map_get_region(cpu_mem(cpu), start))
     {
         send_response_str(gdb->fd, "E01");
         return msg;
@@ -648,7 +648,7 @@ char *gdb_queryReadMemory(gdbstub *gdb, char *msg)
 
     if (length == 4)
     {
-        uint32_t value = memreg_read(cpu_mem(cpu), start);
+        uint32_t value = memory_map_read(cpu_mem(cpu), start);
         memcpy(buf, &value, 4);
     }
     else

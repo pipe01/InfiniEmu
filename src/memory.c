@@ -11,10 +11,8 @@
 
 #define MAX_BREAKPOINTS 5
 
-struct memreg_inst_t
+struct memreg_t
 {
-    memreg_t *next;
-
     void *userdata;
     bool free_userdata;
 
@@ -122,23 +120,15 @@ memreg_t *memreg_new_operation(uint32_t start, size_t size, memreg_operation_t o
     region->start = start;
     region->end = start + size;
     region->operation = operation;
-    region->next = NULL;
 
     return region;
 }
 
 void memreg_free(memreg_t *region)
 {
-    while (region)
-    {
-        memreg_t *next = region->next;
-
-        if (region->free_userdata)
-            free(region->userdata);
-        free(region);
-
-        region = next;
-    }
+    if (region->free_userdata)
+        free(region->userdata);
+    free(region);
 }
 
 void memreg_reset(memreg_t *region)
@@ -146,55 +136,139 @@ void memreg_reset(memreg_t *region)
     region->operation(0, 0, NULL, OP_RESET, region->userdata);
 }
 
-void memreg_reset_all(memreg_t *region)
+uint32_t memreg_get_start(memreg_t *region)
 {
-    while (region)
-    {
-        memreg_reset(region);
+    return region->start;
+}
 
-        region = region->next;
+uint32_t memreg_get_end(memreg_t *region)
+{
+    return region->end;
+}
+
+void *memreg_get_userdata(memreg_t *region)
+{
+    return region->userdata;
+}
+
+typedef struct
+{
+    memreg_t **regions;
+    uint16_t regions_count;
+} membucket_t;
+
+#define BUCKET1_COUNT 16
+#define BUCKET2_COUNT 256
+#define BUCKET_SIZE 0x1000
+
+struct memory_map_t
+{
+    membucket_t buckets[BUCKET1_COUNT][BUCKET2_COUNT];
+};
+
+memory_map_t *memory_map_new()
+{
+    memory_map_t *map = calloc(1, sizeof(memory_map_t));
+    return map;
+}
+
+void memory_map_free(memory_map_t *map)
+{
+    assert(false); // TODO: Implement
+}
+
+void memory_map_reset(memory_map_t *map)
+{
+    for (size_t i = 0; i < BUCKET1_COUNT; i++)
+    {
+        for (size_t j = 0; j < BUCKET2_COUNT; j++)
+        {
+            membucket_t *bucket = &map->buckets[i][j];
+
+            for (size_t k = 0; k < bucket->regions_count; k++)
+                memreg_reset(bucket->regions[k]);
+        }
     }
 }
 
-memreg_t *memreg_set_next(memreg_t *region, memreg_t *next)
+void memory_bucket_add_region(membucket_t *bucket, memreg_t *region)
 {
-    if (!region)
-        return region;
+    assert(bucket->regions_count < BUCKET_SIZE);
 
-    return region->next = next;
+    memreg_t **new_regions = malloc((bucket->regions_count + 1) * sizeof(memreg_t *));
+    memreg_t *next_insert = region;
+
+    // Insert the new region in sorted order
+    for (uint8_t i = 0; i < bucket->regions_count + 1; i++)
+    {
+        if (i == bucket->regions_count)
+        {
+            new_regions[i] = next_insert;
+        }
+        else if (bucket->regions[i]->start < next_insert->start)
+        {
+            new_regions[i] = bucket->regions[i];
+        }
+        else
+        {
+            new_regions[i] = next_insert;
+            next_insert = bucket->regions[i];
+        }
+    }
+
+    free(bucket->regions);
+    bucket->regions = new_regions;
+    bucket->regions_count++;
 }
 
-memreg_t *memreg_find_last(memreg_t *region)
+inline membucket_t *memory_map_find_bucket(memory_map_t *map, uint32_t addr)
 {
-    if (!region)
+    uint8_t bucket1 = (addr >> 28) & 0xF;
+    uint8_t bucket2 = (addr >> 12) & 0xFF;
+
+    return &map->buckets[bucket1][bucket2];
+}
+
+void memory_map_add_region(memory_map_t *map, memreg_t *region)
+{
+    for (uint32_t i = region->start; i < region->end; i += BUCKET_SIZE)
+    {
+        memory_bucket_add_region(memory_map_find_bucket(map, i), region);
+    }
+}
+
+memreg_t *memory_map_get_region(memory_map_t *map, uint32_t addr)
+{
+    membucket_t *bucket = memory_map_find_bucket(map, addr);
+
+    if (bucket->regions_count == 0)
         return NULL;
 
-    while (region->next)
-        region = region->next;
+    if (bucket->regions_count == 1)
+        return bucket->regions[0];
 
-    return region;
-}
-
-bool memreg_is_mapped(memreg_t *region, uint32_t addr)
-{
-    while (region)
+    for (uint8_t i = 0; i < bucket->regions_count; i++)
     {
-        if (addr >= region->start && addr < region->end)
-            return true;
+        memreg_t *region = bucket->regions[i];
 
-        region = region->next;
+        if (addr >= region->start && addr < region->end)
+            return region;
     }
 
-    return false;
+    return NULL;
 }
 
-void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32_t *value)
+void memory_map_do_operation(memory_map_t *map, uint32_t addr, memreg_op_t op, uint32_t *value)
 {
+    membucket_t *bucket = memory_map_find_bucket(map, addr);
+
     memreg_op_result_t result = MEMREG_RESULT_UNHANDLED;
     bool handled = false;
 
-    while (region)
+    for (size_t i = 0; i < bucket->regions_count; i++)
     {
+        memreg_t *region = bucket->regions[i];
+
         if (addr >= region->start && addr < region->end)
         {
             result = region->operation(region->start, addr - region->start, value, op, region->userdata);
@@ -206,8 +280,6 @@ void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32
             else if (result != MEMREG_RESULT_UNHANDLED)
                 break;
         }
-
-        region = region->next;
     }
 
     if (handled)
@@ -236,31 +308,7 @@ void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32
     }
 }
 
-uint32_t memreg_read(memreg_t *region, uint32_t addr)
-{
-    uint32_t value;
-    memreg_do_operation(region, addr, OP_READ_WORD, &value);
-    return value;
-}
-
-uint8_t memreg_read_byte(memreg_t *region, uint32_t addr) {
-    uint32_t value;
-    memreg_do_operation(region, addr, OP_READ_BYTE, &value);
-    return (uint8_t)value;
-}
-
-uint16_t memreg_read_halfword(memreg_t *region, uint32_t addr) {
-    uint32_t value;
-    memreg_do_operation(region, addr, OP_READ_HALFWORD, &value);
-    return (uint16_t)value;
-}
-
-inline void memreg_write(memreg_t *region, uint32_t addr, uint32_t value, byte_size_t size)
-{
-    memreg_do_operation(region, addr, -size, &value);
-}
-
-uint32_t memreg_find_data(memreg_t *region, uint32_t start_addr, uint32_t search_length, uint8_t *data, size_t data_size)
+uint32_t memory_map_find_data(memory_map_t *map, uint32_t start_addr, uint32_t search_length, const uint8_t *data, size_t data_size)
 {
     assert(search_length > 0);
     assert(data_size > 0);
@@ -269,7 +317,7 @@ uint32_t memreg_find_data(memreg_t *region, uint32_t start_addr, uint32_t search
 
     for (uint32_t addr = start_addr; addr < start_addr + search_length; addr++)
     {
-        if (memreg_read_byte(region, addr) == data[match_len])
+        if (memory_map_read_byte(map, addr) == data[match_len])
         {
             match_len++;
 
@@ -283,19 +331,4 @@ uint32_t memreg_find_data(memreg_t *region, uint32_t start_addr, uint32_t search
     }
 
     return MEMREG_FIND_NOT_FOUND;
-}
-
-memreg_t *memreg_get_next(memreg_t *region)
-{
-    return region->next;
-}
-
-uint32_t memreg_get_start(memreg_t *region)
-{
-    return region->start;
-}
-
-void *memreg_get_userdata(memreg_t *region)
-{
-    return region->userdata;
 }

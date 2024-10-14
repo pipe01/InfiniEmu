@@ -543,7 +543,7 @@ func (e *Emulator) Brightness() Brightness {
 }
 
 func (e *Emulator) ReadMemory(addr uint32) uint32 {
-	return uint32(C.memreg_read(e.mem, C.uint(addr)))
+	return uint32(C.memory_map_read(e.mem, C.uint(addr)))
 }
 
 func (e *Emulator) ReadVariable(name string, offset uint32) (value uint64, found bool) {
@@ -554,13 +554,13 @@ func (e *Emulator) ReadVariable(name string, offset uint32) (value uint64, found
 
 	switch sym.Length {
 	case 1:
-		value = uint64(C.memreg_read_byte(e.mem, C.uint(sym.Start+offset)))
+		value = uint64(C.memory_map_read_byte(e.mem, C.uint(sym.Start+offset)))
 	case 2:
-		value = uint64(C.memreg_read_halfword(e.mem, C.uint(sym.Start+offset)))
+		value = uint64(C.memory_map_read_halfword(e.mem, C.uint(sym.Start+offset)))
 	case 4:
-		value = uint64(C.memreg_read(e.mem, C.uint(sym.Start+offset)))
+		value = uint64(C.memory_map_read(e.mem, C.uint(sym.Start+offset)))
 	case 8:
-		value = uint64(C.memreg_read(e.mem, C.uint(sym.Start+offset))) | (uint64(C.memreg_read(e.mem, C.uint(sym.Start+offset+4))) << 32)
+		value = uint64(C.memory_map_read(e.mem, C.uint(sym.Start+offset))) | (uint64(C.memory_map_read(e.mem, C.uint(sym.Start+offset+4))) << 32)
 	default:
 		panic("unsupported length")
 	}
@@ -576,10 +576,10 @@ func (e *Emulator) WriteVariable(name string, offset uint32, value uint64) {
 
 	switch sym.Length {
 	case 1, 2, 4:
-		C.memreg_write(e.mem, C.uint(sym.Start+offset), C.uint(value), C.byte_size_t(sym.Length))
+		C.memory_map_write(e.mem, C.uint(sym.Start+offset), C.uint(value), C.byte_size_t(sym.Length))
 	case 8:
-		C.memreg_write(e.mem, C.uint(sym.Start+offset), C.uint(value), C.SIZE_WORD)
-		C.memreg_write(e.mem, C.uint(sym.Start+offset+4), C.uint(value>>32), C.SIZE_WORD)
+		C.memory_map_write(e.mem, C.uint(sym.Start+offset), C.uint(value), C.SIZE_WORD)
+		C.memory_map_write(e.mem, C.uint(sym.Start+offset+4), C.uint(value>>32), C.SIZE_WORD)
 
 	default:
 		panic("unsupported length")

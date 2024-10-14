@@ -22,12 +22,12 @@
 
 struct rtt_inst_t
 {
-    memreg_t *mem;
+    memory_map_t *mem;
     uint32_t control_block_addr;
     uint32_t up_buf_size;
 };
 
-rtt_t *rtt_new(memreg_t *mem)
+rtt_t *rtt_new(memory_map_t *mem)
 {
     rtt_t *rtt = malloc(sizeof(rtt_t));
     rtt->mem = mem;
@@ -46,7 +46,7 @@ bool rtt_find_control(rtt_t *rtt)
     if (rtt->control_block_addr != 0)
         return true;
 
-    uint32_t addr = memreg_find_data(rtt->mem, x(2000, 0000), 0x10000, (uint8_t *)"SEGGER RTT", 10);
+    uint32_t addr = memory_map_find_data(rtt->mem, x(2000, 0000), 0x10000, (const uint8_t *)"SEGGER RTT", 10);
     if (addr == MEMREG_FIND_NOT_FOUND)
         return false;
 
@@ -54,16 +54,16 @@ bool rtt_find_control(rtt_t *rtt)
 
     rtt->control_block_addr = addr;
 
-    uint32_t upName = memreg_read(rtt->mem, BUFFER_UP_FIELD(addr, 0, 0));
+    uint32_t upName = memory_map_read(rtt->mem, BUFFER_UP_FIELD(addr, 0, 0));
 
     char name[32];
     for (size_t i = 0; i < sizeof(name); i++)
     {
-        if ((name[i] = memreg_read(rtt->mem, upName + i)) == 0)
+        if ((name[i] = memory_map_read(rtt->mem, upName + i)) == 0)
             break;
     }
 
-    rtt->up_buf_size = memreg_read(rtt->mem, BUFFER_UP_FIELD(addr, 0, 8));
+    rtt->up_buf_size = memory_map_read(rtt->mem, BUFFER_UP_FIELD(addr, 0, 8));
 
     LOG("Up buffer name: %s, %d bytes\n", name, rtt->up_buf_size);
 
@@ -77,9 +77,9 @@ size_t rtt_flush_buffers(rtt_t *rtt, char *buffer, size_t buffer_size)
 
     uint32_t cb_addr = rtt->control_block_addr;
 
-    uint32_t bufferAddr = memreg_read(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 4));
-    uint32_t wrOff = memreg_read(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 12));
-    uint32_t rdOff = memreg_read(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 16));
+    uint32_t bufferAddr = memory_map_read(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 4));
+    uint32_t wrOff = memory_map_read(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 12));
+    uint32_t rdOff = memory_map_read(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 16));
 
     size_t numBytesRem, numBytesRead = 0;
 
@@ -94,7 +94,7 @@ size_t rtt_flush_buffers(rtt_t *rtt, char *buffer, size_t buffer_size)
 
         while (numBytesRem--)
         {
-            *buffer++ = memreg_read_byte(rtt->mem, bufferAddr++);
+            *buffer++ = memory_map_read_byte(rtt->mem, bufferAddr++);
         }
 
         if (rdOff == rtt->up_buf_size)
@@ -113,13 +113,13 @@ size_t rtt_flush_buffers(rtt_t *rtt, char *buffer, size_t buffer_size)
 
         while (numBytesRem--)
         {
-            *buffer++ = memreg_read_byte(rtt->mem, bufferAddr++);
+            *buffer++ = memory_map_read_byte(rtt->mem, bufferAddr++);
         }
     }
 
     if (numBytesRead)
     {
-        memreg_write(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 16), rdOff, SIZE_WORD);
+        memory_map_write(rtt->mem, BUFFER_UP_FIELD(cb_addr, 0, 16), rdOff, SIZE_WORD);
     }
 
     return numBytesRead;

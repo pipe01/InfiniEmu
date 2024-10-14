@@ -70,7 +70,7 @@ typedef enum {
 
 typedef memreg_op_result_t (*memreg_operation_t)(uint32_t base, uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata);
 
-typedef struct memreg_inst_t memreg_t;
+typedef struct memreg_t memreg_t;
 
 memreg_t *memreg_new_simple(uint32_t start, uint8_t *data, size_t data_size);
 memreg_t *memreg_new_simple_readonly(uint32_t start, const uint8_t *data, size_t data_size);
@@ -81,21 +81,43 @@ void memreg_free(memreg_t *region);
 // Resets this memory region
 void memreg_reset(memreg_t *);
 
-// Resets this memory region and all of its children recursively
-void memreg_reset_all(memreg_t *);
-
-bool memreg_is_mapped(memreg_t *, uint32_t addr);
-void memreg_do_operation(memreg_t *region, uint32_t addr, memreg_op_t op, uint32_t *value);
-uint32_t memreg_read(memreg_t *, uint32_t addr);
-uint8_t memreg_read_byte(memreg_t *, uint32_t addr);
-uint16_t memreg_read_halfword(memreg_t *, uint32_t addr);
-void memreg_write(memreg_t *, uint32_t addr, uint32_t value, byte_size_t size);
-
-uint32_t memreg_find_data(memreg_t *, uint32_t start_addr, uint32_t search_length, uint8_t *data, size_t data_size);
-
-memreg_t *memreg_set_next(memreg_t *, memreg_t *next);
-memreg_t *memreg_get_next(memreg_t *);
-memreg_t *memreg_find_last(memreg_t *);
-
 uint32_t memreg_get_start(memreg_t *);
+uint32_t memreg_get_end(memreg_t *);
 void *memreg_get_userdata(memreg_t *);
+
+typedef struct memory_map_t memory_map_t;
+
+memory_map_t *memory_map_new();
+void memory_map_free(memory_map_t *);
+void memory_map_reset(memory_map_t *);
+void memory_map_add_region(memory_map_t *, memreg_t *region);
+memreg_t *memory_map_get_region(memory_map_t *, uint32_t addr);
+
+void memory_map_do_operation(memory_map_t *, uint32_t addr, memreg_op_t op, uint32_t *value);
+uint32_t memory_map_find_data(memory_map_t *map, uint32_t start_addr, uint32_t search_length, const uint8_t *data, size_t data_size);
+
+inline static uint32_t memory_map_read(memory_map_t *map, uint32_t addr)
+{
+    uint32_t value;
+    memory_map_do_operation(map, addr, OP_READ_WORD, &value);
+    return value;
+}
+
+inline static uint16_t memory_map_read_halfword(memory_map_t *map, uint32_t addr)
+{
+    uint32_t value;
+    memory_map_do_operation(map, addr, OP_READ_HALFWORD, &value);
+    return (uint16_t)value;
+}
+
+inline static uint8_t memory_map_read_byte(memory_map_t *map, uint32_t addr)
+{
+    uint32_t value;
+    memory_map_do_operation(map, addr, OP_READ_BYTE, &value);
+    return (uint8_t)value;
+}
+
+inline static void memory_map_write(memory_map_t *map, uint32_t addr, uint32_t value, byte_size_t size)
+{
+    memory_map_do_operation(map, addr, -size, &value);
+}

@@ -276,8 +276,8 @@ with open("main.c", "w") as main:
                 for mem in test.expect.memory:
                     for i in range(len(mem.value)):
                         addr = mem.start + i
-                        main.write(f"if ((memreg_read(mem_first, {addr}) & 0xFF) != {mem.value[i]})\n")
-                        main.write(f'\tprintf("    [!] Memory at 0x{addr:08X}: expected {mem.value[i]}, got %d\\n", memreg_read(mem_first, {addr}) & 0xFF);\n')
+                        main.write(f"if ((memory_map_read(mem_first, {addr}) & 0xFF) != {mem.value[i]})\n")
+                        main.write(f'\tprintf("    [!] Memory at 0x{addr:08X}: expected {mem.value[i]}, got %d\\n", memory_map_read(mem_first, {addr}) & 0xFF);\n')
 
             def test_flag(expected: bool | None, flag_const: str):
                 if expected is not None:
