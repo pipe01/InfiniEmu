@@ -57,7 +57,7 @@ pcap_t *pcap_create(const char *path)
         .snaplen = 65535,
         .network = LINKTYPE_BLUETOOTH_LE_LL,
     };
-    (void)write(fd, &hdr, sizeof(hdr));
+    (void)!write(fd, &hdr, sizeof(hdr));
 
     return pcap;
 }
@@ -77,7 +77,7 @@ void pcap_write_packet(pcap_t *pcap, const uint8_t *data, size_t length)
         .orig_len = length,
     };
 
-    (void)write(pcap->fd, &hdr, sizeof(hdr));
-    (void)write(pcap->fd, data, length);
+    (void)!write(pcap->fd, &hdr, sizeof(hdr));
+    (void)!write(pcap->fd, data, length);
     fsync(pcap->fd);
 }
