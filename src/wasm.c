@@ -179,7 +179,7 @@ bool program_write_variable(program_t *program, cpu_t *cpu, const char *name, ui
     if (!program_find_symbol(program, name, &address, &size))
         return false;
 
-    memreg_t *mem = cpu_mem(cpu);
+    memory_map_t *mem = cpu_mem(cpu);
 
     switch (size)
     {
