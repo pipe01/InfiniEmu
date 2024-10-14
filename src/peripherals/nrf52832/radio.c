@@ -140,7 +140,9 @@ struct RADIO_inst_t
 {
     ticker_t *ticker;
     dma_t *dma;
+#if ENABLE_PCAP
     pcap_t *pcap;
+#endif
 
     bool powered_on;
     radio_state_t state, next_state;
@@ -326,6 +328,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         switch (radio->state)
         {
         case STATE_TXIDLE:
+#if ENABLE_PCAP
             if (radio->pcap)
             {
                 uint8_t packet[256];
@@ -382,6 +385,7 @@ PPI_TASK_HANDLER(radio_task_handler)
 
                 pcap_write_packet(radio->pcap, ll_packet, sizeof(ll_packet));
             }
+#endif // ENABLE_PCAP
 
             radio->next_state = STATE_TX;
             break;
@@ -598,7 +602,9 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
     return radio;
 }
 
+#if ENABLE_PCAP
 void radio_set_pcap(RADIO_t *radio, pcap_t *pcap)
 {
     radio->pcap = pcap;
 }
+#endif

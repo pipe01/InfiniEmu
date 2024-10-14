@@ -116,7 +116,7 @@ if(EMSCRIPTEN)
     )
 else()
     list(APPEND SRC_FILES ${SRC_NATIVE_FILES})
-    add_compile_definitions(ENABLE_RUNLOG=1)
+    add_compile_definitions(ENABLE_RUNLOG=1 ENABLE_PCAP=1)
 
     add_executable(infiniemu-cli ${SRC_FILES})
     add_library(infiniemu-lib STATIC ${SRC_FILES})

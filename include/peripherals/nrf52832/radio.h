@@ -29,4 +29,6 @@ enum
 
 NRF52_PERIPHERAL(RADIO, radio)
 
+#if ENABLE_PCAP
 void radio_set_pcap(RADIO_t *, pcap_t *pcap);
+#endif
