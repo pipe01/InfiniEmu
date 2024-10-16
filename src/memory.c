@@ -157,13 +157,18 @@ typedef struct
     uint16_t regions_count;
 } membucket_t;
 
-#define BUCKET1_COUNT 16
-#define BUCKET2_COUNT 256
-#define BUCKET_SIZE 0x1000
+#define BUCKET1_BITS 4
+#define BUCKET1_OFFSET 28
+#define BUCKET2_BITS 8
+#define BUCKET2_OFFSET 12
+
+#define BUCKET_COUNT(n) (1 << (BUCKET ## n ## _BITS))
+#define BUCKET_SIZE(n) (1 << (BUCKET ## n ## _OFFSET))
+#define GET_BUCKET(n, addr) ((addr >> BUCKET ## n ## _OFFSET) & ((1 << BUCKET ## n ## _BITS) - 1))
 
 struct memory_map_t
 {
-    membucket_t buckets[BUCKET1_COUNT][BUCKET2_COUNT];
+    membucket_t buckets[1 << BUCKET1_BITS][1 << BUCKET2_BITS];
 };
 
 memory_map_t *memory_map_new()
@@ -179,9 +184,9 @@ void memory_map_free(memory_map_t *map)
 
 void memory_map_reset(memory_map_t *map)
 {
-    for (size_t i = 0; i < BUCKET1_COUNT; i++)
+    for (size_t i = 0; i < BUCKET_COUNT(1); i++)
     {
-        for (size_t j = 0; j < BUCKET2_COUNT; j++)
+        for (size_t j = 0; j < BUCKET_COUNT(2); j++)
         {
             membucket_t *bucket = &map->buckets[i][j];
 
@@ -193,45 +198,20 @@ void memory_map_reset(memory_map_t *map)
 
 void memory_bucket_add_region(membucket_t *bucket, memreg_t *region)
 {
-    assert(bucket->regions_count < BUCKET_SIZE);
+    assert(bucket->regions_count < BUCKET_SIZE(2));
 
-    memreg_t **new_regions = malloc((bucket->regions_count + 1) * sizeof(memreg_t *));
-    memreg_t *next_insert = region;
-
-    // Insert the new region in sorted order
-    for (uint8_t i = 0; i < bucket->regions_count + 1; i++)
-    {
-        if (i == bucket->regions_count)
-        {
-            new_regions[i] = next_insert;
-        }
-        else if (bucket->regions[i]->start < next_insert->start)
-        {
-            new_regions[i] = bucket->regions[i];
-        }
-        else
-        {
-            new_regions[i] = next_insert;
-            next_insert = bucket->regions[i];
-        }
-    }
-
-    free(bucket->regions);
-    bucket->regions = new_regions;
-    bucket->regions_count++;
+    bucket->regions = realloc(bucket->regions, (bucket->regions_count + 1) * sizeof(memreg_t *));
+    bucket->regions[bucket->regions_count++] = region;
 }
 
 inline static membucket_t *memory_map_find_bucket(memory_map_t *map, uint32_t addr)
 {
-    uint8_t bucket1 = (addr >> 28) & 0xF;
-    uint8_t bucket2 = (addr >> 12) & 0xFF;
-
-    return &map->buckets[bucket1][bucket2];
+    return &map->buckets[GET_BUCKET(1, addr)][GET_BUCKET(2, addr)];
 }
 
 void memory_map_add_region(memory_map_t *map, memreg_t *region)
 {
-    for (uint32_t i = region->start; i < region->end; i += BUCKET_SIZE)
+    for (uint32_t i = region->start; i < region->end; i += BUCKET_SIZE(2))
     {
         memory_bucket_add_region(memory_map_find_bucket(map, i), region);
     }
@@ -243,9 +223,6 @@ memreg_t *memory_map_get_region(memory_map_t *map, uint32_t addr)
 
     if (bucket->regions_count == 0)
         return NULL;
-
-    if (bucket->regions_count == 1)
-        return bucket->regions[0];
 
     for (uint8_t i = 0; i < bucket->regions_count; i++)
     {
