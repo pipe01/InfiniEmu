@@ -254,7 +254,7 @@ type Emulator struct {
 	pt          *C.pinetime_t
 	nrf52       *C.NRF52832_t
 	cpu         *C.cpu_t
-	mem         *C.memreg_t
+	mem         *C.memory_map_t
 	lcd         *C.st7789_t
 	touchScreen *C.cst816s_t
 	hrs         *C.hrs3300_t
