@@ -37,6 +37,8 @@ typedef enum
 
     FAULT_PPI_DUPLICATE_PERIPHERAL,
 
+    FAULT_RTC_INVALID_STATE,
+
     FAULT_ST7789_INVALID_COORDS,
 } fault_type_t;
 

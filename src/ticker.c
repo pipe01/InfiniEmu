@@ -44,7 +44,7 @@ void ticker_free(ticker_t *ticker)
 
 void ticker_reset(ticker_t *ticker)
 {
-    memset(ticker, 0, sizeof(ticker_t));
+    ticker->entries_count = 0;
 }
 
 void ticker_add(ticker_t *ticker, ticker_cb_t cb, void *userdata, uint32_t interval, bool auto_reload)

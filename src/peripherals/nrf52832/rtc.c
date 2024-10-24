@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "fault.h"
 #include "ie_time.h"
 #include "peripherals/nrf52832/ppi.h"
 
@@ -34,9 +35,6 @@ struct RTC_inst_t
 
     bool running;
 
-    double tick_interval_us;
-    size_t last_check_us;
-
     inten_t inten, evten;
     uint32_t prescaler, counter, prescaler_counter;
 };
@@ -45,34 +43,21 @@ void rtc_tick(void *userdata)
 {
     RTC_t *rtc = userdata;
 
-    size_t now = microseconds_now();
+    rtc->counter++;
 
-    size_t elapsed = now - rtc->last_check_us;
-    size_t elapsed_ticks = elapsed / rtc->tick_interval_us;
+    ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_TICK), rtc->inten.TICK);
 
-    while (elapsed_ticks--)
+    if (rtc->counter == (1 << 24))
     {
-        rtc->last_check_us = now;
+        rtc->counter = 0;
 
-        // if (elapsed_ticks > 1)
-        //     printf("Warning: skipped %ld ticks\n", elapsed_ticks - 1);
+        ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_OVRFLW), rtc->inten.OVRFLW);
+    }
 
-        rtc->counter++;
-
-        ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_TICK), rtc->inten.TICK);
-
-        if (rtc->counter == (1 << 24))
-        {
-            rtc->counter = 0;
-
-            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_OVRFLW), rtc->inten.OVRFLW);
-        }
-
-        for (size_t i = 0; i < rtc->cc_num; i++)
-        {
-            if (rtc->counter == rtc->cc[i])
-                ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_COMPARE0) + i, rtc->inten.COMPARE & (1 << i));
-        }
+    for (size_t i = 0; i < rtc->cc_num; i++)
+    {
+        if (rtc->counter == rtc->cc[i])
+            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_COMPARE0) + i, rtc->inten.COMPARE & (1 << i));
     }
 }
 
@@ -88,7 +73,6 @@ OPERATION(rtc)
         rtc->prescaler = 0;
         rtc->counter = 0;
         rtc->prescaler_counter = 0;
-        rtc->tick_interval_us = 0;
         return MEMREG_RESULT_OK;
     }
 
@@ -128,8 +112,10 @@ OPERATION(rtc)
         }
         else
         {
+            if (rtc->running)
+                fault_take(FAULT_RTC_INVALID_STATE);
+
             rtc->prescaler = *value;
-            rtc->tick_interval_us = ((double)(rtc->prescaler + 1) * 1e6) / 32768.0;
         }
 
         return MEMREG_RESULT_OK;
@@ -154,9 +140,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
     case TASK_ID(RTC_TASKS_START):
         if (!rtc->running)
         {
-            ticker_add(rtc->ticker, rtc_tick, rtc, TICK_INTERVAL, true);
-
-            rtc->last_check_us = microseconds_now();
+            ticker_add(rtc->ticker, rtc_tick, rtc, 32768 / (rtc->prescaler + 1), true);
 
             rtc->running = true;
         }
@@ -205,5 +189,5 @@ uint32_t rtc_get_counter(RTC_t *rtc)
 
 double rtc_get_tick_interval_us(RTC_t *rtc)
 {
-    return rtc->tick_interval_us;
+    return ((double)(rtc->prescaler + 1) * 1e6) / 32768.0;
 }
