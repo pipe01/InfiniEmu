@@ -13,6 +13,9 @@
 
 #define NRF52832_MAX_EXTERNAL_INTERRUPTS 496
 
+#define NRF52832_HFCLK_FREQUENCY (64 * 1000 * 1000)
+#define NRF52832_LFCLK_FREQUENCY 32768
+
 enum
 {
     INSTANCE_CLOCK = 0x00,
@@ -93,5 +96,6 @@ void *nrf52832_get_peripheral(NRF52832_t *, uint8_t instance_id);
 
 size_t nrf52832_get_used_sram(NRF52832_t *);
 size_t nrf52832_get_sram_size(NRF52832_t *);
+uint64_t nrf52832_get_cycle_counter(NRF52832_t *);
 
 bool nrf52832_flash_write(NRF52832_t *, uint32_t addr, uint8_t value);

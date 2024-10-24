@@ -18,12 +18,23 @@ typedef struct
 struct ticker_t
 {
     ticker_entry_t entries[MAX_ENTRIES];
-    size_t count;
+    size_t entries_count;
+
+    uint32_t lfclk_cycles, lfclk_counter;
+    bool lfclk_enabled;
 };
 
-ticker_t *ticker_new()
+ticker_t *ticker_new(int32_t lfclk_cycles)
 {
-    return malloc(sizeof(ticker_t));
+    ticker_t *ticker = calloc(1, sizeof(ticker_t));
+
+    if (lfclk_cycles > 0)
+    {
+        ticker->lfclk_cycles = lfclk_cycles;
+        ticker->lfclk_enabled = true;
+    }
+
+    return ticker;
 }
 
 void ticker_free(ticker_t *ticker)
@@ -38,9 +49,9 @@ void ticker_reset(ticker_t *ticker)
 
 void ticker_add(ticker_t *ticker, ticker_cb_t cb, void *userdata, uint32_t interval, bool auto_reload)
 {
-    assert(ticker->count < MAX_ENTRIES);
+    assert(ticker->entries_count < MAX_ENTRIES);
 
-    ticker_entry_t *entry = &ticker->entries[ticker->count++];
+    ticker_entry_t *entry = &ticker->entries[ticker->entries_count++];
 
     entry->cb = cb;
     entry->userdata = userdata;
@@ -51,28 +62,42 @@ void ticker_add(ticker_t *ticker, ticker_cb_t cb, void *userdata, uint32_t inter
 
 void ticker_remove(ticker_t *ticker, ticker_cb_t cb)
 {
-    for (size_t i = 0; i < ticker->count; i++)
+    for (size_t i = 0; i < ticker->entries_count; i++)
     {
         if (ticker->entries[i].cb == cb)
         {
-            if (ticker->count == 1)
+            if (ticker->entries_count == 1)
             {
-                ticker->count = 0;
+                ticker->entries_count = 0;
                 return;
             }
 
             // Move last entry to the removed entry
-            memcpy(&ticker->entries[i], &ticker->entries[ticker->count - 1], sizeof(ticker_entry_t));
+            memcpy(&ticker->entries[i], &ticker->entries[ticker->entries_count - 1], sizeof(ticker_entry_t));
 
-            ticker->count--;
+            ticker->entries_count--;
             break;
         }
     }
 }
 
-void ticker_tick(ticker_t *ticker)
+void ticker_hftick(ticker_t *ticker, unsigned int count)
 {
-    for (size_t i = 0; i < ticker->count; i++)
+    if (!ticker->lfclk_enabled)
+        return;
+
+    ticker->lfclk_counter += count;
+
+    if (ticker->lfclk_counter >= ticker->lfclk_cycles)
+    {
+        ticker_lftick(ticker);
+        ticker->lfclk_counter = 0;
+    }
+}
+
+void ticker_lftick(ticker_t *ticker)
+{
+    for (size_t i = 0; i < ticker->entries_count; i++)
     {
         ticker_entry_t *entry = &ticker->entries[i];
 

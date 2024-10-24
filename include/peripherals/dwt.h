@@ -6,4 +6,4 @@
 
 PERIPHERAL(DWT, dwt)
 
-void dwt_increment_cycle(DWT_t *dwt);
+void dwt_increment_cycle(DWT_t *dwt, unsigned int count);

@@ -152,6 +152,7 @@ int main(int argc, char **argv)
 
 #if ENABLE_MEASUREMENT
         uint64_t start, now;
+        uint64_t cycles_counter = 0;
         size_t perf_counter = 0;
         start = microseconds_now_real();
 #endif
@@ -191,12 +192,13 @@ int main(int argc, char **argv)
                 now = microseconds_now_real();
 
                 uint64_t elapsed = now - start;
+                uint64_t elapsed_cycles = nrf52832_get_cycle_counter(nrf) - cycles_counter;
+                cycles_counter = nrf52832_get_cycle_counter(nrf);
 
                 start = now;
 
-                printf("Elapsed: %lu us\n", elapsed);
-                printf("Instructions ran: %lu\n", perf_counter);
                 printf("Instructions per second: %.0f\n", (1000000.f / elapsed) * perf_counter);
+                printf("Cycles per second: %.0f, target: %d\n", (1000000.f / elapsed) * elapsed_cycles, NRF52832_HFCLK_FREQUENCY);
                 printf("\n");
 
                 perf_counter = 0;

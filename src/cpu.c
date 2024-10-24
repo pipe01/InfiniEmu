@@ -228,7 +228,7 @@ struct cpu_inst_t
     size_t exception_count, pending_exception_count;
     exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
     arm_exception running_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
-    uint32_t pending_exceptions[ARM_EXCEPTION_COUNT / 32]; // Bitfield
+    uint32_t pending_exceptions[ARM_EXCEPTION_COUNT / 32];      // Bitfield
     size_t running_exception_count;
     int execution_priority;
 
@@ -1403,8 +1403,16 @@ cs_insn *cpu_insn_at(cpu_t *cpu, uint32_t pc)
     return cpu->last_external_inst;
 }
 
-static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
+#define USE_CYCLES(n) \
+    do                \
+    {                 \
+        cycles = n;   \
+    } while (0)
+
+static int execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 {
+    int cycles = 0;
+
     uint32_t op0, op1, value, address;
     cs_arm *detail = &i->detail->arm;
 
@@ -1423,7 +1431,7 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         if (!condition_passed(cpu, i))
         {
             it_advance(cpu);
-            return;
+            return 0; // TODO: Do skipped instructions use cycles?
         }
 
         break;
@@ -1438,6 +1446,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     switch (i->id)
     {
     case ARM_INS_ADC:
+        USE_CYCLES(1);
+
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
@@ -1456,6 +1466,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ADD:
+        USE_CYCLES(1 + (detail->operands[0].reg == ARM_REG_PC ? 1 : 0));
+
         assert(detail->operands[0].type == ARM_OP_REG);
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
@@ -1475,6 +1487,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ADR:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_IMM);
@@ -1490,6 +1504,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_AND:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2 || detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -1523,6 +1539,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ASR:
+        USE_CYCLES(1);
+
         op0 = OPERAND_REG(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
@@ -1536,6 +1554,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_B:
     case ARM_INS_BX:
+        USE_CYCLES(2);
+
         assert(detail->op_count == 1);
 
         BRANCH_WRITE_PC(cpu, OPERAND(0) | 1);
@@ -1543,6 +1563,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_BFC:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_IMM);
@@ -1559,6 +1581,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_BFI:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -1579,6 +1603,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_BIC:
+        USE_CYCLES(1);
+
         decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 & ~op1;
@@ -1589,6 +1615,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_BL:
     case ARM_INS_BLX:
+        USE_CYCLES(2);
+
         assert(detail->op_count == 1);
 
         cpu_reg_write(cpu, ARM_REG_LR, next_pc | 1);
@@ -1597,15 +1625,22 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_CBZ:
     case ARM_INS_CBNZ:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         op0 = OPERAND(0);
         op1 = OPERAND(1);
 
         if ((op0 == 0) == (i->id == ARM_INS_CBZ))
+        {
+            USE_CYCLES(1);
             BRANCH_WRITE_PC(cpu, op1 | 1);
+        }
         break;
 
     case ARM_INS_CLZ:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
 
         op0 = OPERAND_REG(0);
@@ -1616,6 +1651,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_CMN:
+        USE_CYCLES(1);
+
         assert(detail->update_flags);
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
@@ -1629,6 +1666,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_CMP:
+        USE_CYCLES(1);
+
         assert(detail->update_flags);
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
@@ -1643,6 +1682,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_CPS:
+        USE_CYCLES(1);
+
         if (is_privileged(cpu))
         {
             if (detail->cps_mode == ARM_CPSMODE_IE)
@@ -1672,10 +1713,13 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_NOP:
     case ARM_INS_PLD:
     case ARM_INS_PLI:
+        USE_CYCLES(1);
         // Do nothing
         break;
 
     case ARM_INS_EOR:
+        USE_CYCLES(1);
+
         decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 ^ op1;
@@ -1691,10 +1735,14 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         if (detail->vector_data == ARM_VECTORDATA_F64)
         {
+            USE_CYCLES(2);
+
             cpu->d[detail->operands[0].reg - ARM_REG_D0].f_value = detail->operands[1].fp;
         }
         else
         {
+            USE_CYCLES(1);
+
             assert(detail->vector_data == ARM_VECTORDATA_F32);
 
             float32_t value = FLOAT32_F(detail->operands[1].fp);
@@ -1704,6 +1752,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_HINT:
+        USE_CYCLES(1);
+
         if (i->size == 2 && i->bytes[0] == 0x20 && i->bytes[1] == 0xBF)
         {
             // WFE
@@ -1712,6 +1762,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_IT:
+        USE_CYCLES(1);
+
         assert(i->size == 2);
         assert(i->bytes[1] == 0xBF);
 
@@ -1723,6 +1775,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_LDM:
+        USE_CYCLES(1 + detail->op_count - 1);
+
         assert(detail->op_count >= 2);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -1742,6 +1796,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_LDMDB:
+        USE_CYCLES(1 + detail->op_count - 1);
+
         assert(detail->op_count >= 2);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -1763,19 +1819,24 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_LDR:
     case ARM_INS_LDREX:
+        USE_CYCLES(2);
         do_load(cpu, detail, SIZE_WORD, false);
         break;
 
     case ARM_INS_LDRB:
     case ARM_INS_LDREXB:
+        USE_CYCLES(2);
         do_load(cpu, detail, SIZE_BYTE, false);
         break;
 
     case ARM_INS_LDRSB:
+        USE_CYCLES(2);
         do_load(cpu, detail, SIZE_BYTE, true);
         break;
 
     case ARM_INS_LDRD:
+        USE_CYCLES(3);
+
         value = mem_operand_address(cpu, &detail->operands[2]);
 
         store_operand(cpu, &detail->operands[0], memory_map_read_traced_word(cpu, value), SIZE_WORD);
@@ -1783,14 +1844,18 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_LDRH:
+        USE_CYCLES(2);
         do_load(cpu, detail, SIZE_HALFWORD, false);
         break;
 
     case ARM_INS_LDRSH:
+        USE_CYCLES(2);
         do_load(cpu, detail, SIZE_HALFWORD, true);
         break;
 
     case ARM_INS_LSL:
+        USE_CYCLES(2);
+
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
@@ -1803,6 +1868,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_LSR:
+        USE_CYCLES(1);
+
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
@@ -1816,6 +1883,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_MLA:
     case ARM_INS_MLS:
+        USE_CYCLES(2);
+
         assert(detail->op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -1836,6 +1905,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_MOV:
     case ARM_INS_MOVS:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -1847,6 +1918,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_MRS:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_SYSREG);
@@ -1857,6 +1930,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_MSR:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_SYSREG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -1867,6 +1942,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_MUL:
+        USE_CYCLES(1);
+
         assert(detail->operands[0].type == ARM_OP_REG);
 
         op0 = OPERAND_REG(1);
@@ -1880,6 +1957,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_MVN:
+        USE_CYCLES(1);
+
         assert(detail->operands[0].type == ARM_OP_REG);
 
         carry = cpu->xpsr.apsr_c;
@@ -1897,6 +1976,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ORN:
+        USE_CYCLES(1);
+
         decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 | ~op1;
@@ -1907,6 +1988,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ORR:
+        USE_CYCLES(1);
+
         decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         value = op0 | op1;
@@ -1918,6 +2001,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_PKHBT:
     case ARM_INS_PKHTB:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -1935,6 +2020,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_POP:
+        USE_CYCLES(1 + detail->op_count);
+
         op0 = cpu_reg_read(cpu, ARM_REG_SP);
 
         cpu_reg_write(cpu, ARM_REG_SP, op0 + 4 * detail->op_count);
@@ -1950,10 +2037,13 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_PUSH:
+        USE_CYCLES(1 + detail->op_count);
         do_stmdb(cpu, ARM_REG_SP, true, &detail->operands[0], detail->op_count);
         break;
 
     case ARM_INS_RBIT:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -1971,6 +2061,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_REV:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -1983,6 +2075,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_REV16:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -1995,6 +2089,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_REVSH:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2010,6 +2106,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_ROR:
+        USE_CYCLES(1);
+
         op0 = OPERAND_REG(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
@@ -2022,6 +2120,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_RRX:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2037,6 +2137,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_RSB:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2054,6 +2156,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_SADD16:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2073,6 +2177,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_SADD8:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2096,6 +2202,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_SASX:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2114,6 +2222,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_SBC:
+        USE_CYCLES(1);
+
         decode_arithmetic(cpu, i, &op0, &op1, &carry);
 
         if (i->size == 4)
@@ -2132,6 +2242,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_SBFX:
     {
+        USE_CYCLES(1);
+
         op1 = OPERAND(1);
         uint32_t lsb = OPERAND(2);
         uint32_t width = OPERAND(3);
@@ -2149,6 +2261,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_SDIV:
     case ARM_INS_UDIV:
+        USE_CYCLES(6); // 2 to 12
+
         assert(detail->op_count == 2 || detail->op_count == 3);
 
         assert(detail->operands[0].type == ARM_OP_REG);
@@ -2170,6 +2284,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_SEL:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2189,6 +2305,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_SMLATB:
     case ARM_INS_SMLATT:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2215,6 +2333,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_SMLAL:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 4);
 
         op0 = OPERAND_REG(2);
@@ -2236,6 +2356,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_SMULTB:
     case ARM_INS_SMULTT:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2262,6 +2384,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_SMULL:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2274,6 +2398,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_STM:
+        USE_CYCLES(detail->op_count);
+
         assert(detail->op_count >= 2);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2293,20 +2419,25 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_STR:
+        USE_CYCLES(2);
         do_store(cpu, detail, SIZE_WORD, false);
         break;
 
     case ARM_INS_STRB:
+        USE_CYCLES(2);
         do_store(cpu, detail, SIZE_BYTE, false);
         break;
 
     case ARM_INS_STRD:
+        USE_CYCLES(2);
         do_store(cpu, detail, SIZE_WORD, true);
         break;
 
     case ARM_INS_STREX:
     case ARM_INS_STREXB:
     case ARM_INS_STREXH:
+        USE_CYCLES(2);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2316,19 +2447,23 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         cpu_reg_write(cpu, detail->operands[0].reg, 0);
         memory_map_write_traced(cpu, op0, cpu_reg_read(cpu, detail->operands[1].reg),
-                            i->id == ARM_INS_STREXB ? SIZE_BYTE : i->id == ARM_INS_STREXH ? SIZE_HALFWORD
-                                                                                          : SIZE_WORD);
+                                i->id == ARM_INS_STREXB ? SIZE_BYTE : i->id == ARM_INS_STREXH ? SIZE_HALFWORD
+                                                                                              : SIZE_WORD);
         break;
 
     case ARM_INS_STRH:
+        USE_CYCLES(2);
         do_store(cpu, detail, SIZE_HALFWORD, false);
         break;
 
     case ARM_INS_STMDB:
+        USE_CYCLES(1 + detail->op_count - 1);
         do_stmdb(cpu, detail->operands[0].reg, detail->writeback, &detail->operands[1], detail->op_count - 1);
         break;
 
     case ARM_INS_SUB:
+        USE_CYCLES(1);
+
         op0 = OPERAND(detail->op_count == 3 ? 1 : 0);
         op1 = OPERAND(detail->op_count == 3 ? 2 : 1);
 
@@ -2341,10 +2476,13 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_SVC:
+        USE_CYCLES(1);
         cpu_exception_set_pending(cpu, ARM_EXC_SVC);
         break;
 
     case ARM_INS_SXTAB:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2357,6 +2495,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_SXTAH:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2369,6 +2509,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_SXTB:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2378,6 +2520,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_SXTH:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2388,6 +2532,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_TBB:
     case ARM_INS_TBH:
+        USE_CYCLES(3);
+
         assert(detail->op_count == 1);
         assert(detail->operands[0].type == ARM_OP_MEM);
 
@@ -2399,6 +2545,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_TEQ:
     case ARM_INS_TST:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2420,6 +2568,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_UADD8:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2446,6 +2596,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_UBFX:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2464,6 +2616,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_UMLAL:
     case ARM_INS_UMULL:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 4);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2479,6 +2633,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_USAT:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[2].type == ARM_OP_REG);
@@ -2497,6 +2653,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_UXTAH:
     case ARM_INS_UXTAB:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
 
@@ -2510,6 +2668,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_UXTB:
     case ARM_INS_UXTH:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2521,6 +2681,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_VADD:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2 || detail->op_count == 3);
         execute_fp_check(cpu);
 
@@ -2541,6 +2703,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_VCVT:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         execute_fp_check(cpu);
 
@@ -2625,6 +2789,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_VDIV:
     {
+        USE_CYCLES(14);
+
         assert(detail->op_count == 3);
         execute_fp_check(cpu);
 
@@ -2647,6 +2813,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     case ARM_INS_VFMA:
     case ARM_INS_VFMS:
     {
+        USE_CYCLES(3);
+
         assert(detail->op_count == 3);
         execute_fp_check(cpu);
 
@@ -2696,6 +2864,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         bool single_regs = detail->operands[list_start].reg >= ARM_REG_S0 && detail->operands[list_start].reg <= ARM_REG_S31;
 
+        USE_CYCLES(1 + (single_regs ? 1 : 2) * reg_count);
+
         uint32_t address = cpu_reg_read(cpu, reg_base);
 
         for (size_t n = list_start; n < reg_count; n++)
@@ -2727,6 +2897,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_VLDR:
     {
+        USE_CYCLES(IS_DOUBLE(detail->operands[0]) ? 3 : 2);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_MEM);
@@ -2756,6 +2928,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
     }
 
     case ARM_INS_VMOV: // TODO: Implement other variants
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2766,6 +2940,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_VMRS:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2777,6 +2953,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         break;
 
     case ARM_INS_VMSR:
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[0].reg == ARM_REG_FPSCR);
@@ -2789,6 +2967,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_VMUL:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2 || detail->op_count == 3);
 
         execute_fp_check(cpu);
@@ -2813,6 +2993,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_VNMUL:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2 || detail->op_count == 3);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2860,6 +3042,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         bool single_regs = detail->operands[list_start].reg >= ARM_REG_S0 && detail->operands[list_start].reg <= ARM_REG_S31;
 
+        USE_CYCLES(1 + (single_regs ? 1 : 2) * reg_count);
+
         uint32_t base = cpu_reg_read(cpu, reg_base);
         uint32_t offset = (single_regs ? 4 : 8) * reg_count;
         uint32_t address = base - (add ? 0 : offset);
@@ -2891,6 +3075,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_VSQRT:
     {
+        USE_CYCLES(14);
+
         assert(detail->op_count == 2);
         assert(detail->operands[0].type == ARM_OP_REG);
         assert(detail->operands[1].type == ARM_OP_REG);
@@ -2917,10 +3103,14 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
         if (detail->operands[0].reg >= ARM_REG_S0 && detail->operands[0].reg <= ARM_REG_S31)
         {
+            USE_CYCLES(2);
+
             memory_map_write_traced(cpu, address, cpu_reg_read(cpu, detail->operands[0].reg), SIZE_WORD);
         }
         else
         {
+            USE_CYCLES(3);
+
             assert(IS_DOUBLE(detail->operands[0]));
 
             memory_map_write_traced(cpu, address, cpu->d[detail->operands[0].reg - ARM_REG_D0].lower, SIZE_WORD);
@@ -2931,6 +3121,8 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     case ARM_INS_VSUB:
     {
+        USE_CYCLES(1);
+
         assert(detail->op_count == 2 || detail->op_count == 3);
         execute_fp_check(cpu);
 
@@ -2957,14 +3149,18 @@ static void execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
 
     if (cpu->must_advance_it)
         it_advance(cpu);
+
+    assert(cycles > 0);
+
+    return cycles;
 }
 
-void cpu_step(cpu_t *cpu)
-{
-    dwt_increment_cycle(cpu->dwt);
+#undef USE_CYCLES
 
+int cpu_step(cpu_t *cpu)
+{
     if (cpu->is_locked_up)
-        return;
+        return 0;
 
     arm_exception pending;
 
@@ -2983,7 +3179,9 @@ void cpu_step(cpu_t *cpu)
 
     cpu->branched = false;
 
-    execute_instruction(cpu, i, next);
+    int cycles = execute_instruction(cpu, i, next);
+
+    dwt_increment_cycle(cpu->dwt, cycles);
 
     DO_RUNLOG(runlog_record_execute(cpu->runlog, get_runlog_regs(cpu)));
 
@@ -2999,6 +3197,8 @@ void cpu_step(cpu_t *cpu)
     {
         LOG_CPU_INST("Branched from 0x%08X to 0x%08X", pc, cpu->core_regs[ARM_REG_PC]);
     }
+
+    return cycles;
 }
 
 uint32_t *cpu_get_sp(cpu_t *cpu)

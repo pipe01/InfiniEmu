@@ -40,8 +40,8 @@ DWT_t *dwt_new()
     return malloc(sizeof(DWT_t));
 }
 
-void dwt_increment_cycle(DWT_t *dwt)
+void dwt_increment_cycle(DWT_t *dwt, unsigned int count)
 {
     if ((dwt->ctrl & (1 << DWT_CYCCNTENA)) != 0)
-        dwt->cyccnt++;
+        dwt->cyccnt += count;
 }

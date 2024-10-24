@@ -95,7 +95,7 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
     chip->pins = pins_new();
     chip->bus_spi = bus_spi_new(chip->pins, sram, sram_size);
     chip->bus_i2c = i2c_new(sram, sram_size);
-    chip->ticker = ticker_new();
+    chip->ticker = ticker_new(NRF52832_HFCLK_FREQUENCY / NRF52832_LFCLK_FREQUENCY);
     chip->dma = dma_new(ARM_SRAM_START, sram, sram_size);
 
     chip->flash_size = program_size(flash);
@@ -177,11 +177,13 @@ void nrf52832_step(NRF52832_t *nrf52832)
 {
     current_ppi = nrf52832->ppi;
 
-    ticker_tick(nrf52832->ticker);
     gpiote_step(nrf52832->gpiote); // TODO: Add to ticker instead
     bus_spi_step(nrf52832->bus_spi);
 
-    cpu_step(nrf52832->cpu);
+    int cycles = cpu_step(nrf52832->cpu);
+    nrf52832->cycle_counter += cycles;
+
+    ticker_hftick(nrf52832->ticker, cycles);
 }
 
 cpu_t *nrf52832_get_cpu(NRF52832_t *chip)
@@ -241,4 +243,9 @@ bool nrf52832_flash_write(NRF52832_t *nrf, uint32_t addr, uint8_t value)
     }
 
     return false;
+}
+
+uint64_t nrf52832_get_cycle_counter(NRF52832_t *nrf)
+{
+    return nrf->cycle_counter;
 }

@@ -16,7 +16,8 @@ typedef void (*mem_watchpoint_cb_t)(cpu_t *, bool isWrite, uint32_t addr, size_t
 cpu_t *cpu_new(const uint8_t *program, size_t program_size, memory_map_t *mem, size_t max_external_interrupts, size_t priority_bits);
 void cpu_free(cpu_t *);
 void cpu_reset(cpu_t *);
-void cpu_step(cpu_t *);
+// Returns the number of cycles that the CPU ran for
+int cpu_step(cpu_t *);
 
 void cpu_clear_instruction_cache(cpu_t *);
 
