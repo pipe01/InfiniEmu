@@ -140,7 +140,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
     case TASK_ID(RTC_TASKS_START):
         if (!rtc->running)
         {
-            ticker_add(rtc->ticker, rtc_tick, rtc, 32768 / (rtc->prescaler + 1), true);
+            ticker_add(rtc->ticker, rtc_tick, rtc, rtc->prescaler + 1, true);
 
             rtc->running = true;
         }
