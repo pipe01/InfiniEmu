@@ -14,6 +14,18 @@ typedef enum
     SENSE_LOW = 3
 } pinsense_t;
 
+typedef enum
+{
+    PIN_INPUT = 0,
+    PIN_OUTPUT = 1,
+    PIN_PULLDOWN = 2,
+    PIN_PULLUP = 4,
+} pindir_t;
+
+#define pins_is_input(pins, pin) ((pins_get_dir(pins, pin) & 1) == 0)
+#define pins_set_input(pins, pin) pins_set_dir(pins, pin, pins_get_dir(pins, pin) & ~PIN_OUTPUT)
+#define pins_set_output(pins, pin) pins_set_dir(pins, pin, pins_get_dir(pins, pin) | PIN_OUTPUT)
+
 pins_t *pins_new(void);
 void pins_free(pins_t *);
 
@@ -23,9 +35,8 @@ void pins_set(pins_t *, int pin);
 void pins_clear(pins_t *, int pin);
 void pins_toggle(pins_t *, int pin);
 
-bool pins_is_input(pins_t *, int pin);
-void pins_set_input(pins_t *, int pin);
-void pins_set_output(pins_t *, int pin);
+pindir_t pins_get_dir(pins_t *, int pin);
+void pins_set_dir(pins_t *, int pin, pindir_t dir);
 
 void pins_set_sense(pins_t *, int pin, pinsense_t sense);
 pinsense_t pins_get_sense(pins_t *, int pin);

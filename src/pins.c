@@ -8,10 +8,8 @@
 typedef struct
 {
     bool is_set;
-    bool is_input;
-    bool pull_down;
-    bool pull_up;
 
+    pindir_t dir;
     pinsense_t sense;
 } pin_t;
 
@@ -74,25 +72,18 @@ bool pins_is_set(pins_t *pins, int pin)
     return pins->pins[pin].is_set;
 }
 
-bool pins_is_input(pins_t *pins, int pin)
+pindir_t pins_get_dir(pins_t *pins, int pin)
 {
     assert(pin >= 0 && pin < PINS_COUNT);
 
-    return pins->pins[pin].is_input;
+    return pins->pins[pin].dir;
 }
 
-void pins_set_input(pins_t *pins, int pin)
+void pins_set_dir(pins_t *pins, int pin, pindir_t dir)
 {
     assert(pin >= 0 && pin < PINS_COUNT);
 
-    pins->pins[pin].is_input = true;
-}
-
-void pins_set_output(pins_t *pins, int pin)
-{
-    assert(pin >= 0 && pin < PINS_COUNT);
-
-    pins->pins[pin].is_input = false;
+    pins->pins[pin].dir = dir;
 }
 
 void pins_set_sense(pins_t *pins, int pin, pinsense_t sense)

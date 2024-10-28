@@ -75,7 +75,7 @@ OPERATION(gpio)
         {
             pincnf_t cnf = {0};
             cnf.dir = pins_is_input(gpio->pins, pin) ? 1 : 0;
-            
+
             switch (pins_get_sense(gpio->pins, pin))
             {
             case SENSE_DISABLED:
@@ -104,7 +104,7 @@ OPERATION(gpio)
             case 2:
                 sense = SENSE_HIGH;
                 break;
-            case 3: 
+            case 3:
                 sense = SENSE_LOW;
                 break;
             default:
@@ -113,10 +113,23 @@ OPERATION(gpio)
 
             pins_set_sense(gpio->pins, pin, sense);
 
+            pindir_t dir;
+
             if (cnf.dir)
-                pins_set_output(gpio->pins, pin);
+            {
+                dir = PIN_OUTPUT;
+            }
             else
-                pins_set_input(gpio->pins, pin);
+            {
+                dir = PIN_INPUT;
+
+                if (cnf.pull == 1)
+                    dir = PIN_PULLDOWN;
+                else if (cnf.pull == 3)
+                    dir = PIN_PULLUP;
+            }
+
+            pins_set_dir(gpio->pins, pin, dir);
         }
 
         return MEMREG_RESULT_OK;
