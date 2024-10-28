@@ -7,8 +7,6 @@
 
 typedef struct
 {
-    bool is_set;
-
     pindir_t dir;
     pinsense_t sense;
 } pin_t;
@@ -16,9 +14,10 @@ typedef struct
 struct pins_t
 {
     pin_t pins[PINS_COUNT];
+    uint32_t pin_states;
+    static_assert(PINS_COUNT == 32, "PINS_COUNT is not 32");
 
     uint32_t latch;
-    static_assert(PINS_COUNT == 32, "PINS_COUNT is not 32");
 };
 
 pins_t *pins_new()
@@ -40,11 +39,14 @@ static inline void pins_set_state(pins_t *pins, int pin, bool is_set)
 {
     assert(pin >= 0 && pin < PINS_COUNT);
 
-    pin_t *p = &pins->pins[pin];
-    if (p->is_set == is_set)
+    is_set = is_set ? 1 : 0; // Normalize to 0 or 1
+
+    if (pins_is_set(pins, pin) == is_set)
         return;
 
-    p->is_set = is_set;
+    pin_t *p = &pins->pins[pin];
+
+    pins->pin_states = (pins->pin_states & ~(1 << pin)) | (is_set << pin);
 
     if (p->sense != SENSE_DISABLED && ((is_set && (p->sense == SENSE_HIGH)) || (!is_set && (p->sense == SENSE_LOW))))
         pins->latch |= 1 << pin;
@@ -69,7 +71,12 @@ bool pins_is_set(pins_t *pins, int pin)
 {
     assert(pin >= 0 && pin < PINS_COUNT);
 
-    return pins->pins[pin].is_set;
+    return (pins->pin_states & (1 << pin)) != 0;
+}
+
+uint32_t pins_read_all(pins_t *pins)
+{
+    return pins->pin_states;
 }
 
 pindir_t pins_get_dir(pins_t *pins, int pin)

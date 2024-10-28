@@ -45,3 +45,4 @@ uint32_t pins_get_latch(pins_t *);
 void pins_set_latch(pins_t *, uint32_t latch);
 
 bool pins_is_set(pins_t *, int pin);
+uint32_t pins_read_all(pins_t *);
