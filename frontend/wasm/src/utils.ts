@@ -1,5 +1,6 @@
 import { customRef, onUnmounted, type Ref } from "vue";
 import type { MessageFromWorkerType, MessageToWorkerType } from "./common";
+import { type FS, fs, type ZipEntry, type ZipFileEntry } from "@zip.js/zip.js";
 
 export function useAverage(interval: number): Ref<number> {
     let sum = 0;
@@ -46,9 +47,10 @@ export function sendMessage<Type extends MessageToWorkerType["type"]>(worker: Wo
 // I'm sorry
 export function sendMessageAndWait<Type extends MessageToWorkerType["type"], ReplyType extends MessageFromWorkerType["type"]>(
     worker: Worker, type: Type,
-    data: Extract<MessageToWorkerType, { type: Type }>["data"], replyType: ReplyType = "done" as ReplyType, transfer?: Transferable[]):
-    Promise<Extract<MessageFromWorkerType, { type: ReplyType }>["data"]> {
-    return new Promise((resolve, reject) => {
+    data: Extract<MessageToWorkerType, { type: Type }>["data"],
+    replyType: ReplyType = "done" as ReplyType,
+    transfer?: Transferable[]): Promise<Extract<MessageFromWorkerType, { type: ReplyType }>["data"]> {
+    return new Promise<any>((resolve, reject) => {
         let messageId: number;
 
         const listener = (e: MessageEvent) => {
@@ -90,4 +92,22 @@ export function downloadBuffer(data: BlobPart, filename: string) {
 
 export function joinLFSPaths(...paths: string[]) {
     return paths.join("/").replace(/^\//, "").replace(/\/+/g, "/");
+}
+
+export function isFile(file: ZipEntry): file is ZipFileEntry<void, void> {
+    return !(file as any).directory;
+}
+
+export async function getZipOrNested(data: Uint8Array, maxDepth = 5): Promise<FS> {
+    const zip = new fs.FS();
+    await zip.importUint8Array(data);
+
+    if (zip.root.children.length == 1 && isFile(zip.root.children[0]) && zip.root.children[0].name.endsWith(".zip")) {
+        if (maxDepth == 0)
+            throw new Error("Max depth reached");
+
+        return await getZipOrNested(await zip.root.children[0].getUint8Array(), maxDepth - 1);
+    } else {
+        return zip;
+    }
 }

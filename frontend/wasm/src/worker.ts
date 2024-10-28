@@ -1,8 +1,7 @@
-import { ZipEntry, ZipFileEntry, fs } from "@zip.js/zip.js";
 import type { CPU, CST816S, Commander, LFS, NRF52832, Pinetime, Pins, Pointer, Program, RTT, SPINorFlash, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
 import type { FileInfo, MessageFromWorkerType, MessageToWorkerType } from "./common";
-import { joinLFSPaths } from "./utils.js";
+import { getZipOrNested, isFile, joinLFSPaths } from "./utils";
 
 const iterations = 100000;
 
@@ -51,10 +50,6 @@ function sendMessage<Type extends MessageFromWorkerType["type"]>(type: Type, dat
     postMessage({ type, data, replyToId: replyTo });
 }
 
-function isFile(file: ZipEntry): file is ZipFileEntry<void, void> {
-    return !(file as any).directory;
-}
-
 class Emulator {
     private readonly rttReadBufferSize = 1024;
 
@@ -95,8 +90,12 @@ class Emulator {
         this.program = Module._program_new(0x800000);
 
         const args = [this.program, 0, programFile, programFile.length];
-        if (Module.ccall("program_load_elf", "number", ["number", "number", "array", "number"], args) === 0)
+        if (Module.ccall("program_load_elf", "number", ["number", "number", "array", "number"], args) === 0) {
+            console.log("Failed to load ELF, trying binary");
             Module.ccall("program_load_binary", null, ["number", "number", "array", "number"], args);
+        } else {
+            console.log("Loaded ELF");
+        }
 
         this.pinetime = Module._pinetime_new(this.program);
         this.nrf52 = Module._pinetime_get_nrf52832(this.pinetime);
@@ -365,8 +364,7 @@ class Emulator {
     }
 
     async loadArchiveFS(toPath: string, data: Uint8Array) {
-        const zip = new fs.FS();
-        await zip.importUint8Array(data);
+        const zip = await getZipOrNested(data);
 
         let importedResources = false;
 
@@ -460,6 +458,7 @@ createModule({
     },
     onAbort(what: any) {
         console.error("wasm aborted", what);
+        emulator?.stop();
         sendMessage("aborted", what);
     },
 }).then((mod) => {
@@ -467,7 +466,19 @@ createModule({
     sendMessage("ready", undefined);
 });
 
-function handleMessage(msg: MessageToWorkerType) {
+async function loadZipFirmware(data: Uint8Array): Promise<Uint8Array> {
+    try {
+        const zip = await getZipOrNested(data);
+
+        if (zip.children.length == 1 && isFile(zip.children[0]))
+            return await zip.children[0].getUint8Array();
+    } catch (error) {
+    }
+
+    return data;
+}
+
+async function handleMessage(msg: MessageToWorkerType) {
     const { type, data } = msg;
 
     if (type == "setProgram") {
@@ -480,9 +491,9 @@ function handleMessage(msg: MessageToWorkerType) {
             return;
         }
 
-        const buf = data as ArrayBuffer;
+        const arr = new Uint8Array(data);
 
-        emulator = new Emulator(Module, new Uint8Array(buf));
+        emulator = new Emulator(Module, await loadZipFirmware(arr));
     }
     else if (emulator) {
         switch (type) {
@@ -572,9 +583,9 @@ function handleMessage(msg: MessageToWorkerType) {
     sendMessage("done", undefined, msg.messageId);
 }
 
-onmessage = event => {
+onmessage = async event => {
     try {
-        handleMessage(event.data as MessageToWorkerType);
+        await handleMessage(event.data as MessageToWorkerType);
     } catch (error: any) {
         sendMessage("error", {
             message: "message" in error ? error.message : undefined,

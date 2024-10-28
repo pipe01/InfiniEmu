@@ -97,10 +97,6 @@ async function loadFileFromURL(url: string) {
     }
 }
 
-function loadSampleFile() {
-    location.search = "?firmware=https://share.pipe01.net/-XpJvumKzSS/pinetime-app-1.14.0.bin";
-}
-
 function loadFile(file: File) {
     const reader = new FileReader();
 
