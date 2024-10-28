@@ -32,9 +32,10 @@ _Thread_local PPI_t *current_ppi;
 
 typedef struct
 {
-    bool enabled, fixed;
-    uint8_t eep_peripheral, eep_event;
-    uint8_t tep_peripheral, tep_task;
+    bool enabled, fixed, fork_enabled;
+    uint8_t eep_peripheral, eep_event; // Event endpoint
+    uint8_t tep_peripheral, tep_task;  // Task endpoint
+    uint8_t fep_peripheral, fep_task;  // Fork task endpoint
 } channel_t;
 
 typedef struct
@@ -137,32 +138,60 @@ OPERATION(ppi)
         {
             // CH[n].EEP
 
-            uint32_t chan_idx = idx / 2;
+            channel_t *chan = &ppi->channels[idx / 2];
 
             if (OP_IS_READ(op))
             {
-                *value = x(4000, 0100) | (ppi->channels[chan_idx].eep_peripheral << 12) | ppi->channels[chan_idx].eep_event;
+                *value = x(4000, 0100) | (chan->eep_peripheral << 12) | chan->eep_event;
             }
             else
             {
-                ppi->channels[chan_idx].eep_peripheral = (*value >> 12) & 0xFF;
-                ppi->channels[chan_idx].eep_event = *value & 0xFF;
+                chan->eep_peripheral = (*value >> 12) & 0xFF;
+                chan->eep_event = *value & 0xFF;
             }
         }
         else
         {
             // CH[n].TEP
 
-            uint32_t chan_idx = (idx - 1) / 2;
+            channel_t *chan = &ppi->channels[(idx - 1) / 2];
 
             if (OP_IS_READ(op))
             {
-                *value = x(4000, 0000) | (ppi->channels[chan_idx].tep_peripheral << 12) | ppi->channels[chan_idx].tep_task;
+                *value = x(4000, 0000) | (chan->tep_peripheral << 12) | chan->tep_task;
             }
             else
             {
-                ppi->channels[chan_idx].tep_peripheral = (*value >> 12) & 0xFF;
-                ppi->channels[chan_idx].tep_task = *value & 0xFF;
+                chan->tep_peripheral = (*value >> 12) & 0xFF;
+                chan->tep_task = *value & 0xFF;
+            }
+        }
+
+        return MEMREG_RESULT_OK;
+    }
+
+    if (offset >= 0x910 && offset <= 0x98C)
+    {
+        uint32_t idx = (offset - 0x910) / 4;
+
+        if (idx % 2 == 0)
+        {
+            // CH[n].FEP
+
+            channel_t *chan = &ppi->channels[idx / 2];
+
+            if (OP_IS_READ(op))
+            {
+                if (!chan->fork_enabled)
+                    *value = 0;
+                else
+                    *value = x(4000, 0100) | (chan->fep_peripheral << 12) | chan->fep_task;
+            }
+            else
+            {
+                chan->fork_enabled = *value != 0;
+                chan->fep_peripheral = (*value >> 12) & 0xFF;
+                chan->fep_task = *value & 0xFF;
             }
         }
 
@@ -274,6 +303,9 @@ void ppi_fire_event(PPI_t *ppi, uint8_t peripheral_id, uint8_t event_id, bool pe
         if (channel->enabled && channel->eep_peripheral == peripheral_id && channel->eep_event == event_id)
         {
             ppi_fire_task(ppi, channel->tep_peripheral, channel->tep_task);
+
+            if (channel->fork_enabled)
+                ppi_fire_task(ppi, channel->fep_peripheral, channel->fep_task);
         }
     }
 }
