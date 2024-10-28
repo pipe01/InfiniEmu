@@ -48,7 +48,7 @@ import { computed, ref } from 'vue';
 import Emulator from "@/components/Emulator.vue";
 
 const pickedFile = ref<ArrayBuffer | null>(null);
-const isLoading = ref(false);
+const isLoading = ref(0);
 
 const autoStart = ref(true);
 const initTime = ref(true);
@@ -64,6 +64,8 @@ const sampleUrl = computed(() => {
 });
 
 async function parseOptions(params: URLSearchParams) {
+    isLoading.value++;
+
     if (params.has("firmware")) {
         await loadFileFromURL(params.get("firmware")!);
     }
@@ -81,11 +83,13 @@ async function parseOptions(params: URLSearchParams) {
     if (params.has("initTime")) {
         initTime.value = params.get("initTime") == "true";
     }
+
+    isLoading.value--;
 }
 parseOptions(new URLSearchParams(location.search));
 
 async function loadFileFromURL(url: string) {
-    isLoading.value = true;
+    isLoading.value++;
 
     try {
         const response = await fetch(url);
@@ -93,7 +97,7 @@ async function loadFileFromURL(url: string) {
 
         pickedFile.value = programFile;
     } finally {
-        isLoading.value = false;
+        isLoading.value--;
     }
 }
 
