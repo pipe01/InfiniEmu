@@ -167,12 +167,10 @@ PPI_TASK_HANDLER(timer_task_handler)
     switch (task)
     {
     case TASK_ID(TIMER_TASKS_START):
-        fault_take(FAULT_NOT_IMPLEMENTED); // TODO: Make timer use HFCLK ticker
-
         if (timer->mode == MODE_TIMER)
         {
-            if (!timer->running)
-                ticker_add(timer->ticker, timer_tick, timer, TICK_INTERVAL, true);
+            // if (!timer->running)
+            //     ticker_add(timer->ticker, CLOCK_HFCLK, timer_tick, timer, TICK_INTERVAL, true);
 
             timer->running = true;
         }
