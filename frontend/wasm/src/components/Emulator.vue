@@ -24,7 +24,7 @@ template(v-if="!isReady")
             div.text-danger(v-if="isAborted") Emulator aborted
     
             button.btn.btn-success(v-if="!isRunning" @click="start" :disabled="isAborted") Start
-            button.btn.btn-danger(v-else @click="stop" :disabled="isAborted") Stop
+            button.btn.btn-danger(v-else @click="stop" :disabled="isAborted") Pause
             button.btn.btn-warning.mt-2(v-if="isStarted" @click="reset" :disabled="isAborted") Reset
 
     .col-3
