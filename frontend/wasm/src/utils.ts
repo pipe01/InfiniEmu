@@ -111,3 +111,12 @@ export async function getZipOrNested(data: Uint8Array, maxDepth = 5): Promise<FS
         return zip;
     }
 }
+
+export function resolveArtifactUrl(url: string) {
+    const matches = /artifact:\/\/(.+\/.+)\/(\d+)/.exec(url);
+    if (matches) {
+        return `https://corsproxy.io/?https://nightly.link/${matches[1]}/actions/artifacts/${matches[2]}.zip`;
+    }
+
+    return url;
+}

@@ -46,6 +46,7 @@
 import { computed, ref } from 'vue';
 
 import Emulator from "@/components/Emulator.vue";
+import { resolveArtifactUrl } from './utils';
 
 const pickedFile = ref<ArrayBuffer | null>(null);
 const isLoading = ref(0);
@@ -67,11 +68,11 @@ async function parseOptions(params: URLSearchParams) {
     isLoading.value++;
 
     if (params.has("firmware")) {
-        await loadFileFromURL(params.get("firmware")!);
+        await loadFileFromURL(resolveArtifactUrl(params.get("firmware")!));
     }
     if (params.has("resources")) {
         for (const url of params.getAll("resources")) {
-            const response = await fetch(url);
+            const response = await fetch(resolveArtifactUrl(url));
             const resource = new Uint8Array(await response.arrayBuffer());
 
             initResources.value.push(resource);
