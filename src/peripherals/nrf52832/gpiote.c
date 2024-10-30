@@ -43,11 +43,26 @@ enum
     EVENTS_PORT = 0x17C, // Event generated from multiple input GPIO pins with SENSE mechanism enabled
 };
 
+typedef enum
+{
+    MODE_DISABLED = 0,
+    MODE_EVENT = 1,
+    MODE_TASK = 3,
+} mode_t;
+
+typedef enum
+{
+    POLARITY_NONE = 0,
+    POLARITY_LOTOHI = 1,
+    POLARITY_HITOLO = 2,
+    POLARITY_TOGGLE = 3,
+} polarity_t;
+
 typedef union
 {
     struct
     {
-        unsigned int MODE : 2;
+        mode_t MODE : 2;
         unsigned int : 6;
         unsigned int PSEL : 5;
         unsigned int : 3;
@@ -88,7 +103,7 @@ struct GPIOTE_inst_t
 
 OPERATION(gpiote)
 {
-    GPIOTE_t *gpiote = (GPIOTE_t *)userdata;
+    GPIOTE_t *gpiote = userdata;
 
     if (op == OP_RESET)
     {
@@ -152,6 +167,35 @@ OPERATION(gpiote)
 
 PPI_TASK_HANDLER(gpiote_task_handler)
 {
+    GPIOTE_t *gpiote = userdata;
+
+    if (task <= TASK_ID(TASKS_OUT7))
+    {
+        uint32_t pin = gpiote->config[task - TASK_ID(TASKS_OUT0)].PSEL;
+
+        switch (gpiote->config[task - TASK_ID(TASKS_OUT0)].POLARITY)
+        {
+        case POLARITY_LOTOHI:
+            pins_set(gpiote->pins, pin);
+            break;
+
+        case POLARITY_HITOLO:
+            pins_clear(gpiote->pins, pin);
+            break;
+
+        case POLARITY_TOGGLE:
+            pins_toggle(gpiote->pins, pin);
+            break;
+        }
+    }
+    else if (task >= TASK_ID(TASKS_SET0) && task <= TASK_ID(TASKS_SET7))
+    {
+        pins_set(gpiote->pins, gpiote->config[task - TASK_ID(TASKS_SET0)].PSEL);
+    }
+    else if (task >= TASK_ID(TASKS_CLR0) && task <= TASK_ID(TASKS_CLR7))
+    {
+        pins_clear(gpiote->pins, gpiote->config[task - TASK_ID(TASKS_CLR0)].PSEL);
+    }
 }
 
 NRF52_PERIPHERAL_CONSTRUCTOR(GPIOTE, gpiote)

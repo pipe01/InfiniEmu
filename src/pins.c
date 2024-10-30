@@ -9,6 +9,7 @@ typedef struct
 {
     pindir_t dir;
     pinsense_t sense;
+    pinowner_t owner;
 } pin_t;
 
 struct pins_t
@@ -115,4 +116,35 @@ uint32_t pins_get_latch(pins_t *pins)
 void pins_set_latch(pins_t *pins, uint32_t latch)
 {
     pins->latch = latch;
+}
+
+bool pins_acquire(pins_t *pins, int pin, pinowner_t owner)
+{
+    assert(pin >= 0 && pin < PINS_COUNT);
+
+    if (pins->pins[pin].owner != PINOWNER_NONE && pins->pins[pin].owner != owner)
+        return false;
+
+    pins->pins[pin].owner = owner;
+    return true;
+}
+
+bool pins_release(pins_t *pins, int pin, pinowner_t owner)
+{
+    assert(pin >= 0 && pin < PINS_COUNT);
+
+    if (pins->pins[pin].owner == owner)
+    {
+        pins->pins[pin].owner = PINOWNER_NONE;
+        return true;
+    }
+
+    return false;
+}
+
+bool pins_is_owned(pins_t *pins, int pin, pinowner_t owner)
+{
+    assert(pin >= 0 && pin < PINS_COUNT);
+
+    return pins->pins[pin].owner == owner;
 }
