@@ -5,6 +5,7 @@
 /*.so
 /*.o
 build
+build-wasm
 obj
 ./infiniemu
 tests.out

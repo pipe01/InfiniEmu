@@ -140,7 +140,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
     case TASK_ID(RTC_TASKS_START):
         if (!rtc->running)
         {
-            ticker_add(rtc->ticker, rtc_tick, rtc, rtc->prescaler + 1, true);
+            ticker_add(rtc->ticker, CLOCK_LFCLK, rtc_tick, rtc, rtc->prescaler + 1, true);
 
             rtc->running = true;
         }
@@ -149,7 +149,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
     case TASK_ID(RTC_TASKS_STOP):
         if (rtc->running)
         {
-            ticker_remove(rtc->ticker, rtc_tick);
+            ticker_remove(rtc->ticker, CLOCK_LFCLK, rtc_tick);
 
             rtc->running = false;
         }

@@ -169,8 +169,8 @@ PPI_TASK_HANDLER(timer_task_handler)
     case TASK_ID(TIMER_TASKS_START):
         if (timer->mode == MODE_TIMER)
         {
-            // if (!timer->running)
-            //     ticker_add(timer->ticker, CLOCK_HFCLK, timer_tick, timer, TICK_INTERVAL, true);
+            if (!timer->running)
+                ticker_add(timer->ticker, CLOCK_HFCLK, timer_tick, timer, TICK_INTERVAL, true);
 
             timer->running = true;
         }
@@ -179,7 +179,7 @@ PPI_TASK_HANDLER(timer_task_handler)
     case TASK_ID(TIMER_TASKS_STOP):
     case TASK_ID(TIMER_TASKS_SHUTDOWN):
         if (timer->running)
-            ticker_remove(timer->ticker, timer_tick);
+            ticker_remove(timer->ticker, CLOCK_HFCLK, timer_tick);
 
         timer->running = false;
         break;

@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef void (*scheduler_cb_t)(void *userdata);
+typedef int (*scheduler_cb_t)(void *userdata);
 
 typedef struct scheduler_t scheduler_t;
 

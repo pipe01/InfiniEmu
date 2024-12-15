@@ -51,9 +51,8 @@ void scheduler_run(scheduler_t *sched)
 
         for (size_t i = 0; i < iteration_count; i++)
         {
-            sched->cb(sched->userdata);
+            sched->counter += sched->cb(sched->userdata);
         }
-        sched->counter += iteration_count;
 
         size_t end = microseconds_now();
         size_t elapsed_ns = (end - start) * 1e3;

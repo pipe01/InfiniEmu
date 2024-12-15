@@ -279,7 +279,7 @@ void radio_do_state_change(void *userdata)
     }
 
     if (request_update)
-        ticker_add(radio->ticker, radio_do_state_change, radio, STATE_CHANGE_DELAY_INST, false);
+        ticker_add(radio->ticker, CLOCK_LFCLK, radio_do_state_change, radio, STATE_CHANGE_DELAY_INST, false);
 }
 
 PPI_TASK_HANDLER(radio_task_handler)
@@ -428,7 +428,7 @@ PPI_TASK_HANDLER(radio_task_handler)
     }
 
     if (radio->next_state != radio->state)
-        ticker_add(radio->ticker, radio_do_state_change, radio, STATE_CHANGE_DELAY_INST, false);
+        ticker_add(radio->ticker, CLOCK_LFCLK, radio_do_state_change, radio, STATE_CHANGE_DELAY_INST, false);
 }
 
 OPERATION(radio)
