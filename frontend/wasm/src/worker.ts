@@ -133,7 +133,7 @@ class Emulator {
             screenUpdated = this.doLoop(10000000);
         }
         else {
-            while (this.isRunning && !screenUpdated && performance.now() - start < 50) {
+            while (this.isRunning && !screenUpdated && performance.now() - start < 20) {
                 screenUpdated ||= this.doLoop(iterations);
             }
         }
@@ -176,6 +176,7 @@ class Emulator {
             loopTime: end - start,
             ips: (this.instructionCount - instructionCountStart) / ((end - start) / 1000),
             totalSRAM: this.Module._nrf52832_get_sram_size(this.nrf52),
+            pins: this.Module._pins_read_all(this.pins),
         });
     }
 

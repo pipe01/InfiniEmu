@@ -39,6 +39,7 @@ template(v-if="!isReady")
                     div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
                     div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
                     div RAM size: {{ numberFmt.format(performance.sramSize.value) }} bytes
+                    div {{ pins.toString(2) }}
 
             .card.mt-3(v-if="isRunning")
                 .card-body
@@ -112,6 +113,8 @@ const isCpuSleeping = ref(false);
 
 const foundRTT = ref(false);
 
+const pins = ref(0);
+
 const consoleLines = ref<Line[]>([]);
 
 function addConsoleLine(text: string, type: Line["type"]) {
@@ -177,6 +180,7 @@ worker.onmessage = async (event) => {
             performance.ips.value = data.ips;
             performance.loopTime.value = data.loopTime;
             performance.sramSize.value = data.totalSRAM;
+            pins.value = data.pins;
             break;
 
         case "rttFound":

@@ -47,6 +47,7 @@ const module: EmscriptenModuleFactory<EmscriptenModule & {
 
     _pins_set(pin: Pins, pinNumber: number): void;
     _pins_clear(pin: Pins, pinNumber: number): void;
+    _pins_read_all(pin: Pins): number;
 
     _spinorflash_get_buffer(flash: SPINorFlash): Pointer;
     _spinorflash_get_buffer_size(flash: SPINorFlash): number;
