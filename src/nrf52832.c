@@ -173,7 +173,7 @@ void nrf52832_reset(NRF52832_t *nrf52832)
     cpu_reset(nrf52832->cpu);
 }
 
-void nrf52832_step(NRF52832_t *nrf52832)
+int nrf52832_step(NRF52832_t *nrf52832)
 {
     current_ppi = nrf52832->ppi;
 
@@ -184,6 +184,8 @@ void nrf52832_step(NRF52832_t *nrf52832)
     nrf52832->cycle_counter += cycles;
 
     ticker_hftick(nrf52832->ticker, cycles);
+
+    return cycles;
 }
 
 cpu_t *nrf52832_get_cpu(NRF52832_t *chip)

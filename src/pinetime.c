@@ -55,9 +55,9 @@ void pinetime_reset(pinetime_t *pt)
     nrf52832_reset(pt->nrf);
 }
 
-void pinetime_step(pinetime_t *pt)
+int pinetime_step(pinetime_t *pt)
 {
-    nrf52832_step(pt->nrf);
+    return nrf52832_step(pt->nrf);
 }
 
 NRF52832_t *pinetime_get_nrf52832(pinetime_t *pt)

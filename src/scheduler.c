@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
@@ -9,7 +10,7 @@
 
 #include "ie_time.h"
 
-#define SCHEDULER_HZ 50
+#define US_PER_ITERATION 100000
 
 struct scheduler_t
 {
@@ -18,9 +19,7 @@ struct scheduler_t
 
     bool stop;
 
-    size_t iteration_count, should_take_ns;
-
-    uint64_t counter;
+    size_t cycles_per_iteration;
 };
 
 scheduler_t *scheduler_new(scheduler_cb_t cb, void *userdata, size_t target_hz)
@@ -29,7 +28,7 @@ scheduler_t *scheduler_new(scheduler_cb_t cb, void *userdata, size_t target_hz)
     scheduler->cb = cb;
     scheduler->userdata = userdata;
     scheduler->stop = false;
-
+    
     scheduler_set_frequency(scheduler, target_hz);
 
     return scheduler;
@@ -37,30 +36,29 @@ scheduler_t *scheduler_new(scheduler_cb_t cb, void *userdata, size_t target_hz)
 
 void scheduler_run(scheduler_t *sched)
 {
-    struct timespec ts_rem, ts_req = {0};
+    struct timespec ts_req = {0};
 
     sched->stop = false;
 
+    ssize_t fuel;
+
     while (!sched->stop)
     {
-        // Copy variables here to prevent them from changing during the loop body
-        size_t iteration_count = sched->iteration_count;
-        size_t should_take_ns = sched->should_take_ns;
+        fuel = sched->cycles_per_iteration;
 
-        uint64_t start = microseconds_now();
+        uint64_t start = microseconds_now_real();
 
-        for (size_t i = 0; i < iteration_count; i++)
+        while (fuel > 0)
         {
-            sched->counter += sched->cb(sched->userdata);
+            fuel -= sched->cb(sched->userdata);
         }
 
-        size_t end = microseconds_now();
-        size_t elapsed_ns = (end - start) * 1e3;
+        uint64_t elapsed_us = microseconds_now_real() - start;
 
-        if (elapsed_ns < should_take_ns)
+        if (elapsed_us < US_PER_ITERATION)
         {
-            ts_req.tv_nsec = should_take_ns - elapsed_ns;
-            nanosleep(&ts_req, &ts_rem);
+            ts_req.tv_nsec = (US_PER_ITERATION - elapsed_us) * 1000;
+            while (nanosleep(&ts_req, &ts_req));
         }
     }
 }
@@ -70,13 +68,7 @@ void scheduler_stop(scheduler_t *sched)
     sched->stop = true;
 }
 
-uint64_t scheduler_get_counter(scheduler_t *sched)
-{
-    return sched->counter;
-}
-
 void scheduler_set_frequency(scheduler_t *sched, size_t target_hz)
 {
-    sched->iteration_count = target_hz / SCHEDULER_HZ;
-    sched->should_take_ns = (1e9 * sched->iteration_count) / target_hz;
+    sched->cycles_per_iteration = (target_hz * US_PER_ITERATION) / 1000000;
 }

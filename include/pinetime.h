@@ -24,7 +24,7 @@ typedef struct pinetime_t pinetime_t;
 pinetime_t *pinetime_new(const program_t *program);
 void pinetime_free(pinetime_t *);
 void pinetime_reset(pinetime_t *);
-void pinetime_step(pinetime_t *);
+int pinetime_step(pinetime_t *);
 
 NRF52832_t *pinetime_get_nrf52832(pinetime_t *);
 st7789_t *pinetime_get_st7789(pinetime_t *);

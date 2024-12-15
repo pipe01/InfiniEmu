@@ -86,7 +86,7 @@ typedef struct NRF52832_inst_t NRF52832_t;
 
 NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size);
 void nrf52832_reset(NRF52832_t *);
-void nrf52832_step(NRF52832_t *);
+int nrf52832_step(NRF52832_t *);
 
 cpu_t *nrf52832_get_cpu(NRF52832_t *);
 bus_spi_t *nrf52832_get_spi(NRF52832_t *);

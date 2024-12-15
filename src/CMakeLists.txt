@@ -74,7 +74,7 @@ set(WASM_EXPORTS
     pinetime_new pinetime_step pinetime_loop pinetime_reset
     pinetime_get_st7789 st7789_read_screen_rgba st7789_is_sleeping st7789_get_write_count st7789_is_sleeping
     pinetime_get_cst816s cst816s_do_touch cst816s_release_touch
-    pinetime_get_nrf52832 nrf52832_get_sram_size nrf52832_get_pins pins_set pins_clear
+    pinetime_get_nrf52832 nrf52832_get_sram_size nrf52832_get_pins pins_set pins_clear pins_read_all
     pinetime_get_spinorflash spinorflash_get_buffer spinorflash_get_buffer_size
     nrf52832_get_cpu cpu_is_sleeping cpu_mem
     program_new program_load_binary program_load_elf program_write_variable

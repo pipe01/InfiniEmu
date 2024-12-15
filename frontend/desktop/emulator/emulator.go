@@ -414,12 +414,7 @@ func (e *Emulator) perfLoop() {
 			rtc.update(interval)
 		}
 
-		var instCounter uint64
-		if e.currentRunMode == RunModeLoop {
-			instCounter = uint64(C.inst_counter)
-		} else {
-			instCounter = uint64(C.scheduler_get_counter(e.sched))
-		}
+		instCounter := uint64(C.nrf52832_get_cycle_counter(e.nrf52))
 
 		e.instPerSecond = (1e6 * (instCounter - lastCounter)) / uint64(interval.Microseconds())
 		lastCounter = instCounter

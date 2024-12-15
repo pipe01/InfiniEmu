@@ -1,6 +1,6 @@
 package emulator
 
-const BaseFrequencyHZ = 18_000_000
+const BaseFrequencyHZ = 64_000_000
 
 const (
 	PinCharging           = 12
