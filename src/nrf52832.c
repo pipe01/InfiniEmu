@@ -39,6 +39,7 @@
 struct NRF52832_inst_t
 {
     cpu_t *cpu;
+    state_store_t *state_store;
 
     uint8_t *flash;
     size_t flash_size;
@@ -90,6 +91,7 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
     memset(sram, SRAM_FILL_BYTE, sram_size);
 
     NRF52832_t *chip = malloc(sizeof(NRF52832_t));
+    chip->state_store = state_store_new();
     chip->sram = sram;
     chip->sram_size = sram_size;
     chip->pins = pins_new();
@@ -118,6 +120,7 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
         .i2c = chip->bus_i2c,
         .spi = chip->bus_spi,
         .dma = chip->dma,
+        .state_store = chip->state_store,
     };
 
     NEW_NRF52_PERIPH(chip, NVMC, nvmc, nvmc, INSTANCE_NVMC, chip->flash, program_size(flash));

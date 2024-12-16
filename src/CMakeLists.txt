@@ -12,6 +12,7 @@ set(SRC_FILES
     pins.c
     program.c
     segger_rtt.c
+    state_store.c
     ticker.c
 
     demangle.cpp
