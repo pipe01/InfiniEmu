@@ -31,6 +31,7 @@ typedef void (*ppi_task_cb_t)(PPI_t *, uint8_t peripheral, uint8_t task, void *u
 PPI_t *ppi_new(cpu_t **cpu);
 
 void ppi_add_peripheral(PPI_t *, uint8_t id, ppi_task_cb_t cb, void *userdata);
+void ppi_replace_peripheral(PPI_t *, uint8_t id, ppi_task_cb_t cb, void *userdata);
 void ppi_remove_peripheral(PPI_t *, uint8_t id);
 void ppi_fire_task(PPI_t *, uint8_t peripheral_id, uint8_t task_id);
 

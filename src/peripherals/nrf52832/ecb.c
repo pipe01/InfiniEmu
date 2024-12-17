@@ -16,7 +16,6 @@ enum
     EVENTS_ERRORECB = 0x104, // ECB block encrypt aborted because of a STOPECB task or due to an error
 };
 
-
 typedef struct
 {
     union
@@ -27,7 +26,6 @@ typedef struct
     uint32_t value;
 } inten_t;
 
-
 typedef struct
 {
     uint8_t key[16];
@@ -36,12 +34,17 @@ typedef struct
 } ecbdata_t;
 static_assert(sizeof(ecbdata_t) == 48, "ecbdata_t size is not 48 bytes");
 
-struct ECB_inst_t
+typedef struct
 {
-    dma_t *dma;
-
     uint32_t ecbdataptr;
     inten_t inten;
+} state_t;
+
+struct ECB_inst_t
+{
+    state_t;
+
+    dma_t *dma;
 };
 
 OPERATION(ecb)
@@ -112,6 +115,8 @@ NRF52_PERIPHERAL_CONSTRUCTOR(ECB, ecb)
 {
     ECB_t *ecb = malloc(sizeof(ECB_t));
     ecb->dma = ctx.dma;
+
+    state_store_register(ctx.state_store, PERIPHERAL_KEY(ctx.id), ecb, sizeof(state_t));
 
     ppi_add_peripheral(ctx.ppi, ctx.id, ecb_task_handler, ecb);
 

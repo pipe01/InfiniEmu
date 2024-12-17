@@ -1,6 +1,7 @@
 #include "state_store.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct
 {
@@ -50,20 +51,19 @@ static entry_t *find_entry(state_store_t *store, state_key_t key)
     return NULL;
 }
 
-void *state_store_alloc(state_store_t *store, state_key_t key, size_t size)
+void state_store_register(state_store_t *store, state_key_t key, void *data, size_t size)
 {
     if (store->frozen)
         abort();
 
-    void *data = malloc(size);
+    if (find_entry(store, key))
+        abort();
 
     store->entries[store->entries_count++] = (entry_t){
         .header.key = key,
         .header.size = size,
         .data = data,
     };
-
-    return data;
 }
 
 void state_store_freeze(state_store_t *store)
@@ -83,10 +83,10 @@ uint8_t *state_store_save(state_store_t *store, size_t *size)
     size_t offset = 0;
     for (size_t i = 0; i < store->entries_count; i++)
     {
-        memcpy(*data + offset, &store->entries[i].header, sizeof(entry_header_t));
+        memcpy(data + offset, &store->entries[i].header, sizeof(entry_header_t));
         offset += sizeof(entry_header_t);
 
-        memcpy(*data + offset, store->entries[i].data, store->entries[i].header.size);
+        memcpy(data + offset, store->entries[i].data, store->entries[i].header.size);
         offset += store->entries[i].header.size;
     }
 
@@ -104,7 +104,7 @@ bool state_store_load(state_store_t *store, uint8_t *data, size_t size)
         offset += sizeof(entry_header_t);
 
         entry_t *entry = find_entry(store, header.key);
-        if (!entry) {
+        if (!entry || entry->header.size != header.size) {
             return false;
         }
 

@@ -36,7 +36,7 @@ typedef struct
 
 struct RTC_inst_t
 {
-    state_t *s;
+    state_t;
 
     cpu_t **cpu;
     ticker_t *ticker;
@@ -48,31 +48,31 @@ void rtc_tick(void *userdata)
 {
     RTC_t *rtc = userdata;
 
-    rtc->s->counter++;
+    rtc->counter++;
 
-    ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_TICK), rtc->s->inten.TICK);
+    ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_TICK), rtc->inten.TICK);
 
-    if (rtc->s->counter == (1 << 24))
+    if (rtc->counter == (1 << 24))
     {
-        rtc->s->counter = 0;
+        rtc->counter = 0;
 
-        ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_OVRFLW), rtc->s->inten.OVRFLW);
+        ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_OVRFLW), rtc->inten.OVRFLW);
     }
 
     for (size_t i = 0; i < rtc->cc_num; i++)
     {
-        if (rtc->s->counter == rtc->s->cc[i])
-            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_COMPARE0) + i, rtc->s->inten.COMPARE & (1 << i));
+        if (rtc->counter == rtc->cc[i])
+            ppi_fire_event(current_ppi, rtc->id, EVENT_ID(RTC_EVENTS_COMPARE0) + i, rtc->inten.COMPARE & (1 << i));
     }
 }
 
 OPERATION(rtc)
 {
-    state_t *state = ((RTC_t *)userdata)->s;
+    state_t *rtc = userdata;
 
     if (op == OP_RESET)
     {
-        memset(state, 0, sizeof(state_t));
+        memset(rtc, 0, sizeof(state_t));
         return MEMREG_RESULT_OK;
     }
 
@@ -90,32 +90,32 @@ OPERATION(rtc)
         OP_EVENT(RTC_EVENTS_COMPARE2)
         OP_EVENT(RTC_EVENTS_COMPARE3)
 
-        OP_INTENSET(state)
-        OP_INTENCLR(state)
+        OP_INTENSET(rtc)
+        OP_INTENCLR(rtc)
 
     case 0x340: // EVTEN
-        OP_RETURN_REG(state->evten.value, WORD);
+        OP_RETURN_REG(rtc->evten.value, WORD);
 
     case 0x344: // EVTENSET
-        OP_RETURN_REG_SET(state->evten.value, WORD);
+        OP_RETURN_REG_SET(rtc->evten.value, WORD);
 
     case 0x348: // EVTENCLR
-        OP_RETURN_REG_CLR(state->evten.value, WORD);
+        OP_RETURN_REG_CLR(rtc->evten.value, WORD);
 
     case 0x504: // COUNTER
-        OP_RETURN_REG(state->counter, WORD);
+        OP_RETURN_REG(rtc->counter, WORD);
 
     case 0x508: // PRESCALER
         if (OP_IS_READ(op))
         {
-            *value = state->prescaler;
+            *value = rtc->prescaler;
         }
         else
         {
-            if (state->running)
+            if (rtc->running)
                 fault_take(FAULT_RTC_INVALID_STATE);
 
-            state->prescaler = *value;
+            rtc->prescaler = *value;
         }
 
         return MEMREG_RESULT_OK;
@@ -125,7 +125,7 @@ OPERATION(rtc)
     {
         uint32_t idx = (offset - 0x540) / 4;
 
-        OP_RETURN_REG(state->cc[idx], WORD);
+        OP_RETURN_REG(rtc->cc[idx], WORD);
     }
 
     return MEMREG_RESULT_UNHANDLED;
@@ -133,31 +133,31 @@ OPERATION(rtc)
 
 PPI_TASK_HANDLER(rtc_task_handler)
 {
-    RTC_t *rtc = (RTC_t *)userdata;
+    RTC_t *rtc = userdata;
 
     switch (task)
     {
     case TASK_ID(RTC_TASKS_START):
-        if (!rtc->s->running)
+        if (!rtc->running)
         {
-            ticker_add(rtc->ticker, CLOCK_LFCLK, rtc_tick, rtc, rtc->s->prescaler + 1, true);
+            ticker_add(rtc->ticker, CLOCK_LFCLK, rtc_tick, rtc, rtc->prescaler + 1, true);
 
-            rtc->s->running = true;
+            rtc->running = true;
         }
         break;
 
     case TASK_ID(RTC_TASKS_STOP):
-        if (rtc->s->running)
+        if (rtc->running)
         {
             ticker_remove(rtc->ticker, CLOCK_LFCLK, rtc_tick);
 
-            rtc->s->running = false;
+            rtc->running = false;
         }
         break;
 
     case TASK_ID(RTC_TASKS_CLEAR):
-        rtc->s->counter = 0;
-        rtc->s->prescaler_counter = 0;
+        rtc->counter = 0;
+        rtc->prescaler_counter = 0;
         break;
     }
 }
@@ -171,7 +171,8 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RTC, rtc, size_t cc_num)
     rtc->cpu = ctx.cpu;
     rtc->id = ctx.id;
     rtc->ticker = ctx.ticker;
-    rtc->s = state_store_alloc(ctx.state_store, PERIPHERAL_KEY(ctx.id), sizeof(state_t));
+
+    state_store_register(ctx.state_store, PERIPHERAL_KEY(ctx.id), rtc, sizeof(state_t));
 
     ppi_add_peripheral(ctx.ppi, ctx.id, rtc_task_handler, rtc);
 
@@ -180,15 +181,15 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RTC, rtc, size_t cc_num)
 
 uint32_t rtc_is_running(RTC_t *rtc)
 {
-    return rtc->s->running;
+    return rtc->running;
 }
 
 uint32_t rtc_get_counter(RTC_t *rtc)
 {
-    return rtc->s->counter;
+    return rtc->counter;
 }
 
 double rtc_get_tick_interval_us(RTC_t *rtc)
 {
-    return ((double)(rtc->s->prescaler + 1) * 1e6) / 32768.0;
+    return ((double)(rtc->prescaler + 1) * 1e6) / 32768.0;
 }

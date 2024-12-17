@@ -91,14 +91,19 @@ typedef union
     uint32_t value;
 } inten_t;
 
-struct GPIOTE_inst_t
+typedef struct
 {
-    pins_t *pins;
-
     inten_t inten;
     config_t config[8];
 
     uint32_t latch_old;
+} state_t;
+
+struct GPIOTE_inst_t
+{
+    state_t;
+
+    pins_t *pins;
 };
 
 OPERATION(gpiote)
@@ -202,6 +207,8 @@ NRF52_PERIPHERAL_CONSTRUCTOR(GPIOTE, gpiote)
 {
     GPIOTE_t *gpiote = malloc(sizeof(GPIOTE_t));
     gpiote->pins = ctx.pins;
+
+    state_store_register(ctx.state_store, PERIPHERAL_KEY(ctx.id), gpiote, sizeof(state_t));
 
     ppi_add_peripheral(current_ppi, ctx.id, gpiote_task_handler, gpiote);
 

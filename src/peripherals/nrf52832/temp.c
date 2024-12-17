@@ -40,10 +40,9 @@ OPERATION(temp)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(TEMP, temp)
 {
-    return malloc(sizeof(TEMP_t));
-}
+    TEMP_t *temp = malloc(sizeof(TEMP_t));
 
-void temp_reset(TEMP_t *temp)
-{
-    
+    state_store_register(ctx.state_store, PERIPHERAL_KEY(ctx.id), temp, sizeof(TEMP_t));
+
+    return temp;
 }

@@ -88,7 +88,7 @@ set(WASM_EXPORTS
 
 set(LIBS m tiny-aes capstone)
 
-add_compile_options(-Werror -Wall -Wextra -Wno-unused-parameter)
+add_compile_options(-Werror -Wall -Wextra -Wno-unused-parameter -fms-extensions)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)

@@ -256,6 +256,19 @@ void ppi_add_peripheral(PPI_t *ppi, uint8_t id, ppi_task_cb_t cb, void *userdata
     ppi->peripherals[id] = peripheral;
 }
 
+void ppi_replace_peripheral(PPI_t *ppi, uint8_t id, ppi_task_cb_t cb, void *userdata)
+{
+    assert(id <= PERIPHERALS_COUNT - 1);
+
+    peripheral_t *peripheral = ppi->peripherals[id];
+
+    if (!peripheral)
+        ppi->peripherals[id] = peripheral = malloc(sizeof(peripheral_t));
+
+    peripheral->cb = cb;
+    peripheral->userdata = userdata;
+}
+
 void ppi_remove_peripheral(PPI_t *ppi, uint8_t id)
 {
     assert(id < PERIPHERALS_COUNT);

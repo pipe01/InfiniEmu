@@ -24,13 +24,8 @@ enum
     BITMODE_32BIT = 3,
 };
 
-struct TIMER_inst_t
+typedef struct
 {
-    size_t cc_num;
-    uint8_t id;
-    ticker_t *ticker;
-    cpu_t **cpu;
-
     bool running;
 
     uint32_t mode, bitmode;
@@ -40,6 +35,16 @@ struct TIMER_inst_t
     uint32_t counter, prescaler_counter;
 
     uint32_t cc[TIMER_MAX_CC];
+} state_t;
+
+struct TIMER_inst_t
+{
+    state_t;
+
+    size_t cc_num;
+    uint8_t id;
+    ticker_t *ticker;
+    cpu_t **cpu;
 };
 
 void timer_increase_counter(TIMER_t *timer)
@@ -228,6 +233,8 @@ NRF52_PERIPHERAL_CONSTRUCTOR(TIMER, timer, size_t cc_num)
     timer->id = ctx.id;
     timer->ticker = ctx.ticker;
     timer->cpu = ctx.cpu;
+
+    state_store_register(ctx.state_store, PERIPHERAL_KEY(ctx.id), timer, sizeof(state_t));
 
     ppi_add_peripheral(ctx.ppi, ctx.id, timer_task_handler, timer);
 
