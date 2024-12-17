@@ -382,6 +382,7 @@ func RunGUI(e *emulator.Emulator, analyzeHeap, runGDB, noScheduler bool) error {
 			}
 
 			imgui.LabelText(strconv.FormatUint(e.InstructionsPerSecond(), 10), "Instructions per second")
+			imgui.LabelText(fmt.Sprintf("%d%%", int(100*float64(e.InstructionsPerSecond())/float64(emulator.BaseFrequencyHZ))), "Effective speed")
 
 			imgui.BeginDisabled(runGDB)
 			{
@@ -407,6 +408,19 @@ func RunGUI(e *emulator.Emulator, analyzeHeap, runGDB, noScheduler bool) error {
 
 			if imgui.Button("Heap") {
 				e.FindFreeHeapBlocks()
+			}
+			imgui.SameLine()
+			if imgui.Button("Save") {
+				os.WriteFile("state.bin", e.SaveState(), 0777)
+			}
+			imgui.SameLine()
+			if imgui.Button("Load") {
+				state, err := os.ReadFile("state.bin")
+				if err == nil {
+					runMode := e.Stop()
+					e.LoadState(state)
+					e.Start(runMode)
+				}
 			}
 		}
 		imgui.End()
