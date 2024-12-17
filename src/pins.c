@@ -21,9 +21,13 @@ struct pins_t
     uint32_t latch;
 };
 
-pins_t *pins_new()
+pins_t *pins_new(state_store_t *store)
 {
-    return (pins_t *)calloc(1, sizeof(pins_t));
+    pins_t *pins = calloc(1, sizeof(pins_t));
+
+    state_store_register(store, STATE_KEY_PINS, pins, sizeof(pins_t));
+
+    return pins;
 }
 
 void pins_free(pins_t *pins)

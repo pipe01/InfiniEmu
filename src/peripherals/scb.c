@@ -9,18 +9,21 @@
 
 struct SCB_inst_t
 {
-    uint32_t cpacr;
-    uint32_t prigroup;
-    uint32_t scr;
-    SCB_CCR_t ccr;
-    uint32_t vtor;
+    struct state
+    {
+        uint32_t cpacr;
+        uint32_t prigroup;
+        uint32_t scr;
+        SCB_CCR_t ccr;
+        uint32_t vtor;
+    };
 
     cpu_t *cpu;
 };
 
 OPERATION(scb)
 {
-    SCB_t *scb = (SCB_t *)userdata;
+    SCB_t *scb = userdata;
 
     if (op == OP_RESET)
     {
@@ -135,10 +138,12 @@ OPERATION(scb)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-SCB_t *scb_new(cpu_t *cpu)
+SCB_t *scb_new(cpu_t *cpu, state_store_t *store)
 {
     SCB_t *scb = malloc(sizeof(SCB_t));
     scb->cpu = cpu;
+
+    state_store_register(store, STATE_KEY_SCB, scb, sizeof(struct state));
 
     return scb;
 }

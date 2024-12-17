@@ -15,7 +15,7 @@ struct SCB_FP_inst_t
 
 OPERATION(scb_fp)
 {
-    SCB_FP_t *scb_fp = (SCB_FP_t *)userdata;
+    SCB_FP_t *scb_fp = userdata;
 
     if (op == OP_RESET)
     {
@@ -35,9 +35,13 @@ OPERATION(scb_fp)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-SCB_FP_t *scb_fp_new()
+SCB_FP_t *scb_fp_new(state_store_t *store)
 {
-    return malloc(sizeof(SCB_FP_t));
+    SCB_FP_t *scb_fp = malloc(sizeof(SCB_FP_t));
+
+    state_store_register(store, STATE_KEY_SCB_FP, scb_fp, sizeof(SCB_FP_t));
+
+    return scb_fp;
 }
 
 FPCCR_t scb_fp_get_fpccr(SCB_FP_t *scb_fp)

@@ -85,20 +85,22 @@ struct NRF52832_inst_t
         memory_map_add_region((chip)->mem, memreg_new_operation(0x40000000 | (((idn) & 0xFF) << 12), 0x1000, name##_operation, (chip)->field)); \
     } while (0)
 
-NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
+NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size, state_store_t *store)
 {
     uint8_t *sram = malloc(sram_size);
     memset(sram, SRAM_FILL_BYTE, sram_size);
 
     NRF52832_t *chip = malloc(sizeof(NRF52832_t));
-    chip->state_store = state_store_new();
+    chip->state_store = store;
     chip->sram = sram;
     chip->sram_size = sram_size;
-    chip->pins = pins_new();
-    chip->bus_spi = bus_spi_new(chip->pins, sram, sram_size);
+    chip->pins = pins_new(store);
+    chip->bus_spi = bus_spi_new(chip->pins, sram, sram_size, store);
     chip->bus_i2c = i2c_new(sram, sram_size);
     chip->ticker = ticker_new(NRF52832_HFCLK_FREQUENCY / NRF52832_LFCLK_FREQUENCY);
     chip->dma = dma_new(ARM_SRAM_START, sram, sram_size);
+
+    state_store_register(store, STATE_KEY_MEMORY, sram, sram_size);
 
     chip->flash_size = program_size(flash);
     chip->flash = malloc(chip->flash_size);
@@ -120,7 +122,7 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
         .i2c = chip->bus_i2c,
         .spi = chip->bus_spi,
         .dma = chip->dma,
-        .state_store = chip->state_store,
+        .state_store = store,
     };
 
     NEW_NRF52_PERIPH(chip, NVMC, nvmc, nvmc, INSTANCE_NVMC, chip->flash, program_size(flash));
@@ -159,7 +161,7 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size)
     memory_map_add_region(chip->mem, memreg_new_simple_copy(x(1000, 0000), dumps_ficr_bin, dumps_ficr_bin_len));
     memory_map_add_region(chip->mem, memreg_new_simple_copy(x(1000, 1000), dumps_uicr_bin, dumps_uicr_bin_len));
 
-    chip->cpu = cpu_new(chip->flash, program_size(flash), chip->mem, NRF52832_MAX_EXTERNAL_INTERRUPTS, NRF52832_PRIORITY_BITS);
+    chip->cpu = cpu_new(chip->flash, program_size(flash), chip->mem, store, NRF52832_MAX_EXTERNAL_INTERRUPTS, NRF52832_PRIORITY_BITS);
 
     return chip;
 }
@@ -253,4 +255,9 @@ bool nrf52832_flash_write(NRF52832_t *nrf, uint32_t addr, uint8_t value)
 uint64_t nrf52832_get_cycle_counter(NRF52832_t *nrf)
 {
     return nrf->cycle_counter;
+}
+
+void nrf52832_reload_state(NRF52832_t *nrf)
+{
+    memory_map_do_operation(nrf->mem, 0, OP_LOAD_DATA, NULL);
 }

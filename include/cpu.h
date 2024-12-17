@@ -7,13 +7,14 @@
 #include "arm.h"
 #include "memory.h"
 #include "runlog.h"
+#include "state_store.h"
 
 typedef struct cpu_inst_t cpu_t;
 
 typedef void (*branch_cb_t)(cpu_t *, uint32_t old_pc, uint32_t new_pc, void *userdata);
 typedef void (*mem_watchpoint_cb_t)(cpu_t *, bool isWrite, uint32_t addr, size_t size, uint32_t value_old, uint32_t value_new, void *userdata);
 
-cpu_t *cpu_new(const uint8_t *program, size_t program_size, memory_map_t *mem, size_t max_external_interrupts, size_t priority_bits);
+cpu_t *cpu_new(const uint8_t *program, size_t program_size, memory_map_t *mem, state_store_t *store, size_t max_external_interrupts, size_t priority_bits);
 void cpu_free(cpu_t *);
 void cpu_reset(cpu_t *);
 // Returns the number of cycles that the CPU ran for

@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "pins.h"
+#include "state_store.h"
 
 typedef struct bus_spi_t bus_spi_t;
 
@@ -28,7 +29,7 @@ typedef struct
     spi_cs_changed_f cs_changed;
 } spi_slave_t;
 
-bus_spi_t *bus_spi_new(pins_t *pins, uint8_t *ram, size_t ram_size);
+bus_spi_t *bus_spi_new(pins_t *pins, uint8_t *ram, size_t ram_size, state_store_t *store);
 void bus_spi_reset(bus_spi_t *);
 void bus_spi_free(bus_spi_t *);
 void bus_spi_step(bus_spi_t *);

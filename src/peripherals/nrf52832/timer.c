@@ -93,9 +93,14 @@ void timer_tick(void *userdata)
     timer_increase_counter(timer);
 }
 
+void timer_add_timer(TIMER_t *timer)
+{
+    ticker_add(timer->ticker, CLOCK_HFCLK, timer_tick, timer, TICK_INTERVAL, true);
+}
+
 OPERATION(timer)
 {
-    TIMER_t *timer = (TIMER_t *)userdata;
+    TIMER_t *timer = userdata;
 
     if (op == OP_RESET)
     {
@@ -105,6 +110,15 @@ OPERATION(timer)
             .ticker = timer->ticker,
             .cpu = timer->cpu,
         };
+        return MEMREG_RESULT_OK;
+    }
+    if (op == OP_LOAD_DATA)
+    {
+        ticker_remove(timer->ticker, CLOCK_HFCLK, timer_tick);
+
+        if (timer->running)
+            timer_add_timer(timer);
+
         return MEMREG_RESULT_OK;
     }
 
@@ -175,7 +189,7 @@ PPI_TASK_HANDLER(timer_task_handler)
         if (timer->mode == MODE_TIMER)
         {
             if (!timer->running)
-                ticker_add(timer->ticker, CLOCK_HFCLK, timer_tick, timer, TICK_INTERVAL, true);
+                timer_add_timer(timer);
 
             timer->running = true;
         }

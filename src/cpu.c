@@ -183,10 +183,39 @@ arm_reg check_exc_registers[] = {
 
 struct cpu_inst_t
 {
+    struct state
+    {
+        bool is_locked_up;
+
+        uint32_t core_regs[ARM_REG_ENDING - 1];
+        uint32_t sp_main, sp_process;
+        vreg_t d[32];
+
+        uint32_t faultmask, basepri, primask;
+        CONTROL_t control;
+        xPSR_t xpsr;
+
+        itstate_t itstate;
+        bool must_advance_it;
+
+        arm_mode mode;
+
+        size_t exception_count, pending_exception_count;
+        exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
+        arm_exception running_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
+        uint32_t pending_exceptions[ARM_EXCEPTION_COUNT / 32];      // Bitfield
+        size_t running_exception_count;
+        int execution_priority;
+
+        size_t sleep_fuel;
+
+        bool branched;
+    };
+
     jmp_buf *fault_jmp_buf;
     bool has_fault_jmp;
 
-    bool is_locked_up;
+    state_store_t *state_store;
 
 #if ENABLE_RUNLOG
     runlog_t *runlog;
@@ -203,19 +232,6 @@ struct cpu_inst_t
         void *userdata;
     } memory_watchpoint;
 
-    uint32_t core_regs[ARM_REG_ENDING - 1];
-    uint32_t sp_main, sp_process;
-    vreg_t d[32];
-
-    uint32_t faultmask, basepri, primask;
-    CONTROL_t control;
-    xPSR_t xpsr;
-
-    itstate_t itstate;
-    bool must_advance_it;
-
-    arm_mode mode;
-
     csh cs;
     const uint8_t *program;
     size_t program_size;
@@ -225,21 +241,10 @@ struct cpu_inst_t
 
     cs_insn *last_external_inst;
 
-    size_t exception_count, pending_exception_count;
-    exception_t exceptions[ARM_EXC_EXTERNAL_END + 1];
-    arm_exception running_exceptions[MAX_EXECUTING_EXCEPTIONS]; // Stack
-    uint32_t pending_exceptions[ARM_EXCEPTION_COUNT / 32];      // Bitfield
-    size_t running_exception_count;
-    int execution_priority;
-
-    size_t sleep_fuel;
-
 #if ASSERT_EXCEPTION_REGISTERS
     uint32_t exception_regs[sizeof(check_exc_registers) / sizeof(arm_reg)][MAX_EXECUTING_EXCEPTIONS];
     size_t exception_regs_count;
 #endif
-
-    bool branched;
 
     memory_map_t *mem;
 
@@ -1202,11 +1207,11 @@ static void do_store(cpu_t *cpu, cs_arm *detail, byte_size_t size, bool dual)
 
 static void add_arm_memregs(cpu_t *cpu, size_t priority_bits)
 {
-    NEW_PERIPH(cpu, DWT, dwt, dwt, x(E000, 1000), 0x1000);
-    NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90, cpu);
-    NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110);
-    NEW_PERIPH(cpu, SCB_FP, scb_fp, scb_fp, x(E000, EF00), 0x90);
-    NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF, cpu, priority_bits);
+    NEW_PERIPH(cpu, DWT, dwt, dwt, x(E000, 1000), 0x1000, cpu->state_store);
+    NEW_PERIPH(cpu, SCB, scb, scb, x(E000, ED00), 0x90, cpu, cpu->state_store);
+    NEW_PERIPH(cpu, DCB, dcb, dcb, x(E000, EDF0), 0x110, cpu->state_store);
+    NEW_PERIPH(cpu, SCB_FP, scb_fp, scb_fp, x(E000, EF00), 0x90, cpu->state_store);
+    NEW_PERIPH(cpu, NVIC, nvic, nvic, x(E000, E100), 0xBFF, cpu, cpu->state_store, priority_bits);
 }
 
 static void do_stmdb(cpu_t *cpu, arm_reg base_reg, bool writeback, cs_arm_op *reg_operands, uint8_t reg_count)
@@ -1259,14 +1264,16 @@ static inline void decode_arithmetic(cpu_t *cpu, cs_insn *i, uint32_t *op0_val, 
     }
 }
 
-cpu_t *cpu_new(const uint8_t *program, size_t program_size, memory_map_t *mem, size_t max_external_interrupts, size_t priority_bits)
+cpu_t *cpu_new(const uint8_t *program, size_t program_size, memory_map_t *mem, state_store_t *store, size_t max_external_interrupts, size_t priority_bits)
 {
     cpu_t *cpu = calloc(1, sizeof(cpu_t));
-
+    cpu->state_store = store;
     cpu->program = program;
     cpu->program_size = program_size;
     cpu->mem = mem;
     cpu->exception_count = 16 + max_external_interrupts;
+
+    state_store_register(store, STATE_KEY_CPU, cpu, sizeof(struct state));
 
     add_arm_memregs(cpu, priority_bits);
 

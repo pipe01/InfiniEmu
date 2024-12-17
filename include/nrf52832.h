@@ -4,6 +4,7 @@
 #include "bus_i2c.h"
 #include "bus_spi.h"
 #include "program.h"
+#include "state_store.h"
 #include "peripherals/nrf52832/rtc.h"
 
 #define NRF52832_SRAM_SIZE 0x10000
@@ -84,7 +85,7 @@ enum
 
 typedef struct NRF52832_inst_t NRF52832_t;
 
-NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size);
+NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size, state_store_t *store);
 void nrf52832_reset(NRF52832_t *);
 int nrf52832_step(NRF52832_t *);
 
@@ -99,3 +100,5 @@ size_t nrf52832_get_sram_size(NRF52832_t *);
 uint64_t nrf52832_get_cycle_counter(NRF52832_t *);
 
 bool nrf52832_flash_write(NRF52832_t *, uint32_t addr, uint8_t value);
+
+void nrf52832_reload_state(NRF52832_t *);
