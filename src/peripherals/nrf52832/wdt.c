@@ -55,5 +55,9 @@ OPERATION(wdt)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(WDT, wdt)
 {
-    return malloc(sizeof(WDT_t));
+    WDT_t *wdt = malloc(sizeof(WDT_t));
+
+    state_store_register(ctx.state_store, PERIPHERAL_KEY(ctx.id), wdt, sizeof(WDT_t));
+
+    return wdt;
 }

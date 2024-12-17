@@ -48,7 +48,7 @@ enum
 
 OPERATION(clock)
 {
-    CLOCK_t *clock = (CLOCK_t *)userdata;
+    CLOCK_t *clock = userdata;
 
     if (op == OP_RESET)
     {
@@ -149,6 +149,8 @@ PPI_TASK_HANDLER(clock_task_handler)
 NRF52_PERIPHERAL_CONSTRUCTOR(CLOCK, clock)
 {
     CLOCK_t *clock = malloc(sizeof(CLOCK_t));
+
+    state_store_register(ctx.state_store, STATE_KEY_CLOCK, clock, sizeof(*clock));
 
     ppi_add_peripheral(ctx.ppi, ctx.id, clock_task_handler, clock);
 

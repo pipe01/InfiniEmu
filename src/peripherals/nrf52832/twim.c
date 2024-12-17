@@ -41,10 +41,8 @@ typedef struct
     uint32_t value;
 } inten_t;
 
-struct TWIM_inst_t
+typedef struct
 {
-    uint8_t id;
-    bus_i2c_t *i2c;
     bool enabled;
 
     inten_t inten;
@@ -52,6 +50,14 @@ struct TWIM_inst_t
     uint32_t address;
 
     easydma_reg_t tx, rx;
+} state_t;
+
+struct TWIM_inst_t
+{
+    state_t;
+
+    uint8_t id;
+    bus_i2c_t *i2c;
 };
 
 PPI_TASK_HANDLER(twim_task_handler)
@@ -108,6 +114,13 @@ OPERATION(twim)
 
         return MEMREG_RESULT_OK;
     }
+    if (op == OP_LOAD_DATA)
+    {
+        if (twim->enabled)
+            ppi_replace_peripheral(current_ppi, twim->id, twim_task_handler, twim);
+
+        return MEMREG_RESULT_OK;
+    }
 
     switch (offset)
     {
@@ -128,7 +141,7 @@ OPERATION(twim)
         OP_INTENSET(twim)
         OP_INTENCLR(twim)
 
-    case 0x4C4: // ERRORSRC
+    case 0x4C4:             // ERRORSRC
         if (OP_IS_READ(op)) // Stub
             *value = 0;
         return MEMREG_RESULT_OK;
@@ -172,9 +185,11 @@ OPERATION(twim)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(TWIM, twim)
 {
-    TWIM_t *twim = (TWIM_t *)calloc(1, sizeof(TWIM_t));
+    TWIM_t *twim = calloc(1, sizeof(TWIM_t));
     twim->i2c = ctx.i2c;
     twim->id = ctx.id;
+
+    state_store_register(ctx.state_store, STATE_KEY_TWIM0 + ctx.id, twim, sizeof(state_t));
 
     return twim;
 }

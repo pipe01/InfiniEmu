@@ -40,5 +40,9 @@ OPERATION(power)
 
 NRF52_PERIPHERAL_CONSTRUCTOR(POWER, power)
 {
-    return malloc(sizeof(POWER_t));
+    POWER_t *power = malloc(sizeof(POWER_t));
+
+    state_store_register(ctx.state_store, STATE_KEY_POWER, power, sizeof(POWER_t));
+
+    return power;
 }

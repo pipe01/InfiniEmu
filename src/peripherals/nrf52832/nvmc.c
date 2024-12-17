@@ -14,10 +14,10 @@ typedef union
 
 struct NVMC_inst_t
 {
+    config_t config;
+
     uint8_t *data;
     size_t size;
-
-    config_t config;
 };
 
 OPERATION(nvmc)
@@ -90,5 +90,8 @@ NRF52_PERIPHERAL_CONSTRUCTOR(NVMC, nvmc, uint8_t *data, size_t size)
     NVMC_t *nvmc = malloc(sizeof(NVMC_t));
     nvmc->data = data;
     nvmc->size = size;
+
+    state_store_register(ctx.state_store, PERIPHERAL_KEY(ctx.id), nvmc, sizeof(config_t));
+
     return nvmc;
 }

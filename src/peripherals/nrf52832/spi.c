@@ -10,11 +10,17 @@ enum
 
 #define READ_BUFFER_SIZE 50
 
+typedef struct
+{
+    bool enabled;
+} state_t;
+
 struct SPI_inst_t
 {
+    state_t;
+
     uint8_t id;
     bus_spi_t *bus;
-    bool enabled;
 };
 
 PPI_TASK_HANDLER(spi_task_handler)
@@ -112,7 +118,8 @@ NRF52_PERIPHERAL_CONSTRUCTOR(SPI, spi)
     SPI_t *spi = malloc(sizeof(SPI_t));
     spi->bus = ctx.spi;
     spi->id = ctx.id;
-    spi->enabled = false;
+
+    state_store_register(ctx.state_store, PERIPHERAL_KEY(ctx.id), spi, sizeof(state_t));
 
     return spi;
 }

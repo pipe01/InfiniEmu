@@ -49,10 +49,8 @@ typedef union
     uint32_t value;
 } inten_t;
 
-struct SPIM_inst_t
+typedef struct
 {
-    uint8_t id;
-    bus_spi_t *bus;
     bool enabled;
 
     uint32_t psel_sck, psel_mosi, psel_miso;
@@ -62,11 +60,19 @@ struct SPIM_inst_t
 
     config_t config;
     inten_t inten;
+} state_t;
+
+struct SPIM_inst_t
+{
+    state_t;
+
+    uint8_t id;
+    bus_spi_t *bus;
 };
 
 PPI_TASK_HANDLER(spim_task_handler)
 {
-    SPIM_t *spim = (SPIM_t *)userdata;
+    SPIM_t *spim = userdata;
 
     assert(task == TASK_ID(TASKS_START));
 
@@ -90,7 +96,7 @@ PPI_TASK_HANDLER(spim_task_handler)
 
 OPERATION(spim)
 {
-    SPIM_t *spim = (SPIM_t *)userdata;
+    SPIM_t *spim = userdata;
 
     if (op == OP_RESET)
     {
@@ -99,6 +105,13 @@ OPERATION(spim)
             .bus = spim->bus,
         };
         ppi_remove_peripheral(current_ppi, spim->id);
+
+        return MEMREG_RESULT_OK;
+    }
+    if (op == OP_LOAD_DATA)
+    {
+        if (spim->enabled)
+            ppi_replace_peripheral(current_ppi, spim->id, spim_task_handler, spim);
 
         return MEMREG_RESULT_OK;
     }
@@ -187,6 +200,8 @@ NRF52_PERIPHERAL_CONSTRUCTOR(SPIM, spim)
     SPIM_t *spim = malloc(sizeof(SPIM_t));
     spim->bus = ctx.spi;
     spim->id = ctx.id;
+
+    state_store_register(ctx.state_store, STATE_KEY_SPIM0 + ctx.id, spim, sizeof(state_t));
 
     return spim;
 }
