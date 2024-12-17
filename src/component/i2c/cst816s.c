@@ -25,14 +25,17 @@ typedef struct __attribute__((packed))
 
 struct cst816s_t
 {
+    struct state
+    {
+        uint8_t next_read[MAX_READ_SIZE];
+        size_t next_read_size;
+
+        touchdata_t touchdata;
+        bool has_touch;
+    };
+
     pins_t *pins;
     int irqPin;
-
-    uint8_t next_read[MAX_READ_SIZE];
-    size_t next_read_size;
-
-    touchdata_t touchdata;
-    bool has_touch;
 };
 
 void cst816s_reset(void *userdata)
@@ -114,11 +117,13 @@ size_t cst816s_read(uint8_t *data, size_t data_size, void *userdata)
     return data_size;
 }
 
-cst816s_t *cst816s_new(pins_t *pins, int irqPin)
+cst816s_t *cst816s_new(pins_t *pins, state_store_t *store, int irqPin)
 {
     cst816s_t *cst816s = calloc(1, sizeof(cst816s_t));
     cst816s->pins = pins;
     cst816s->irqPin = irqPin;
+
+    state_store_register(store, STATE_KEY_CST816S, cst816s, sizeof(struct state));
 
     return cst816s;
 }

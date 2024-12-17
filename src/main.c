@@ -11,6 +11,7 @@
 #include "pcap.h"
 #include "program.h"
 #include "segger_rtt.h"
+#include "util.h"
 #include "peripherals/nrf52832/radio.h"
 
 void commander_output(const char *msg, void *userdata)
@@ -72,24 +73,10 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    FILE *f = fopen(program_path, "rb");
-    if (f == NULL)
-    {
-        fprintf(stderr, "Failed to open %s\n", program_path);
+    size_t fsize;
+    uint8_t *program_data = read_file_u8(program_path, &fsize);
+    if (program_data == NULL)
         return -1;
-    }
-
-    fseek(f, 0, SEEK_END);
-    long fsize = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    uint8_t *program_data = malloc(fsize);
-    if (fread(program_data, 1, fsize, f) != (size_t)fsize)
-    {
-        fprintf(stderr, "Failed to read %s\n", program_path);
-        return -1;
-    }
-    fclose(f);
 
     program_t *program = program_new(big_ram ? 0x800000 : NRF52832_FLASH_SIZE);
     if (!program_load_elf(program, 0, program_data, fsize))
@@ -137,6 +124,14 @@ int main(int argc, char **argv)
     pcap_t *pcap = pcap_create("bluetooth.pcap");
     radio_set_pcap(nrf52832_get_peripheral(nrf, INSTANCE_RADIO), pcap);
 
+    size_t state_size;
+    uint8_t *state = read_file_u8("state.bin", &state_size);
+    if (state)
+    {
+        pinetime_load_state(pt, state, state_size);
+        free(state);
+    }
+
     free(program);
 
     if (run_gdb)
@@ -165,6 +160,18 @@ int main(int argc, char **argv)
 
             if (inst_counter++ % 60 == 0)
                 time_increment_fake_microseconds(1);
+
+            if (inst_counter == 100000000)
+            {
+                printf("saving state\n");
+                
+                size_t size;
+                uint8_t *state = pinetime_save_state(pt, &size);
+
+                FILE *f = fopen("state.bin", "wb");
+                fwrite(state, 1, size, f);
+                fclose(f);
+            }
 
 #if ENABLE_SEGGER_RTT
             if (found_rtt || rtt_counter < 1000000)

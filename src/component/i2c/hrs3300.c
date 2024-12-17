@@ -102,9 +102,13 @@ size_t hrs3300_read(uint8_t *data, size_t data_size, void *userdata)
     return data_size;
 }
 
-hrs3300_t *hrs3300_new()
+hrs3300_t *hrs3300_new(state_store_t *store)
 {
-    return calloc(1, sizeof(hrs3300_t));
+    hrs3300_t *hrs = calloc(1, sizeof(hrs3300_t));
+
+    state_store_register(store, STATE_KEY_HRS3300, hrs, sizeof(hrs3300_t));
+
+    return hrs;
 }
 
 i2c_slave_t hrs3300_get_slave(hrs3300_t *hrs3300)

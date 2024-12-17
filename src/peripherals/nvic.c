@@ -8,23 +8,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct
-{
-    bool enabled;
-    uint32_t priority;
-} interrupt_t;
-
-#define INTERRUPT_COUNT 512
-
 struct NVIC_inst_t
 {
+    struct state
+    {
+        uint32_t priority_mask;
+    };
+
     cpu_t *cpu;
-    uint32_t priority_mask;
 };
 
 OPERATION(nvic)
 {
-    NVIC_t *nvic = (NVIC_t *)userdata;
+    NVIC_t *nvic = userdata;
 
     if (op == OP_RESET)
     {
@@ -144,13 +140,15 @@ OPERATION(nvic)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-NVIC_t *nvic_new(cpu_t *cpu, size_t priority_bits)
+NVIC_t *nvic_new(cpu_t *cpu, state_store_t *store, size_t priority_bits)
 {
     assert(priority_bits >= 3 && priority_bits <= 8);
 
     NVIC_t *nvic = malloc(sizeof(NVIC_t));
     nvic->cpu = cpu;
     nvic->priority_mask = (0xFF << (8 - priority_bits)) & 0xFF;
+
+    state_store_register(store, STATE_KEY_NVIC, nvic, sizeof(struct state));
 
     return nvic;
 }

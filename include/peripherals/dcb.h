@@ -2,4 +2,4 @@
 
 #include "peripherals/peripheral.h"
 
-PERIPHERAL(DCB, dcb)
+PERIPHERAL(DCB, dcb, state_store_t *store)

@@ -2,6 +2,8 @@
 
 #define PINS_COUNT 32
 
+#include "state_store.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -34,7 +36,7 @@ typedef enum
 #define pins_set_input(pins, pin) pins_set_dir(pins, pin, pins_get_dir(pins, pin) & ~PIN_OUTPUT)
 #define pins_set_output(pins, pin) pins_set_dir(pins, pin, pins_get_dir(pins, pin) | PIN_OUTPUT)
 
-pins_t *pins_new(void);
+pins_t *pins_new(state_store_t *store);
 void pins_free(pins_t *);
 
 void pins_reset(pins_t *);

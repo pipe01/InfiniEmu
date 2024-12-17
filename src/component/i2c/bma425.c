@@ -238,9 +238,11 @@ size_t bma425_read(uint8_t *data, size_t data_size, void *userdata)
     return data_size;
 }
 
-i2c_slave_t bma425_new()
+i2c_slave_t bma425_new(state_store_t *store)
 {
     bma425_t *bma425 = malloc(sizeof(bma425_t));
+
+    state_store_register(store, STATE_KEY_BMA425, bma425, sizeof(bma425_t));
 
     return (i2c_slave_t){
         .userdata = bma425,

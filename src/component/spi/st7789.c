@@ -70,6 +70,8 @@ typedef union
     uint16_t value;
 } value16_t;
 
+#define SCREEN_BUFFER_SIZE (4 * 1024)
+
 struct st7789_t
 {
     bool on;
@@ -88,7 +90,7 @@ struct st7789_t
     uint8_t data_buffer[2048];
 
     uint8_t screen[DISPLAY_BUFFER_WIDTH * DISPLAY_BUFFER_HEIGHT * BYTES_PER_PIXEL];
-    uint8_t *screen_buffer;
+    uint8_t screen_buffer[SCREEN_BUFFER_SIZE];
     size_t screen_buffer_ptr;
 };
 
@@ -151,8 +153,6 @@ void st7789_write(uint8_t byte, void *userdata)
 
                         memcpy(&st7789->screen[start], &st7789->screen_buffer[row * stride], stride);
                     }
-
-                    free(st7789->screen_buffer);
                 }
                 break;
             }
@@ -271,10 +271,9 @@ void st7789_write(uint8_t byte, void *userdata)
         uint16_t height = st7789->yend.value - st7789->ystart.value + 1;
         size_t bytes = width * height * BYTES_PER_PIXEL;
 
-        assert(bytes > 0);
+        assert(bytes > 0 && bytes < SCREEN_BUFFER_SIZE);
 
         st7789->expecting_data = bytes;
-        st7789->screen_buffer = malloc(bytes);
         st7789->screen_buffer_ptr = 0;
         st7789->write_counter++;
         break;
@@ -303,9 +302,12 @@ void st7789_cs_changed(bool selected, void *userdata)
 {
 }
 
-st7789_t *st7789_new()
+st7789_t *st7789_new(state_store_t *store)
 {
     st7789_t *st7789 = malloc(sizeof(st7789_t));
+
+    state_store_register(store, STATE_KEY_ST7789, st7789, sizeof(st7789_t));
+
     return st7789;
 }
 

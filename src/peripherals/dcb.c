@@ -12,7 +12,7 @@ struct DCB_inst_t
 
 OPERATION(dcb)
 {
-    DCB_t *dcb = (DCB_t *)userdata;
+    DCB_t *dcb = userdata;
 
     if (op == OP_RESET)
     {
@@ -37,7 +37,11 @@ OPERATION(dcb)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-DCB_t *dcb_new()
+DCB_t *dcb_new(state_store_t *store)
 {
-    return malloc(sizeof(DCB_t));
+    DCB_t *dcb = malloc(sizeof(DCB_t));
+
+    state_store_register(store, STATE_KEY_DCB, dcb, sizeof(DCB_t));
+
+    return dcb;
 }

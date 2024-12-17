@@ -31,3 +31,6 @@ st7789_t *pinetime_get_st7789(pinetime_t *);
 cst816s_t *pinetime_get_cst816s(pinetime_t *);
 hrs3300_t *pinetime_get_hrs3300(pinetime_t *);
 spinorflash_t *pinetime_get_spinorflash(pinetime_t *pt);
+
+uint8_t *pinetime_save_state(pinetime_t *pt, size_t *size);
+bool pinetime_load_state(pinetime_t *pt, uint8_t *data, size_t size);

@@ -12,7 +12,7 @@ struct DWT_inst_t
 
 OPERATION(dwt)
 {
-    DWT_t *dwt = (DWT_t *)userdata;
+    DWT_t *dwt = userdata;
 
     if (op == OP_RESET)
     {
@@ -35,9 +35,13 @@ OPERATION(dwt)
     return MEMREG_RESULT_UNHANDLED;
 }
 
-DWT_t *dwt_new()
+DWT_t *dwt_new(state_store_t *store)
 {
-    return malloc(sizeof(DWT_t));
+    DWT_t *dwt = malloc(sizeof(DWT_t));
+
+    state_store_register(store, STATE_KEY_DWT, dwt, sizeof(DWT_t));
+
+    return dwt;
 }
 
 void dwt_increment_cycle(DWT_t *dwt, unsigned int count)

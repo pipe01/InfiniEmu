@@ -2,7 +2,7 @@
 
 #include "arm.h"
 
-PERIPHERAL(SCB_FP, scb_fp)
+PERIPHERAL(SCB_FP, scb_fp, state_store_t *store)
 
 FPCCR_t scb_fp_get_fpccr(SCB_FP_t *scb_fp);
 uint32_t scb_fp_get_fpscr(SCB_FP_t *scb_fp);

@@ -9,6 +9,7 @@
 struct pinetime_t
 {
     NRF52832_t *nrf;
+    state_store_t *state_store;
 
     st7789_t *lcd;
     cst816s_t *touch;
@@ -28,16 +29,17 @@ pinetime_t *pinetime_new(const program_t *program)
         sram_size = NRF52832_SRAM_SIZE;
 
     pinetime_t *pt = malloc(sizeof(pinetime_t));
-    pt->nrf = nrf52832_new(program, sram_size);
-    pt->lcd = st7789_new();
-    pt->touch = cst816s_new(nrf52832_get_pins(pt->nrf), PINETIME_CST816S_IRQ_PIN);
-    pt->hrs = hrs3300_new();
-    pt->extflash = spinorflash_new(PINETIME_EXTFLASH_SIZE, PINETIME_EXTFLASH_SECTOR_SIZE);
+    pt->state_store = state_store_new();
+    pt->nrf = nrf52832_new(program, sram_size, pt->state_store);
+    pt->lcd = st7789_new(pt->state_store);
+    pt->touch = cst816s_new(nrf52832_get_pins(pt->nrf), pt->state_store, PINETIME_CST816S_IRQ_PIN);
+    pt->hrs = hrs3300_new(pt->state_store);
+    pt->extflash = spinorflash_new(pt->state_store, PINETIME_EXTFLASH_SIZE, PINETIME_EXTFLASH_SECTOR_SIZE);
 
     bus_spi_add_slave(nrf52832_get_spi(pt->nrf), PINETIME_EXTFLASH_CS_PIN, spinorflash_get_slave(pt->extflash));
     bus_spi_add_slave(nrf52832_get_spi(pt->nrf), PINETIME_LCD_CS_PIN, st7789_get_slave(pt->lcd));
     i2c_add_slave(nrf52832_get_i2c(pt->nrf), PINETIME_CST816S_I2C_ADDR, cst816s_get_slave(pt->touch));
-    i2c_add_slave(nrf52832_get_i2c(pt->nrf), PINETIME_BMA425_I2C_ADDR, bma425_new());
+    i2c_add_slave(nrf52832_get_i2c(pt->nrf), PINETIME_BMA425_I2C_ADDR, bma425_new(pt->state_store));
     i2c_add_slave(nrf52832_get_i2c(pt->nrf), PINETIME_HRS3300_I2C_ADDR, hrs3300_get_slave(pt->hrs));
 
     nrf52832_reset(pt->nrf);
@@ -83,4 +85,20 @@ hrs3300_t *pinetime_get_hrs3300(pinetime_t *pt)
 spinorflash_t *pinetime_get_spinorflash(pinetime_t *pt)
 {
     return pt->extflash;
+}
+
+uint8_t *pinetime_save_state(pinetime_t *pt, size_t *size)
+{
+    return state_store_save(pt->state_store, size);
+}
+
+bool pinetime_load_state(pinetime_t *pt, uint8_t *data, size_t size)
+{
+    if (state_store_load(pt->state_store, data, size))
+    {
+        nrf52832_reload_state(pt->nrf);
+        return true;
+    }
+
+    return false;
 }

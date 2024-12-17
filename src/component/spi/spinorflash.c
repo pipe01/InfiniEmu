@@ -68,31 +68,33 @@ typedef union
 
 struct spinorflash_t
 {
+    struct state
+    {
+        size_t write_count;
+
+        statusreg_t statusreg;
+        securityreg_t securityreg;
+
+        uint8_t last_write[MAX_COMMAND_SIZE];
+        size_t last_write_size;
+        bool handled_command;
+
+        bool is_reading_data;
+        uint32_t data_read_address;
+
+        uint32_t pp_address;
+    };
+
     uint8_t *data;
     size_t size, sector_size;
-
     bool should_free_data;
 
-    size_t write_count;
-
-    statusreg_t statusreg;
-    securityreg_t securityreg;
-
-    uint8_t last_write[MAX_COMMAND_SIZE];
-    size_t last_write_size;
-    bool handled_command;
-
-    bool is_reading_data;
-    uint32_t data_read_address;
-
     circular_buffer_t *out_buffer;
-
-    uint32_t pp_address;
 };
 
 void spinorflash_write_internal(uint8_t byte, void *userdata)
 {
-    spinorflash_t *flash = (spinorflash_t *)userdata;
+    spinorflash_t *flash = userdata;
 
     if (flash->statusreg.WIP)
     {
@@ -227,7 +229,7 @@ uint8_t spinorflash_read_internal(void *userdata)
 
 void spinorflash_cs_changed(bool selected, void *userdata)
 {
-    spinorflash_t *flash = (spinorflash_t *)userdata;
+    spinorflash_t *flash = userdata;
 
     if (!selected)
     {
@@ -255,7 +257,7 @@ void spinorflash_cs_changed(bool selected, void *userdata)
 
 void spinorflash_reset(void *userdata)
 {
-    spinorflash_t *flash = (spinorflash_t *)userdata;
+    spinorflash_t *flash = userdata;
 
     flash->statusreg.value = 0;
     flash->securityreg.value = 0;
@@ -265,14 +267,16 @@ void spinorflash_reset(void *userdata)
     circular_buffer_clear(flash->out_buffer);
 }
 
-spinorflash_t *spinorflash_new(size_t size, size_t sector_size)
+spinorflash_t *spinorflash_new(state_store_t *store, size_t size, size_t sector_size)
 {
     spinorflash_t *flash = malloc(sizeof(spinorflash_t));
     flash->data = malloc(size);
     flash->should_free_data = true;
     flash->size = size;
     flash->sector_size = sector_size;
-    flash->out_buffer = circular_buffer_new(READ_QUEUE_SIZE);
+    flash->out_buffer = circular_buffer_new(READ_QUEUE_SIZE); // TODO: Store this in state
+
+    state_store_register(store, STATE_KEY_SPINORFLASH, flash, sizeof(struct state));
 
     return flash;
 }

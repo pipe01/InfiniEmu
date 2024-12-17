@@ -93,7 +93,7 @@ uint8_t *state_store_save(state_store_t *store, size_t *size)
     return data;
 }
 
-bool state_store_load(state_store_t *store, uint8_t *data, size_t size)
+bool state_store_load(state_store_t *store, const uint8_t *data, size_t size)
 {
     entry_header_t header;
 

@@ -259,7 +259,7 @@ void memory_map_do_operation(memory_map_t *map, uint32_t addr, memreg_op_t op, u
         }
     }
 
-    if (handled)
+    if (handled || op == OP_LOAD_DATA) // OP_LOAD_DATA is optional
         return;
 
     switch (result)

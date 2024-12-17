@@ -44,7 +44,7 @@ struct RTC_inst_t
     size_t cc_num;
 };
 
-void rtc_tick(void *userdata)
+static void rtc_tick(void *userdata)
 {
     RTC_t *rtc = userdata;
 
@@ -66,13 +66,27 @@ void rtc_tick(void *userdata)
     }
 }
 
+static inline void rtc_add_ticker(RTC_t *rtc)
+{
+    ticker_add(rtc->ticker, CLOCK_LFCLK, rtc_tick, rtc, rtc->prescaler + 1, true);
+}
+
 OPERATION(rtc)
 {
-    state_t *rtc = userdata;
+    RTC_t *rtc = userdata;
 
     if (op == OP_RESET)
     {
         memset(rtc, 0, sizeof(state_t));
+        return MEMREG_RESULT_OK;
+    }
+    if (op == OP_LOAD_DATA)
+    {
+        ticker_remove(rtc->ticker, CLOCK_LFCLK, rtc_tick);
+
+        if (rtc->running)
+            rtc_add_ticker(rtc);
+
         return MEMREG_RESULT_OK;
     }
 
@@ -140,7 +154,7 @@ PPI_TASK_HANDLER(rtc_task_handler)
     case TASK_ID(RTC_TASKS_START):
         if (!rtc->running)
         {
-            ticker_add(rtc->ticker, CLOCK_LFCLK, rtc_tick, rtc, rtc->prescaler + 1, true);
+            rtc_add_ticker(rtc);
 
             rtc->running = true;
         }

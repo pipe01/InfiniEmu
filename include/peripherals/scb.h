@@ -27,7 +27,7 @@ typedef union
 
 static_assert(sizeof(SCB_CCR_t) == 4, "SCB_CCR_t size is incorrect");
 
-PERIPHERAL(SCB, scb, cpu_t *cpu)
+PERIPHERAL(SCB, scb, cpu_t *cpu, state_store_t *store)
 
 uint32_t scb_get_prigroup(SCB_t *);
 SCB_CCR_t scb_get_ccr(SCB_t *);

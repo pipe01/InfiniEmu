@@ -15,10 +15,14 @@
 
 struct bus_spi_t
 {
+    struct state
+    {
+        bool was_selected[MAX_SLAVES];
+    };
+
     uint8_t *ram;
     size_t ram_size;
 
-    bool was_selected[MAX_SLAVES];
     spi_slave_t *slaves[MAX_SLAVES];
     uint8_t slave_pin[MAX_SLAVES];
     size_t slave_count;
@@ -26,12 +30,15 @@ struct bus_spi_t
     pins_t *pins;
 };
 
-bus_spi_t *bus_spi_new(pins_t *pins, uint8_t *ram, size_t ram_size)
+bus_spi_t *bus_spi_new(pins_t *pins, uint8_t *ram, size_t ram_size, state_store_t *store)
 {
-    bus_spi_t *spi = (bus_spi_t *)calloc(1, sizeof(bus_spi_t));
+    bus_spi_t *spi = calloc(1, sizeof(bus_spi_t));
     spi->pins = pins;
     spi->ram = ram;
     spi->ram_size = ram_size;
+
+    state_store_register(store, STATE_KEY_BUS_SPI, spi, sizeof(struct state));
+
     return spi;
 }
 

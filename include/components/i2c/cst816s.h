@@ -2,6 +2,7 @@
 
 #include "bus_i2c.h"
 #include "pins.h"
+#include "state_store.h"
 
 typedef enum
 {
@@ -17,7 +18,7 @@ typedef enum
 
 typedef struct cst816s_t cst816s_t;
 
-cst816s_t *cst816s_new(pins_t *pins, int irqPin);
+cst816s_t *cst816s_new(pins_t *pins, state_store_t *store, int irqPin);
 i2c_slave_t cst816s_get_slave(cst816s_t *);
 
 void cst816s_do_touch(cst816s_t *, touch_gesture_t gesture, uint16_t x, uint16_t y);
