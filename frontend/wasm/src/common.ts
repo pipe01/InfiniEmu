@@ -38,7 +38,7 @@ export type MessageFromWorkerType = { replyToId?: number } & (
     { type: "rttData", data: string } |
     { type: "lcdSleeping", data: boolean } |
     { type: "cpuSleeping", data: boolean } |
-    { type: "performance", data: { loopTime: number, ips: number, totalSRAM: number, pins: number } } |
+    { type: "performance", data: { loopTime: number, cps: number, totalSRAM: number, pins: number } } |
     { type: "backupData", data: ArrayBuffer } |
     { type: "commandOutput", data: string } |
     { type: "aborted", data: any }

@@ -11,7 +11,6 @@ set(SRC_FILES
     pinetime.c
     pins.c
     program.c
-    scheduler.c
     segger_rtt.c
     ticker.c
 
@@ -63,6 +62,7 @@ set(SRC_NATIVE_FILES
     main.c
     pcap.c
     runlog.c
+    scheduler.c
     time.c
 )
 

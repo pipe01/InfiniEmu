@@ -80,7 +80,7 @@ class Emulator {
 
     private rttFoundBlock = false;
 
-    private instructionCount = 0;
+    private cycleCount = 0;
 
     get isRunning() {
         return !!this.runInterval;
@@ -119,14 +119,14 @@ class Emulator {
         this.rttReadBuffer = numberToPointer(Module._malloc(this.rttReadBufferSize));
     }
 
-    private doLoop(iterations: number) {
-        this.instructionCount += iterations;
-        return this.Module._pinetime_loop(this.pinetime, iterations);
+    private doLoop(cycles: number) {
+        this.cycleCount += cycles;
+        return this.Module._pinetime_loop(this.pinetime, cycles);
     }
 
     private run() {
         const start = performance.now();
-        const instructionCountStart = this.instructionCount;
+        const cycleCountStart = this.cycleCount;
         let screenUpdated = false;
 
         if (this.turboMode) {
@@ -138,7 +138,7 @@ class Emulator {
             }
         }
 
-        if (this.instructionCount < 10000000 && !this.rttFoundBlock) {
+        if (this.cycleCount < 10000000 && !this.rttFoundBlock) {
             this.rttFoundBlock = !!this.Module._rtt_find_control(this.rtt);
             if (this.rttFoundBlock)
                 sendMessage("rttFound", undefined);
@@ -174,7 +174,7 @@ class Emulator {
 
         sendMessage("performance", {
             loopTime: end - start,
-            ips: (this.instructionCount - instructionCountStart) / ((end - start) / 1000),
+            cps: (this.cycleCount - cycleCountStart) / ((end - start) / 1000),
             totalSRAM: this.Module._nrf52832_get_sram_size(this.nrf52),
             pins: this.Module._pins_read_all(this.pins),
         });

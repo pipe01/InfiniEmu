@@ -5,14 +5,14 @@
 
 #include <emscripten.h>
 
-bool pinetime_loop(pinetime_t *pt, size_t n)
+bool pinetime_loop(pinetime_t *pt, int cycles)
 {
     st7789_t *lcd = pinetime_get_st7789(pt);
     size_t initial_write_count = st7789_get_write_count(lcd);
 
-    while (n--)
+    while (cycles > 0)
     {
-        pinetime_step(pt);
+        cycles -= pinetime_step(pt);
     }
 
     return st7789_get_write_count(lcd) != initial_write_count;

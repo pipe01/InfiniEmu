@@ -35,7 +35,7 @@ template(v-if="!isReady")
                     .form-check.form-switch
                         input.form-check-input(type="checkbox" v-model="turboMode" id="turboMode")
                         label.form-check-label(for="turboMode") Turbo mode
-                    div Instructions per second: {{ numberFmt.format(performance.ips.value.toFixed(0)) }}
+                    div {{ numberFmt.format(performance.cps.value.toFixed(0)) }} Hz ({{speedPercentage.toFixed(0)}}%)
                     div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
                     div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
                     div RAM size: {{ numberFmt.format(performance.sramSize.value) }} bytes
@@ -70,7 +70,7 @@ template(v-if="!isReady")
 </template>
 
 <script lang="ts" setup>
-import { onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 
 import MyWorker from "@/worker?worker";
 
@@ -126,10 +126,12 @@ function addConsoleLine(text: string, type: Line["type"]) {
 }
 
 const performance = {
-    ips: useAverage(1000),
+    cps: useAverage(1000),
     loopTime: useAverage(1000),
     sramSize: ref(0),
 }
+
+const speedPercentage = computed(() => performance.cps.value / 64000000 * 100);
 
 const worker = new MyWorker();
 onUnmounted(() => worker.terminate());
@@ -177,7 +179,7 @@ worker.onmessage = async (event) => {
             break;
 
         case "performance":
-            performance.ips.value = data.ips;
+            performance.cps.value = data.cps;
             performance.loopTime.value = data.loopTime;
             performance.sramSize.value = data.totalSRAM;
             pins.value = data.pins;
