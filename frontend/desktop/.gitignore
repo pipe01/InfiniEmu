@@ -3,3 +3,4 @@ __debug_bin*
 imgui.ini
 spiflash.bin
 .vscode
+state.bin

@@ -5,6 +5,7 @@ package emulator
 #cgo LDFLAGS: -L.. -linfiniemu -lm -lstdc++
 
 #include <setjmp.h>
+#include <string.h>
 
 #define ENABLE_RUNLOG 1
 
@@ -472,9 +473,9 @@ func (e *Emulator) RunIterations(iterations uint64, iterations_per_us uint64) in
 	return fault
 }
 
-func (e *Emulator) Stop() {
+func (e *Emulator) Stop() RunMode {
 	if !e.isRunning.CompareAndSwap(true, false) {
-		return
+		return e.currentRunMode
 	}
 
 	e.perfLoopCancel()
@@ -491,6 +492,8 @@ func (e *Emulator) Stop() {
 	}
 
 	time.Sleep(100 * time.Millisecond) // TODO: Properly wait for loop or scheduler to stop
+
+	return e.currentRunMode
 }
 
 func (e *Emulator) InstructionsPerSecond() uint64 {
@@ -718,6 +721,20 @@ func (e *Emulator) CloseRunlog() {
 	}
 
 	C.runlog_free(e.runlog)
+}
+
+func (e *Emulator) SaveState() []byte {
+	var size C.size_t
+	state := C.pinetime_save_state(e.pt, &size)
+
+	return C.GoBytes(unsafe.Pointer(state), C.int(size))
+}
+
+func (e *Emulator) LoadState(state []byte) bool {
+	cstate := C.CBytes(state)
+	defer C.free(cstate)
+
+	return bool(C.pinetime_load_state(e.pt, (*C.uchar)(cstate), C.size_t(len(state))))
 }
 
 func ConvertImage(raw []byte) *image.RGBA {
