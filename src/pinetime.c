@@ -1,5 +1,6 @@
 #include "pinetime.h"
 
+#include "byte_util.h"
 #include "components/i2c/bma425.h"
 #include "components/i2c/cst816s.h"
 #include "components/i2c/hrs3300.h"
@@ -22,11 +23,13 @@ pinetime_t *pinetime_new(const program_t *program)
     uint32_t initial_sp;
     program_write_to(program, (uint8_t *)&initial_sp, sizeof(initial_sp));
 
-    size_t sram_size;
-    if (initial_sp > 0x20010000)
-        sram_size = 512 * 1024;
-    else
+    printf("Initial SP: 0x%08x\n", initial_sp);
+
+    size_t sram_size = initial_sp - x(2000, 0000);
+    if (sram_size < NRF52832_SRAM_SIZE)
         sram_size = NRF52832_SRAM_SIZE;
+
+    printf("SRAM size: %ld bytes\n", sram_size);
 
     pinetime_t *pt = malloc(sizeof(pinetime_t));
     pt->state_store = state_store_new();
