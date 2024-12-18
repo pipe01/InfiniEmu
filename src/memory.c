@@ -182,7 +182,7 @@ void memory_map_free(memory_map_t *map)
     assert(false); // TODO: Implement
 }
 
-void memory_map_reset(memory_map_t *map)
+void memory_map_do_operation_all(memory_map_t *map, memreg_op_t op)
 {
     for (size_t i = 0; i < BUCKET_COUNT(1); i++)
     {
@@ -191,7 +191,7 @@ void memory_map_reset(memory_map_t *map)
             membucket_t *bucket = &map->buckets[i][j];
 
             for (size_t k = 0; k < bucket->regions_count; k++)
-                memreg_reset(bucket->regions[k]);
+                bucket->regions[k]->operation(0, 0, NULL, op, bucket->regions[k]->userdata);
         }
     }
 }
@@ -259,7 +259,7 @@ void memory_map_do_operation(memory_map_t *map, uint32_t addr, memreg_op_t op, u
         }
     }
 
-    if (handled || op == OP_LOAD_DATA) // OP_LOAD_DATA is optional
+    if (handled)
         return;
 
     switch (result)

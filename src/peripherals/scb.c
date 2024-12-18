@@ -36,6 +36,8 @@ OPERATION(scb)
         return MEMREG_RESULT_OK;
     }
 
+    OP_IGNORE_LOAD_DATA
+
     switch (offset)
     {
     case 0x00: // CPUID
@@ -44,7 +46,7 @@ OPERATION(scb)
 
         *value = 0x410FC241; // ARM Cortex-M4
         return MEMREG_RESULT_OK;
-    
+
     case 0x04: // ICSR
         OP_ASSERT_SIZE(op, WORD);
 

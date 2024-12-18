@@ -28,6 +28,8 @@ OPERATION(nvic)
         return MEMREG_RESULT_OK;
     }
 
+    OP_IGNORE_LOAD_DATA
+
     // NVIC_ISER[n] and NVIC_ICER[n]
     if (offset <= 0x40 || (offset >= 0x80 && offset <= 0xBC))
     {

@@ -20,6 +20,7 @@ OPERATION(temp)
         return MEMREG_RESULT_OK;
     }
 
+    OP_IGNORE_LOAD_DATA
     OP_ASSERT_SIZE(op, WORD);
 
     if (offset >= 0x520 && offset <= 0x534)

@@ -23,6 +23,7 @@ OPERATION(saadc)
         return MEMREG_RESULT_OK;
     }
 
+    OP_IGNORE_LOAD_DATA
     OP_ASSERT_SIZE(op, WORD);
 
     // TODO: Implement

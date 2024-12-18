@@ -51,6 +51,8 @@ typedef enum {
 #define OP_INVALID_SIZE return MEMREG_RESULT_INVALID_SIZE
 #endif
 
+#define OP_IGNORE_LOAD_DATA if ((op) == OP_LOAD_DATA) { return MEMREG_RESULT_OK; }
+
 #define OP_ASSERT_SIZE(op, size)  if ((op) != OP_READ_##size && (op) != OP_WRITE_##size) { OP_INVALID_SIZE; }
 #define OP_ASSERT_READ(op)  if ((op) < 0) { OP_INVALID_ACCESS; }
 #define OP_ASSERT_WRITE(op) if ((op) > 0) { OP_INVALID_ACCESS; }
@@ -90,11 +92,11 @@ typedef struct memory_map_t memory_map_t;
 
 memory_map_t *memory_map_new();
 void memory_map_free(memory_map_t *);
-void memory_map_reset(memory_map_t *);
 void memory_map_add_region(memory_map_t *, memreg_t *region);
 memreg_t *memory_map_get_region(memory_map_t *, uint32_t addr);
 
 void memory_map_do_operation(memory_map_t *, uint32_t addr, memreg_op_t op, uint32_t *value);
+void memory_map_do_operation_all(memory_map_t *, memreg_op_t op);
 uint32_t memory_map_find_data(memory_map_t *map, uint32_t start_addr, uint32_t search_length, const uint8_t *data, size_t data_size);
 
 inline static uint32_t memory_map_read(memory_map_t *map, uint32_t addr)

@@ -170,7 +170,7 @@ void nrf52832_reset(NRF52832_t *nrf52832)
 {
     nrf52832->cycle_counter = 0;
 
-    memory_map_reset(nrf52832->mem);
+    memory_map_do_operation_all(nrf52832->mem, OP_RESET);
     pins_reset(nrf52832->pins);
     bus_spi_reset(nrf52832->bus_spi);
     i2c_reset(nrf52832->bus_i2c);
@@ -259,5 +259,5 @@ uint64_t nrf52832_get_cycle_counter(NRF52832_t *nrf)
 
 void nrf52832_reload_state(NRF52832_t *nrf)
 {
-    memory_map_do_operation(nrf->mem, 0, OP_LOAD_DATA, NULL);
+    memory_map_do_operation_all(nrf->mem, OP_LOAD_DATA);
 }

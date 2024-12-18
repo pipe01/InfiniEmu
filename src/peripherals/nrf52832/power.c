@@ -18,21 +18,22 @@ OPERATION(power)
         return MEMREG_RESULT_OK;
     }
 
+    OP_IGNORE_LOAD_DATA
     OP_ASSERT_SIZE(op, WORD);
 
     switch (offset)
     {
-        case 0x400: // RESETREAS
-            if (OP_IS_READ(op))
-                *value = power->resetreason;
-            else
-                power->resetreason &= ~*value;
+    case 0x400: // RESETREAS
+        if (OP_IS_READ(op))
+            *value = power->resetreason;
+        else
+            power->resetreason &= ~*value;
 
-            return MEMREG_RESULT_OK;
-        
-        case 0x578: // DCDCEN
-            // Do nothing
-            return MEMREG_RESULT_OK;
+        return MEMREG_RESULT_OK;
+
+    case 0x578: // DCDCEN
+        // Do nothing
+        return MEMREG_RESULT_OK;
     }
 
     return MEMREG_RESULT_UNHANDLED;
