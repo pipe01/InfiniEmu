@@ -31,10 +31,11 @@ int main(int argc, char **argv)
     bool run_gdb = false;
     char *runlog_path = NULL;
     bool big_ram = false;
+    char *state_path = NULL;
 
     int c;
 
-    const char *optstring = "bdf:"
+    const char *optstring = "bdf:s:"
 #if ENABLE_RUNLOG
                             "l:"
 #endif
@@ -60,6 +61,10 @@ int main(int argc, char **argv)
 
         case 'b':
             big_ram = true;
+            break;
+
+        case 's':
+            state_path = optarg;
             break;
 
         default:
@@ -124,12 +129,18 @@ int main(int argc, char **argv)
     pcap_t *pcap = pcap_create("bluetooth.pcap");
     radio_set_pcap(nrf52832_get_peripheral(nrf, INSTANCE_RADIO), pcap);
 
-    size_t state_size;
-    uint8_t *state = read_file_u8("state.bin", &state_size);
-    if (state)
+    if (state_path)
     {
-        pinetime_load_state(pt, state, state_size);
-        free(state);
+        size_t state_size;
+        uint8_t *state = read_file_u8(state_path, &state_size);
+        if (state)
+        {
+            if (pinetime_load_state(pt, state, state_size))
+                printf("Loaded state from state.bin\n");
+            else
+                printf("Failed to load state from state.bin\n");
+            free(state);
+        }
     }
 
     free(program);
@@ -160,18 +171,6 @@ int main(int argc, char **argv)
 
             if (inst_counter++ % 60 == 0)
                 time_increment_fake_microseconds(1);
-
-            if (inst_counter == 100000000)
-            {
-                printf("saving state\n");
-                
-                size_t size;
-                uint8_t *state = pinetime_save_state(pt, &size);
-
-                FILE *f = fopen("state.bin", "wb");
-                fwrite(state, 1, size, f);
-                fclose(f);
-            }
 
 #if ENABLE_SEGGER_RTT
             if (found_rtt || rtt_counter < 1000000)
@@ -204,9 +203,7 @@ int main(int argc, char **argv)
 
                 start = now;
 
-                printf("Instructions per second: %.0f\n", (1000000.f / elapsed) * perf_counter);
                 printf("Cycles per second: %.0f, target: %d\n", (1000000.f / elapsed) * elapsed_cycles, NRF52832_HFCLK_FREQUENCY);
-                printf("\n");
 
                 perf_counter = 0;
             }
