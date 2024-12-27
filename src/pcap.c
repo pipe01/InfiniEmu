@@ -72,7 +72,7 @@ void pcap_write_packet(pcap_t *pcap, const uint8_t *data, size_t length)
 {
     pcaprec_hdr_t hdr = {
         .ts_sec = pcap->start,
-        .ts_usec = microseconds_now(),
+        .ts_usec = microseconds_now_real(),
         .incl_len = length,
         .orig_len = length,
     };

@@ -163,14 +163,17 @@ int main(int argc, char **argv)
         start = microseconds_now_real();
 #endif
 
-        size_t inst_counter = 0;
+        size_t cycle_counter = 0;
 
         for (;;)
         {
-            pinetime_step(pt);
+            cycle_counter += pinetime_step(pt);
 
-            if (inst_counter++ % 60 == 0)
-                time_increment_fake_microseconds(1);
+            if (cycle_counter >= NRF52832_HFCLK_FREQUENCY / (1000000 / 10))
+            {
+                time_increment_fake_microseconds(10);
+                cycle_counter = 0;
+            }
 
 #if ENABLE_SEGGER_RTT
             if (found_rtt || rtt_counter < 1000000)
