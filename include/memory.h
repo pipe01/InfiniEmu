@@ -43,7 +43,7 @@ typedef enum {
 #define OP_IS_WRITE(op)     ((op) < 0)
 #define OP_IS_SIZE(op, size)    ((op) == OP_READ_##size || (op) == OP_WRITE_##size)
 
-#ifdef ABORT_ON_INVALID_MEM_ACCESS
+#if ABORT_ON_INVALID_MEM_ACCESS
 #define OP_INVALID_ACCESS abort()
 #define OP_INVALID_SIZE abort()
 #else
