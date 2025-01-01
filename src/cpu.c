@@ -1924,6 +1924,19 @@ static int execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         UPDATE_NZ; // FIXME: Carry should also be set sometimes but it seems like Capstone doesn't expose it
         break;
 
+    case ARM_INS_MOVT:
+        USE_CYCLES(1);
+
+        assert(detail->op_count == 2);
+        assert(detail->operands[0].type == ARM_OP_REG);
+        assert(detail->operands[1].type == ARM_OP_IMM);
+
+        value = cpu_reg_read(cpu, detail->operands[0].reg) & 0xFFFF;
+        value |= detail->operands[1].imm << 16;
+
+        cpu_reg_write(cpu, detail->operands[0].reg, value);
+        break;
+
     case ARM_INS_MRS:
         USE_CYCLES(1);
 
