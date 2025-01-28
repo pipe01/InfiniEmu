@@ -115,7 +115,7 @@ export async function getZipOrNested(data: Uint8Array, maxDepth = 5): Promise<FS
 export function resolveArtifactUrl(url: string) {
     const matches = /artifact:\/\/(.+\/.+)\/(\d+)/.exec(url);
     if (matches) {
-        return `https://corsproxy.io/?https://nightly.link/${matches[1]}/actions/artifacts/${matches[2]}.zip`;
+        return `https://corsproxy.io/?url=https://nightly.link/${matches[1]}/actions/artifacts/${matches[2]}.zip`;
     }
 
     return url;
