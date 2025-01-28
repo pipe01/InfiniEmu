@@ -23,7 +23,7 @@ Many things are yet to be implemented, including but not limited to:
 
 # Usage
 
-There are currently no releases, the easiest way to run InfiniEmu is to download the AppImage artifact from the latest successful [action run](https://github.com/pipe01/InfiniEmu/actions).
+There are currently no releases, the easiest way to run InfiniEmu is to download the AppImage artifact from the latest successful [action run](https://github.com/pipe01/InfiniEmu/actions/workflows/main.yaml).
 
 To run InfiniEmu, use the following command: `./InfiniEmu-x86_64.AppImage <firmware_path>`, where `<firmware_path>` is the path to the ELF or binary file containing the firmware to run. If an ELF file with symbols is passed, additional information such as FreeRTOS free heap size will be available.
 
