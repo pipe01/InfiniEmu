@@ -70,11 +70,6 @@ int run_iterations(pinetime_t *pt, rtt_t *rtt, unsigned long iterations, unsigne
 		for (i = 0; i < iterations; i++)
 		{
 			loop_step(pt, rtt);
-
-			if (iterations_per_us != 0 && (i % iterations_per_us) == 0)
-			{
-				time_increment_fake_microseconds(1);
-			}
 		}
 	}
 

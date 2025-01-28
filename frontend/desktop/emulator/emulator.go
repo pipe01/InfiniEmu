@@ -464,11 +464,7 @@ func (e *Emulator) RunIterations(iterations uint64, iterations_per_us uint64) in
 	}
 	defer e.isRunning.Store(false)
 
-	C.time_use_real_time(false)
-
 	fault := int(C.run_iterations(e.pt, nil, C.ulong(iterations), C.ulong(iterations_per_us)))
-
-	C.time_use_real_time(true)
 
 	return fault
 }
