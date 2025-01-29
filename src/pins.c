@@ -10,6 +10,8 @@ typedef struct
     pindir_t dir;
     pinsense_t sense;
     pinowner_t owner;
+    uint16_t voltage; // mV
+    bool analog;
 } pin_t;
 
 struct pins_t
@@ -19,11 +21,14 @@ struct pins_t
     static_assert(PINS_COUNT == 32, "PINS_COUNT is not 32");
 
     uint32_t latch;
+    uint16_t high_voltage_mv, high_threshold_mv;
 };
 
-pins_t *pins_new(state_store_t *store)
+pins_t *pins_new(state_store_t *store, uint16_t high_voltage_mv, uint16_t high_threshold_mv)
 {
     pins_t *pins = calloc(1, sizeof(pins_t));
+    pins->high_threshold_mv = high_threshold_mv;
+    pins->high_voltage_mv = high_voltage_mv;
 
     state_store_register(store, STATE_KEY_PINS, pins, sizeof(pins_t));
 
@@ -40,11 +45,11 @@ void pins_reset(pins_t *pins)
     memset(pins, 0, sizeof(pins_t));
 }
 
-static inline void pins_set_state(pins_t *pins, int pin, bool is_set)
+static inline void pins_set_voltage(pins_t *pins, int pin, uint16_t mv)
 {
     assert(pin >= 0 && pin < PINS_COUNT);
 
-    is_set = is_set ? 1 : 0; // Normalize to 0 or 1
+    bool is_set = mv >= pins->high_threshold_mv;
 
     if (pins_is_set(pins, pin) == is_set)
         return;
@@ -52,24 +57,33 @@ static inline void pins_set_state(pins_t *pins, int pin, bool is_set)
     pin_t *p = &pins->pins[pin];
 
     pins->pin_states = (pins->pin_states & ~(1 << pin)) | (is_set << pin);
+    pins->pins[pin].voltage = mv;
 
     if (p->sense != SENSE_DISABLED && ((is_set && (p->sense == SENSE_HIGH)) || (!is_set && (p->sense == SENSE_LOW))))
         pins->latch |= 1 << pin;
 }
 
+void pins_change(pins_t *pins, int pin, uint16_t value)
+{
+    if (pins->pins[pin].analog)
+        pins_set_voltage(pins, pin, value);
+    else
+        pins_set_voltage(pins, pin, value ? pins->high_voltage_mv : 0);
+}
+
 void pins_set(pins_t *pins, int pin)
 {
-    pins_set_state(pins, pin, true);
+    pins_set_voltage(pins, pin, pins->high_voltage_mv);
 }
 
 void pins_clear(pins_t *pins, int pin)
 {
-    pins_set_state(pins, pin, false);
+    pins_set_voltage(pins, pin, 0);
 }
 
 void pins_toggle(pins_t *pins, int pin)
 {
-    pins_set_state(pins, pin, !pins_is_set(pins, pin));
+    pins_set_voltage(pins, pin, pins_is_set(pins, pin) ? 0 : pins->high_voltage_mv);
 }
 
 bool pins_is_set(pins_t *pins, int pin)
@@ -77,6 +91,20 @@ bool pins_is_set(pins_t *pins, int pin)
     assert(pin >= 0 && pin < PINS_COUNT);
 
     return (pins->pin_states & (1 << pin)) != 0;
+}
+
+bool pins_is_analog(pins_t *pins, int pin)
+{
+    assert(pin >= 0 && pin < PINS_COUNT);
+
+    return pins->pins[pin].analog;
+}
+
+void pins_set_analog(pins_t *pins, int pin, bool analog)
+{
+    assert(pin >= 0 && pin < PINS_COUNT);
+
+    pins->pins[pin].analog = analog;
 }
 
 uint32_t pins_read_all(pins_t *pins)

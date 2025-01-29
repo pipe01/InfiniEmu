@@ -94,7 +94,7 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size, state_store_t
     chip->state_store = store;
     chip->sram = sram;
     chip->sram_size = sram_size;
-    chip->pins = pins_new(store);
+    chip->pins = pins_new(store, 3300, 2310);
     chip->bus_spi = bus_spi_new(chip->pins, sram, sram_size, store);
     chip->bus_i2c = i2c_new(sram, sram_size);
     chip->ticker = ticker_new(NRF52832_HFCLK_FREQUENCY / NRF52832_LFCLK_FREQUENCY);
