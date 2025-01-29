@@ -16,12 +16,13 @@ typedef struct
 
 struct pins_t
 {
+    uint16_t high_voltage_mv, high_threshold_mv;
+
     pin_t pins[PINS_COUNT];
     uint32_t pin_states;
     static_assert(PINS_COUNT == 32, "PINS_COUNT is not 32");
 
     uint32_t latch;
-    uint16_t high_voltage_mv, high_threshold_mv;
 };
 
 pins_t *pins_new(state_store_t *store, uint16_t high_voltage_mv, uint16_t high_threshold_mv)
@@ -42,7 +43,12 @@ void pins_free(pins_t *pins)
 
 void pins_reset(pins_t *pins)
 {
-    memset(pins, 0, sizeof(pins_t));
+    memset(pins->pins, 0, sizeof(pins->pins));
+    pins->pin_states = 0;
+    pins->latch = 0;
+
+    pins_set_analog(pins, 31, true);
+    pins_change(pins, 31, 3000);
 }
 
 static inline void pins_set_voltage(pins_t *pins, int pin, uint16_t mv)
@@ -105,6 +111,13 @@ void pins_set_analog(pins_t *pins, int pin, bool analog)
     assert(pin >= 0 && pin < PINS_COUNT);
 
     pins->pins[pin].analog = analog;
+}
+
+uint16_t pins_get_voltage(pins_t *pins, int pin)
+{
+    assert(pin >= 0 && pin < PINS_COUNT);
+
+    return pins->pins[pin].voltage;
 }
 
 uint32_t pins_read_all(pins_t *pins)
