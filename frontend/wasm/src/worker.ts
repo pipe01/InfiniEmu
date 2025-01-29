@@ -515,12 +515,8 @@ async function handleMessage(msg: MessageToWorkerType) {
                 emulator.clearTouch();
                 break;
 
-            case "pressButton":
-                emulator.changePin(13, true);
-                break;
-
-            case "releaseButton":
-                emulator.changePin(13, false);
+            case "setPin":
+                emulator.changePin(data.pin, data.value);
                 break;
 
             case "readDir":

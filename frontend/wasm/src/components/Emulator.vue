@@ -75,7 +75,8 @@ import Display, { Direction } from "@/components/Display.vue";
 import Console, { type Line } from "@/components/Console.vue";
 import FileBrowser from "@/components/FileBrowser.vue";
 import { sendMessage, sendMessageAndWait, useAverage } from "@/utils";
-import type { MessageFromWorkerType } from "@/common";
+import { type MessageFromWorkerType } from "@/common";
+import { PinetimePins } from "@/pinetime";
 
 const props = defineProps<{
     programFile: ArrayBuffer,
@@ -224,10 +225,7 @@ function onFileLoadEnd() {
 }
 
 function onButtonDown(isDown: boolean) {
-    if (isDown)
-        sendMessage(worker, "pressButton", undefined);
-    else
-        sendMessage(worker, "releaseButton", undefined);
+    sendMessage(worker, "setPin", { pin: PinetimePins.Button, value: isDown });
 }
 
 const swipeCenter = (direction: Direction) => {

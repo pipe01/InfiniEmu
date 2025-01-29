@@ -12,8 +12,7 @@ export type MessageToWorkerType = { messageId?: number } & (
     { type: "stop", data: void } |
     { type: "doTouch", data: { gesture: number, x: number, y: number } } |
     { type: "clearTouch", data: void } |
-    { type: "pressButton", data: void } |
-    { type: "releaseButton", data: void } |
+    { type: "setPin", data: { pin: number, value: boolean } } |
     { type: "setProgram", data: ArrayBuffer } |
     { type: "readDir", data: string } |
     { type: "readFile", data: string } |
