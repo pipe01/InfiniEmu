@@ -76,8 +76,6 @@ class Emulator {
     private isLcdSleeping = false;
     private isCPUSleeping = false;
 
-    turboMode = false;
-
     private rttFoundBlock = false;
 
     private cycleCount = 0;
@@ -129,13 +127,8 @@ class Emulator {
         const cycleCountStart = this.cycleCount;
         let screenUpdated = false;
 
-        if (this.turboMode) {
-            screenUpdated = this.doLoop(10000000);
-        }
-        else {
-            while (this.isRunning && !screenUpdated && performance.now() - start < 20) {
-                screenUpdated ||= this.doLoop(iterations);
-            }
+        while (this.isRunning && !screenUpdated && performance.now() - start < 20) {
+            screenUpdated ||= this.doLoop(iterations);
         }
 
         if (this.cycleCount < 10000000 && !this.rttFoundBlock) {
@@ -556,10 +549,6 @@ async function handleMessage(msg: MessageToWorkerType) {
 
             case "restoreFS":
                 emulator.restoreFS(data);
-                break;
-
-            case "turboMode":
-                emulator.turboMode = data;
                 break;
 
             case "reset":

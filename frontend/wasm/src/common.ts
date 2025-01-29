@@ -22,7 +22,6 @@ export type MessageToWorkerType = { messageId?: number } & (
     { type: "backupFS", data: void } |
     { type: "restoreFS", data: ArrayBuffer } |
     { type: "loadArchiveFS", data: { path: string, zipData: ArrayBuffer } } |
-    { type: "turboMode", data: boolean } |
     { type: "reset", data: void } |
     { type: "runCommand", data: string }
 );
