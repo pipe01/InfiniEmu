@@ -12,7 +12,7 @@ export type MessageToWorkerType = { messageId?: number } & (
     { type: "stop", data: void } |
     { type: "doTouch", data: { gesture: number, x: number, y: number } } |
     { type: "clearTouch", data: void } |
-    { type: "setPin", data: { pin: number, value: boolean } } |
+    { type: "setPinVoltage", data: { pin: number, value: number } } |
     { type: "setProgram", data: ArrayBuffer } |
     { type: "readDir", data: string } |
     { type: "readFile", data: string } |
@@ -36,8 +36,9 @@ export type MessageFromWorkerType = { replyToId?: number } & (
     { type: "rttData", data: string } |
     { type: "lcdSleeping", data: boolean } |
     { type: "cpuSleeping", data: boolean } |
-    { type: "performance", data: { loopTime: number, cps: number, totalSRAM: number, pins: number } } |
+    { type: "performance", data: { loopTime: number, cps: number, totalSRAM: number } } |
     { type: "backupData", data: ArrayBuffer } |
     { type: "commandOutput", data: string } |
+    { type: "pins", data: (number | boolean)[] } |
     { type: "aborted", data: any }
 );

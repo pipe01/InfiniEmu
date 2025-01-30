@@ -190,7 +190,6 @@ PPI_TASK_HANDLER(saadc_task_handler)
     case TASK_ID(TASKS_START):
         if (!saadc->running)
         {
-            printf("SAADC started\n");
             saadc->running = true;
             ppi_fire_event(current_ppi, INSTANCE_SAADC, EVENT_ID(EVENTS_STARTED), saadc->inten.STARTED);
         }
@@ -199,7 +198,6 @@ PPI_TASK_HANDLER(saadc_task_handler)
     case TASK_ID(TASKS_SAMPLE):
         if (saadc->running)
         {
-            printf("SAADC sample\n");
             int16_t reading = get_reading(saadc, saadc->sample_counter);
             dma_write(saadc->dma, saadc->result.ptr + (saadc->sample_counter * 2), 2, (uint8_t *)&reading);
 
@@ -217,7 +215,6 @@ PPI_TASK_HANDLER(saadc_task_handler)
     case TASK_ID(TASKS_STOP):
         if (saadc->running)
         {
-            printf("SAADC stopped\n");
             saadc->running = false;
             ppi_fire_event(current_ppi, INSTANCE_SAADC, EVENT_ID(EVENTS_STOPPED), saadc->inten.STOPPED);
         }
@@ -240,8 +237,6 @@ OPERATION(saadc)
 
     OP_IGNORE_LOAD_DATA
     OP_ASSERT_SIZE(op, WORD);
-
-    printf("read saadc offset 0x%x\n", offset);
 
     switch (offset)
     {
@@ -315,8 +310,9 @@ OPERATION(saadc)
                 *value = saadc->channels[ch_idx].pselp;
             else if (*value != saadc->channels[ch_idx].pselp)
             {
-                pins_set_analog(saadc->pins, saadc->channels[ch_idx].pselp, false);
-                pins_set_analog(saadc->pins, *value, true);
+                // TODO: Check for zero
+                pins_set_analog(saadc->pins, pins_table[saadc->channels[ch_idx].pselp - 1], false);
+                pins_set_analog(saadc->pins, pins_table[*value - 1], true);
 
                 saadc->channels[ch_idx].pselp = *value;
             }
@@ -327,8 +323,9 @@ OPERATION(saadc)
                 *value = saadc->channels[ch_idx].pseln;
             else if (*value != saadc->channels[ch_idx].pseln)
             {
-                pins_set_analog(saadc->pins, saadc->channels[ch_idx].pseln, false);
-                pins_set_analog(saadc->pins, *value, true);
+                // TODO: Check for zero
+                pins_set_analog(saadc->pins, pins_table[saadc->channels[ch_idx].pseln - 1], false);
+                pins_set_analog(saadc->pins, pins_table[*value - 1], true);
 
                 saadc->channels[ch_idx].pseln = *value;
             }

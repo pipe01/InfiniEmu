@@ -11,9 +11,30 @@ template(v-if="!isReady")
         .card.mt-3(v-if="isStarted")
             .card-body
                 h3.card-title Console
-                .text-danger(v-if="!foundRTT") Couldn't find Segger RTT block in memory
+                .text-danger(v-if="!foundRTT") Couldn't find Segger RTT block in memory. This probably means that your program doesn't have RTT/logging enabled.
 
                 Console(:lines="consoleLines" canRunCommands style="height: 400px" @runCommand="sendMessage(worker, 'runCommand', $event)")
+
+        .card.mt-3(v-if="isStarted")
+            .card-body
+                h3.card-title Pins
+                table.table.table-bordered.table-striped
+                    thead
+                        tr
+                            th Pin
+                            th Name
+                            th Mode
+                            th Value
+                    tbody
+                        tr(v-for="(value, index) in pins")
+                            td {{ pinetimePins[index].number }}
+                            td {{ pinetimePins[index].name }}
+                            td {{ pinetimePins[index].dir == "i" ? "Input" : pinetimePins[index].dir == "o" ? "Output" : "Input & Output" }}{{ pinetimePins[index].analog ? " (analog)" : "" }}
+                            td
+                                input(v-if="!pinetimePins[index].analog" type="checkbox" :disabled="!pinetimePins[index].canChange" :checked="value" @change="setPin(pinetimePins[index].number, $event.target.checked)")
+                                template(v-else)
+                                    input(type="range" :disabled="!pinetimePins[index].canChange" :value="value" min="0" max="4000" @input="setPin(pinetimePins[index].number, $event.target.value / 1000)")
+                                    span {{ (value / 1000).toFixed(2) }} V
 
     .col(style="flex-grow: 0")
         Display(:width="240" :height="240" :off="isLcdOff" @got-canvas="onGotCanvas"
@@ -36,7 +57,6 @@ template(v-if="!isReady")
                     div Loop time: {{ performance.loopTime.value.toFixed(0) }} ms
                     div CPU: {{ isCpuSleeping ? "Sleeping" : "Running" }}
                     div RAM size: {{ numberFmt.format(performance.sramSize.value) }} bytes
-                    div {{ pins.toString(2) }}
 
             .card.mt-3(v-if="isRunning")
                 .card-body
@@ -76,7 +96,7 @@ import Console, { type Line } from "@/components/Console.vue";
 import FileBrowser from "@/components/FileBrowser.vue";
 import { sendMessage, sendMessageAndWait, useAverage } from "@/utils";
 import { type MessageFromWorkerType } from "@/common";
-import { PinetimePins } from "@/pinetime";
+import { pinetimePins } from "@/pinetime";
 
 const props = defineProps<{
     programFile: ArrayBuffer,
@@ -94,6 +114,8 @@ const GESTURE_SINGLETAP = 0x05;
 const GESTURE_DOUBLETAP = 0x0B;
 const GESTURE_LONGPRESS = 0x0C;
 
+const HIGH_VOLTAGE = 3;
+
 const numberFmt = new Intl.NumberFormat();
 
 const isReady = ref(false);
@@ -108,7 +130,7 @@ const isCpuSleeping = ref(false);
 
 const foundRTT = ref(false);
 
-const pins = ref(0);
+const pins = ref<(number | boolean)[]>([]);
 
 const consoleLines = ref<Line[]>([]);
 
@@ -177,7 +199,10 @@ worker.onmessage = async (event) => {
             performance.cps.value = data.cps;
             performance.loopTime.value = data.loopTime;
             performance.sramSize.value = data.totalSRAM;
-            pins.value = data.pins;
+            break;
+
+        case "pins":
+            pins.value = data;
             break;
 
         case "rttFound":
@@ -225,7 +250,7 @@ function onFileLoadEnd() {
 }
 
 function onButtonDown(isDown: boolean) {
-    sendMessage(worker, "setPin", { pin: PinetimePins.Button, value: isDown });
+    sendMessage(worker, "setPinVoltage", { pin: 13, value: isDown ? HIGH_VOLTAGE : 0 });
 }
 
 const swipeCenter = (direction: Direction) => {
@@ -265,5 +290,9 @@ function onStartTouch(x: number, y: number, isLongPress = false) {
 
 function reset() {
     sendMessage(worker, "reset", undefined);
+}
+
+function setPin(index: number, value: boolean | number) {
+    sendMessage(worker, "setPinVoltage", { pin: index, value: typeof value === "boolean" ? (value ? HIGH_VOLTAGE : 0) : value });
 }
 </script>

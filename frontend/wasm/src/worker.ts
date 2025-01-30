@@ -1,6 +1,7 @@
 import type { CPU, CST816S, Commander, LFS, NRF52832, Pinetime, Pins, Pointer, Program, RTT, SPINorFlash, ST7789 } from "../infiniemu.js"
 import createModule from "../infiniemu.js"
 import type { FileInfo, MessageFromWorkerType, MessageToWorkerType } from "./common";
+import { pinetimePins } from "./pinetime.js";
 import { getZipOrNested, isFile, joinLFSPaths } from "./utils";
 
 const iterations = 100000;
@@ -115,6 +116,20 @@ class Emulator {
         this.displayBuffer = numberToPointer(Module._malloc(240 * 240 * 2));
         this.rgbaBuffer = numberToPointer(Module._malloc(240 * 240 * 4));
         this.rttReadBuffer = numberToPointer(Module._malloc(this.rttReadBufferSize));
+
+        this.reset();
+
+        for (const pin of pinetimePins) {
+            if (pin.dir == "i" && pin.analog && pin.intialValue) {
+                this.Module._pins_set_voltage(this.pins, pin.number, pin.intialValue * 1000);
+            }
+            else if (pin.dir == "i" && !pin.analog && pin.pull) {
+                if (pin.pull == "up")
+                    this.Module._pins_set(this.pins, pin.number);
+                else
+                    this.Module._pins_clear(this.pins, pin.number);
+            }
+        }
     }
 
     private doLoop(cycles: number) {
@@ -169,8 +184,14 @@ class Emulator {
             loopTime: end - start,
             cps: (this.cycleCount - cycleCountStart) / ((end - start) / 1000),
             totalSRAM: this.Module._nrf52832_get_sram_size(this.nrf52),
-            pins: this.Module._pins_read_all(this.pins),
         });
+
+        const allPins = this.Module._pins_read_all(this.pins);
+        sendMessage("pins", pinetimePins.map(pin => {
+            if (pin.dir == "i" && pin.analog)
+                return this.Module._pins_get_voltage(this.pins, pin.number);
+            return (allPins & (1 << pin.number)) != 0;
+        }));
     }
 
     private sendScreenUpdate() {
@@ -219,11 +240,9 @@ class Emulator {
         this.Module._cst816s_release_touch(this.touch);
     }
 
-    changePin(pin: number, isSet: boolean) {
-        if (isSet)
-            this.Module._pins_set(this.pins, pin);
-        else
-            this.Module._pins_clear(this.pins, pin);
+    changePin(pin: number, volts: number) {
+        console.log("Setting pin", pin, "to", volts, "V");
+        this.Module._pins_set_voltage(this.pins, pin, volts * 1000);
     }
 
     private useLFS<T>(fn: (lfs: LFS) => T) {
@@ -515,7 +534,7 @@ async function handleMessage(msg: MessageToWorkerType) {
                 emulator.clearTouch();
                 break;
 
-            case "setPin":
+            case "setPinVoltage":
                 emulator.changePin(data.pin, data.value);
                 break;
 

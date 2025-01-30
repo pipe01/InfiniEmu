@@ -1,23 +1,41 @@
-// https://github.com/InfiniTimeOrg/InfiniTime/blob/7b39d81c8c03d14a950b844e2b8cb15107df92bf/src/drivers/PinMap.h
-export enum PinetimePins {
-    Charging = 12,
-    Cst816sReset = 10,
-    Button = 13,
-    ButtonEnable = 15,
-    Cst816sIrq = 28,
-    PowerPresent = 19,
-    Bma421Irq = 8,
-    Motor = 16,
-    LcdBacklightLow = 14,
-    LcdBacklightMedium = 22,
-    LcdBacklightHigh = 23,
-    SpiSck = 2,
-    SpiMosi = 3,
-    SpiMiso = 4,
-    SpiFlashCsn = 5,
-    SpiLcdCsn = 25,
-    LcdDataCommand = 18,
-    LcdReset = 26,
-    TwiScl = 7,
-    TwiSda = 6,
-};
+// From the perspective of the MCU
+export type PinDirection = "i" | "o" | "io";
+
+export function isInput(dir: PinDirection) {
+    return dir == "i" || dir == "io";
+}
+
+export function isOutput(dir: PinDirection) {
+    return dir == "o" || dir == "io";
+}
+
+export type Pin = { number: number; name: string; } & (
+    { dir: "i"; canChange?: boolean; analog?: false; pull?: "up" | "down" } |
+    { dir: "i"; canChange?: boolean; analog: true, intialValue?: number } |
+    { dir: "o"; } |
+    { dir: "io"; canChange?: boolean; }
+);
+
+export const pinetimePins: Pin[] = [
+    { number: 2, name: "SpiSck", dir: "o" },
+    { number: 3, name: "SpiMosi", dir: "o" },
+    { number: 4, name: "SpiMiso", dir: "i" },
+    { number: 5, name: "SpiFlashCsn", dir: "o" },
+    { number: 6, name: "TwiSda", dir: "io" },
+    { number: 7, name: "TwiScl", dir: "io" },
+    { number: 8, name: "Bma421Irq", dir: "i" },
+    { number: 10, name: "Cst816sReset", dir: "o" },
+    { number: 12, name: "Charging", dir: "i", canChange: true, pull: "up" },
+    { number: 13, name: "Button", dir: "i", canChange: true },
+    { number: 14, name: "LcdBacklightLow", dir: "o" },
+    { number: 15, name: "ButtonEnable", dir: "o" },
+    { number: 16, name: "Motor", dir: "o" },
+    { number: 18, name: "LcdDataCommand", dir: "o" },
+    { number: 19, name: "PowerPresent", dir: "i", canChange: true, pull: "up" },
+    { number: 22, name: "LcdBacklightMedium", dir: "o" },
+    { number: 23, name: "LcdBacklightHigh", dir: "o" },
+    { number: 25, name: "SpiLcdCsn", dir: "o" },
+    { number: 26, name: "LcdReset", dir: "o" },
+    { number: 28, name: "Cst816sIrq", dir: "i" },
+    { number: 31, name: "BatteryVoltage", dir: "i", canChange: true, analog: true, intialValue: 3.9 / 2 },
+];

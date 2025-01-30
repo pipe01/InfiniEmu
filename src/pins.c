@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 typedef struct
 {
@@ -43,38 +44,23 @@ void pins_free(pins_t *pins)
 
 void pins_reset(pins_t *pins)
 {
-    memset(pins->pins, 0, sizeof(pins->pins));
-    pins->pin_states = 0;
     pins->latch = 0;
-
-    pins_set_analog(pins, 31, true);
-    pins_change(pins, 31, 3000);
 }
 
-static inline void pins_set_voltage(pins_t *pins, int pin, uint16_t mv)
+void pins_set_voltage(pins_t *pins, int pin, uint16_t mv)
 {
     assert(pin >= 0 && pin < PINS_COUNT);
 
     bool is_set = mv >= pins->high_threshold_mv;
-
-    if (pins_is_set(pins, pin) == is_set)
-        return;
+    bool was_set = pins_is_set(pins, pin);
 
     pin_t *p = &pins->pins[pin];
 
     pins->pin_states = (pins->pin_states & ~(1 << pin)) | (is_set << pin);
     pins->pins[pin].voltage = mv;
 
-    if (p->sense != SENSE_DISABLED && ((is_set && (p->sense == SENSE_HIGH)) || (!is_set && (p->sense == SENSE_LOW))))
+    if (was_set != is_set && p->sense != SENSE_DISABLED && ((is_set && (p->sense == SENSE_HIGH)) || (!is_set && (p->sense == SENSE_LOW))))
         pins->latch |= 1 << pin;
-}
-
-void pins_change(pins_t *pins, int pin, uint16_t value)
-{
-    if (pins->pins[pin].analog)
-        pins_set_voltage(pins, pin, value);
-    else
-        pins_set_voltage(pins, pin, value ? pins->high_voltage_mv : 0);
 }
 
 void pins_set(pins_t *pins, int pin)
@@ -110,6 +96,7 @@ void pins_set_analog(pins_t *pins, int pin, bool analog)
 {
     assert(pin >= 0 && pin < PINS_COUNT);
 
+    printf("Setting pin %d to %s\n", pin, analog ? "analog" : "digital");
     pins->pins[pin].analog = analog;
 }
 

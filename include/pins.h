@@ -44,7 +44,7 @@ void pins_reset(pins_t *);
 void pins_set(pins_t *, int pin);
 void pins_clear(pins_t *, int pin);
 void pins_toggle(pins_t *, int pin);
-void pins_change(pins_t *, int pin, uint16_t value); // value is 0 or 1 if digital, millivolts if analog
+void pins_set_voltage(pins_t *pins, int pin, uint16_t mv);
 
 bool pins_is_analog(pins_t *, int pin);
 void pins_set_analog(pins_t *, int pin, bool analog);
