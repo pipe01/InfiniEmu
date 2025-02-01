@@ -45,9 +45,7 @@ const canvas = ref<HTMLCanvasElement | null>(null);
 
 const screenMousePosition = ref<[number, number]>([0, 0]);
 
-onMounted(() => {
-    emit("gotCanvas", canvas.value!);
-});
+onMounted(() => emit("gotCanvas", canvas.value!));
 
 let isMouseDown = false, isButtonDown = false;
 let hasSwiped = false;

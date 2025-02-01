@@ -47,6 +47,7 @@ template(v-if="!isReady")
             button.btn.btn-success(v-if="!isRunning" @click="start" :disabled="isAborted") Start
             button.btn.btn-danger(v-else @click="stop" :disabled="isAborted") Pause
             button.btn.btn-warning.mt-2(v-if="isStarted" @click="reset" :disabled="isAborted") Reset
+            button.btn.btn-primary.mt-2(@click="copyScreen") Copy screen
 
     .col-3
         template(v-if="isStarted")
@@ -133,6 +134,8 @@ const foundRTT = ref(false);
 const pins = ref<(number | boolean)[]>([]);
 
 const consoleLines = ref<Line[]>([]);
+
+const canvas = ref<HTMLCanvasElement | null>(null);
 
 function addConsoleLine(text: string, type: Line["type"]) {
     consoleLines.value.push({ text, type });
@@ -224,10 +227,12 @@ worker.onmessage = async (event) => {
     }
 };
 
-function onGotCanvas(canvas: HTMLCanvasElement) {
-    const offscreen = canvas.transferControlToOffscreen();
+function onGotCanvas(canvasEl: HTMLCanvasElement) {
+    const offscreen = canvasEl.transferControlToOffscreen();
 
     sendMessage(worker, "setCanvas", offscreen, [offscreen]);
+
+    canvas.value = canvasEl;
 }
 
 function start() {
@@ -294,5 +299,16 @@ function reset() {
 
 function setPin(index: number, value: boolean | number) {
     sendMessage(worker, "setPinVoltage", { pin: index, value: typeof value === "boolean" ? (value ? HIGH_VOLTAGE : 0) : value });
+}
+
+function copyScreen() {
+    if (canvas.value) {
+        canvas.value.toBlob((blob) => {
+            if (blob) {
+                const item = new ClipboardItem({ [blob.type]: blob });
+                navigator.clipboard.write([item]);
+            }
+        });
+    }
 }
 </script>
