@@ -19,6 +19,7 @@
 #include "peripherals/nrf52832/nvmc.h"
 #include "peripherals/nrf52832/power.h"
 #include "peripherals/nrf52832/ppi.h"
+#include "peripherals/nrf52832/pwm.h"
 #include "peripherals/nrf52832/rng.h"
 #include "peripherals/nrf52832/rtc.h"
 #include "peripherals/nrf52832/radio.h"
@@ -75,6 +76,7 @@ struct NRF52832_inst_t
     ECB_t *ecb;
     NVMC_t *nvmc;
     SPI_t *spi[3];
+    PWM_t *pwm[3];
 };
 
 #define NEW_NRF52_PERIPH(chip, type, name, field, idn, ...)                                                                                     \
@@ -131,30 +133,33 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size, state_store_t
     NEW_NRF52_PERIPH(chip, CLOCK, clock, clock, INSTANCE_CLOCK);
     NEW_NRF52_PERIPH(chip, POWER, power, power, INSTANCE_POWER);
     NEW_NRF52_PERIPH(chip, RADIO, radio, radio, INSTANCE_RADIO);
-    NEW_NRF52_PERIPH(chip, SPI, spi, spi[0], INSTANCE_SPI0);
-    NEW_NRF52_PERIPH(chip, SPIM, spim, spim[0], INSTANCE_SPIM0);
-    NEW_NRF52_PERIPH(chip, TWIM, twim, twim[0], INSTANCE_TWIM0);
-    NEW_NRF52_PERIPH(chip, SPI, spi, spi[1], INSTANCE_SPI1);
-    NEW_NRF52_PERIPH(chip, SPIM, spim, spim[1], INSTANCE_SPIM1);
-    NEW_NRF52_PERIPH(chip, TWIM, twim, twim[1], INSTANCE_TWIM1);
     NEW_NRF52_PERIPH(chip, GPIOTE, gpiote, gpiote, INSTANCE_GPIOTE);
     NEW_NRF52_PERIPH(chip, SAADC, saadc, saadc, INSTANCE_SAADC);
-    NEW_NRF52_PERIPH(chip, TIMER, timer, timer[0], INSTANCE_TIMER0, 4);
-    NEW_NRF52_PERIPH(chip, TIMER, timer, timer[1], INSTANCE_TIMER1, 4);
-    NEW_NRF52_PERIPH(chip, TIMER, timer, timer[2], INSTANCE_TIMER2, 4);
-    NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[0], INSTANCE_RTC0, 3);
     NEW_NRF52_PERIPH(chip, TEMP, temp, temp, INSTANCE_TEMP);
     NEW_NRF52_PERIPH(chip, RNG, rng, rng, INSTANCE_RNG);
     NEW_NRF52_PERIPH(chip, ECB, ecb, ecb, INSTANCE_ECB);
     NEW_NRF52_PERIPH(chip, CCM, ccm, ccm, INSTANCE_CCM);
     NEW_NRF52_PERIPH(chip, WDT, wdt, wdt, INSTANCE_WDT);
-    NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[1], INSTANCE_RTC1, 4);
     NEW_NRF52_PERIPH(chip, COMP, comp, comp, INSTANCE_COMP);
+    NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[0], INSTANCE_RTC0, 3);
+    NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[1], INSTANCE_RTC1, 4);
+    NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[2], INSTANCE_RTC2, 4);
+    NEW_NRF52_PERIPH(chip, SPI, spi, spi[0], INSTANCE_SPI0);
+    NEW_NRF52_PERIPH(chip, SPI, spi, spi[1], INSTANCE_SPI1);
+    NEW_NRF52_PERIPH(chip, SPI, spi, spi[2], INSTANCE_SPI2);
+    NEW_NRF52_PERIPH(chip, SPIM, spim, spim[0], INSTANCE_SPIM0);
+    NEW_NRF52_PERIPH(chip, SPIM, spim, spim[1], INSTANCE_SPIM1);
+    NEW_NRF52_PERIPH(chip, SPIM, spim, spim[2], INSTANCE_SPIM2);
+    NEW_NRF52_PERIPH(chip, TWIM, twim, twim[0], INSTANCE_TWIM0);
+    NEW_NRF52_PERIPH(chip, TWIM, twim, twim[1], INSTANCE_TWIM1);
+    NEW_NRF52_PERIPH(chip, TIMER, timer, timer[0], INSTANCE_TIMER0, 4);
+    NEW_NRF52_PERIPH(chip, TIMER, timer, timer[1], INSTANCE_TIMER1, 4);
+    NEW_NRF52_PERIPH(chip, TIMER, timer, timer[2], INSTANCE_TIMER2, 4);
     NEW_NRF52_PERIPH(chip, TIMER, timer, timer[3], INSTANCE_TIMER3, 6);
     NEW_NRF52_PERIPH(chip, TIMER, timer, timer[4], INSTANCE_TIMER4, 6);
-    NEW_NRF52_PERIPH(chip, SPI, spi, spi[2], INSTANCE_SPI2);
-    NEW_NRF52_PERIPH(chip, SPIM, spim, spim[2], INSTANCE_SPIM2);
-    NEW_NRF52_PERIPH(chip, RTC, rtc, rtc[2], INSTANCE_RTC2, 4);
+    NEW_NRF52_PERIPH(chip, PWM, pwm, pwm[0], INSTANCE_PWM0);
+    NEW_NRF52_PERIPH(chip, PWM, pwm, pwm[1], INSTANCE_PWM1);
+    NEW_NRF52_PERIPH(chip, PWM, pwm, pwm[2], INSTANCE_PWM2);
     NEW_PERIPH(chip, GPIO, gpio, gpio, x(5000, 0000), 0x1000, ctx);
 
     memory_map_add_region(chip->mem, memreg_new_simple_copy(x(F000, 0000), dumps_secret_bin, dumps_secret_bin_len));

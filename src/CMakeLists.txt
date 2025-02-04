@@ -39,6 +39,7 @@ set(SRC_FILES
     peripherals/nrf52832/nvmc.c
     peripherals/nrf52832/power.c
     peripherals/nrf52832/ppi.c
+    peripherals/nrf52832/pwm.c
     peripherals/nrf52832/radio.c
     peripherals/nrf52832/rng.c
     peripherals/nrf52832/rtc.c
