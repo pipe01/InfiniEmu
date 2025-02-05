@@ -17,9 +17,10 @@ The goal is to be able to run the same image with the emulator as you would flas
 
 Many things are yet to be implemented, including but not limited to:
 
-* Adjusting battery voltage input
+* ~Adjusting battery voltage input~
 * Sending heartrate data
 * Bluetooth
+* ~Saving and loading the contents of the SPI flash~
 
 # Usage
 
