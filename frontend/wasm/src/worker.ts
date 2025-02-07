@@ -138,13 +138,16 @@ class Emulator {
     }
 
     private run() {
-        const start = performance.now();
         const cycleCountStart = this.cycleCount;
         let screenUpdated = false;
+        
+        const start = performance.now();
 
         while (this.isRunning && !screenUpdated && performance.now() - start < 20) {
             screenUpdated ||= this.doLoop(iterations);
         }
+
+        const end = performance.now();
 
         if (this.cycleCount < 10000000 && !this.rttFoundBlock) {
             this.rttFoundBlock = !!this.Module._rtt_find_control(this.rtt);
@@ -160,8 +163,6 @@ class Emulator {
                 sendMessage("rttData", msg);
             }
         }
-
-        const end = performance.now();
 
         if (screenUpdated)
             this.sendScreenUpdate();
