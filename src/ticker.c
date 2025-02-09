@@ -24,6 +24,8 @@ struct ticker_t
 
     uint32_t lfclk_divider, lfclk_counter;
     bool lfclk_enabled;
+
+    uint64_t hfclk_counter;
 };
 
 ticker_t *ticker_new(int32_t lfclk_divider)
@@ -48,6 +50,8 @@ void ticker_reset(ticker_t *ticker)
 {
     ticker->lf_entries_count = 0;
     ticker->hf_entries_count = 0;
+    ticker->lfclk_counter = 0;
+    ticker->hfclk_counter = 0;
 }
 
 #define CLOCK_ENTRIES(clock) (clock == CLOCK_HFCLK ? ticker->hf_entries : ticker->lf_entries)
@@ -126,6 +130,8 @@ void ticker_hftick(ticker_t *ticker, unsigned int count)
         tick_entries(ticker->hf_entries, &ticker->hf_entries_count);
     }
 
+    ticker->hfclk_counter += count;
+
     if (!ticker->lfclk_enabled)
         return;
 
@@ -141,4 +147,9 @@ void ticker_hftick(ticker_t *ticker, unsigned int count)
 void ticker_lftick(ticker_t *ticker)
 {
     tick_entries(ticker->lf_entries, &ticker->lf_entries_count);
+}
+
+uint64_t ticker_get_hfclk_counter(ticker_t *ticker)
+{
+    return ticker->hfclk_counter;
 }

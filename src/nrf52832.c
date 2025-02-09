@@ -281,3 +281,8 @@ void nrf52832_reload_state(NRF52832_t *nrf)
 {
     memory_map_do_operation_all(nrf->mem, OP_LOAD_DATA);
 }
+
+ticker_t *nrf52832_get_ticker(NRF52832_t *nrf)
+{
+    return nrf->ticker;
+}

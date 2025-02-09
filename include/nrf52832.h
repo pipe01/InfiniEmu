@@ -95,6 +95,7 @@ bus_spi_t *nrf52832_get_spi(NRF52832_t *);
 bus_i2c_t *nrf52832_get_i2c(NRF52832_t *);
 pins_t *nrf52832_get_pins(NRF52832_t *);
 void *nrf52832_get_peripheral(NRF52832_t *, uint8_t instance_id);
+ticker_t *nrf52832_get_ticker(NRF52832_t *);
 
 size_t nrf52832_get_used_sram(NRF52832_t *);
 size_t nrf52832_get_sram_size(NRF52832_t *);

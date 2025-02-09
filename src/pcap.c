@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "ie_time.h"
+#include <nrf52832.h>
 
 typedef struct pcap_hdr_s
 {
@@ -33,11 +34,14 @@ struct pcap_t
 {
     int fd;
     time_t start;
+    ticker_t *ticker;
 };
 
-pcap_t *pcap_create(const char *path)
+pcap_t *pcap_create(const char *path, ticker_t *ticker)
 {
     pcap_t *pcap = malloc(sizeof(pcap_t));
+    pcap->start = time(NULL);
+    pcap->ticker = ticker;
 
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_DSYNC | O_RSYNC, 0644);
     if (fd < 0)
@@ -70,9 +74,11 @@ void pcap_destroy(pcap_t *pcap)
 
 void pcap_write_packet(pcap_t *pcap, const uint8_t *data, size_t length)
 {
+    uint64_t elapsed_us = (1000000 * ticker_get_hfclk_counter(pcap->ticker)) / NRF52832_HFCLK_FREQUENCY;
+
     pcaprec_hdr_t hdr = {
-        .ts_sec = pcap->start,
-        .ts_usec = microseconds_now_real(),
+        .ts_sec = pcap->start + elapsed_us / 1000000,
+        .ts_usec = elapsed_us % 1000000,
         .incl_len = length,
         .orig_len = length,
     };
