@@ -189,16 +189,16 @@ struct RADIO_inst_t
 
     uint32_t tifs;
 
-    radio_rx_cb_t rx_cb; // TODO: Rename to TX
+    radio_tx_cb_t tx_cb;
     void *rx_userdata;
 
     uint8_t rx_data[258];
     size_t rx_data_len;
 };
 
-void radio_set_rx_cb(RADIO_t *radio, radio_rx_cb_t cb, void *userdata)
+void radio_set_tx_cb(RADIO_t *radio, radio_tx_cb_t cb, void *userdata)
 {
-    radio->rx_cb = cb;
+    radio->tx_cb = cb;
     radio->rx_userdata = userdata;
 }
 
@@ -372,7 +372,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         switch (radio->state)
         {
         case STATE_TXIDLE:
-            if (radio->rx_cb)
+            if (radio->tx_cb)
             {
                 uint8_t packet[256];
                 dma_read(radio->dma, radio->packetptr, 256, packet);
@@ -438,7 +438,7 @@ PPI_TASK_HANDLER(radio_task_handler)
                 memcpy(packet_ptr, crc, sizeof(crc));
                 packet_ptr += sizeof(crc);
 
-                radio->rx_cb(radio->rx_userdata, ll_packet, sizeof(ll_packet));
+                radio->tx_cb(radio->rx_userdata, ll_packet, sizeof(ll_packet));
             }
 
             radio->next_state = STATE_TX;
