@@ -9,7 +9,9 @@
 #include "nrf52832.h"
 #include "peripherals/nrf52832/ppi.h"
 
-#define STATE_CHANGE_DELAY_INST 10000
+// Assume a 200 byte transmission at 1Mbps with a 64MHz clock
+#define STATE_CHANGE_TXRX_DELAY_HFCLK (200 * 8 * (64000000 / 1000000))
+#define STATE_CHANGE_DELAY_HFCLK 100
 
 typedef union
 {
@@ -136,13 +138,26 @@ typedef enum
     STATE_TXDISABLE = 12, // The radio is disabling the transmitter
 } radio_state_t;
 
+static const char *radio_state_names[] = {
+    "DISABLED",
+    "RXRU",
+    "RXIDLE",
+    "RX",
+    "RXDISABLE",
+    "???",
+    "???",
+    "???",
+    "???",
+    "TXRU",
+    "TXIDLE",
+    "TX",
+    "TXDISABLE",
+};
+
 struct RADIO_inst_t
 {
     ticker_t *ticker;
     dma_t *dma;
-#if ENABLE_PCAP
-    pcap_t *pcap;
-#endif
 
     bool powered_on;
     radio_state_t state, next_state;
@@ -173,7 +188,19 @@ struct RADIO_inst_t
     uint32_t datawhiteiv;
 
     uint32_t tifs;
+
+    radio_rx_cb_t rx_cb; // TODO: Rename to TX
+    void *rx_userdata;
+
+    uint8_t rx_data[258];
+    size_t rx_data_len;
 };
+
+void radio_set_rx_cb(RADIO_t *radio, radio_rx_cb_t cb, void *userdata)
+{
+    radio->rx_cb = cb;
+    radio->rx_userdata = userdata;
+}
 
 void radio_reset(RADIO_t *radio)
 {
@@ -185,10 +212,9 @@ void radio_do_state_change(void *userdata)
 {
     RADIO_t *radio = userdata;
     radio_state_t old_state = radio->state;
+    uint32_t delay = STATE_CHANGE_DELAY_HFCLK;
 
     radio->state = radio->next_state;
-
-    // printf("Radio state change: %d -> %d\n", old_state, radio->state);
 
     bool request_update = false;
 
@@ -216,6 +242,7 @@ void radio_do_state_change(void *userdata)
             radio->tx_sent_address = false;
             radio->tx_sent_payload = false;
             radio->next_state = STATE_TXIDLE;
+            delay = STATE_CHANGE_TXRX_DELAY_HFCLK;
         }
         else if (radio->tx_sent_address)
         {
@@ -236,6 +263,7 @@ void radio_do_state_change(void *userdata)
             radio->rx_received_address = false;
             radio->rx_received_payload = false;
             radio->next_state = STATE_RXIDLE;
+            delay = STATE_CHANGE_TXRX_DELAY_HFCLK;
         }
         else if (radio->rx_received_address)
         {
@@ -278,13 +306,29 @@ void radio_do_state_change(void *userdata)
         break;
     }
 
+    printf("Radio state change: %s -> %s\n", radio_state_names[radio->state], radio_state_names[radio->next_state]);
+
     if (request_update)
-        ticker_add(radio->ticker, CLOCK_LFCLK, radio_do_state_change, radio, STATE_CHANGE_DELAY_INST, false);
+        ticker_add(radio->ticker, CLOCK_HFCLK, radio_do_state_change, radio, delay, false);
 }
+
+static const char *radio_task_names[] = {
+    [RADIO_TASKS_TXEN] = "TXEN",
+    [RADIO_TASKS_RXEN] = "RXEN",
+    [RADIO_TASKS_START] = "START",
+    [RADIO_TASKS_STOP] = "STOP",
+    [RADIO_TASKS_DISABLE] = "DISABLE",
+    [RADIO_TASKS_RSSISTART] = "RSSISTART",
+    [RADIO_TASKS_RSSISTOP] = "RSSISTOP",
+    [RADIO_TASKS_BCSTART] = "BCSTART",
+    [RADIO_TASKS_BCSTOP] = "BCSTOP",
+};
 
 PPI_TASK_HANDLER(radio_task_handler)
 {
     RADIO_t *radio = userdata;
+
+    printf("Radio task: %s\n", radio_task_names[task * 4]);
 
     switch (task)
     {
@@ -328,8 +372,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         switch (radio->state)
         {
         case STATE_TXIDLE:
-#if ENABLE_PCAP
-            if (radio->pcap)
+            if (radio->rx_cb)
             {
                 uint8_t packet[256];
                 dma_read(radio->dma, radio->packetptr, 256, packet);
@@ -377,21 +420,32 @@ PPI_TASK_HANDLER(radio_task_handler)
 
                 // Excludes preamble
                 uint8_t ll_packet[sizeof(address) + radio->pcnf0.S0LEN + sizeof(length) + sizeof(payload) + sizeof(crc)];
-                memcpy(ll_packet, address, sizeof(address));
-                memcpy(&ll_packet[sizeof(address)], s0, radio->pcnf0.S0LEN);
-                memcpy(&ll_packet[sizeof(address) + radio->pcnf0.S0LEN], &length, sizeof(length));
-                memcpy(&ll_packet[sizeof(address) + radio->pcnf0.S0LEN + sizeof(length)], payload, sizeof(payload));
-                memcpy(&ll_packet[sizeof(address) + radio->pcnf0.S0LEN + sizeof(length) + sizeof(payload)], crc, sizeof(crc));
+                uint8_t *packet_ptr = ll_packet;
 
-                pcap_write_packet(radio->pcap, ll_packet, sizeof(ll_packet));
+                memcpy(packet_ptr, address, sizeof(address));
+                packet_ptr += sizeof(address);
+
+                memcpy(packet_ptr, s0, radio->pcnf0.S0LEN);
+                packet_ptr += radio->pcnf0.S0LEN;
+
+                int length_bytes = (radio->pcnf0.LFLEN + 7) / 8;
+                memcpy(packet_ptr, &length, length_bytes);
+                packet_ptr += length_bytes;
+
+                memcpy(packet_ptr, payload, sizeof(payload));
+                packet_ptr += sizeof(payload);
+
+                memcpy(packet_ptr, crc, sizeof(crc));
+                packet_ptr += sizeof(crc);
+
+                radio->rx_cb(radio->rx_userdata, ll_packet, sizeof(ll_packet));
             }
-#endif // ENABLE_PCAP
 
             radio->next_state = STATE_TX;
             break;
 
         case STATE_RXIDLE:
-            radio->next_state = STATE_RX;
+            radio->next_state = radio->rx_data_len > 0 ? STATE_RX : STATE_RXIDLE;
             break;
 
         default:
@@ -428,7 +482,7 @@ PPI_TASK_HANDLER(radio_task_handler)
     }
 
     if (radio->next_state != radio->state)
-        ticker_add(radio->ticker, CLOCK_LFCLK, radio_do_state_change, radio, STATE_CHANGE_DELAY_INST, false);
+        ticker_add(radio->ticker, CLOCK_HFCLK, radio_do_state_change, radio, STATE_CHANGE_DELAY_HFCLK, false);
 }
 
 OPERATION(radio)
@@ -441,8 +495,8 @@ OPERATION(radio)
         return MEMREG_RESULT_OK;
     }
 
-    OP_IGNORE_LOAD_DATA //TODO: Implement
-    OP_ASSERT_SIZE(op, WORD);
+    OP_IGNORE_LOAD_DATA // TODO: Implement
+        OP_ASSERT_SIZE(op, WORD);
 
     switch (offset)
     {
@@ -602,10 +656,3 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
 
     return radio;
 }
-
-#if ENABLE_PCAP
-void radio_set_pcap(RADIO_t *radio, pcap_t *pcap)
-{
-    radio->pcap = pcap;
-}
-#endif

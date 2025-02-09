@@ -1,6 +1,5 @@
 #pragma once
 
-#include "pcap.h"
 #include "peripherals/peripheral.h"
 
 enum
@@ -29,6 +28,6 @@ enum
 
 NRF52_PERIPHERAL(RADIO, radio)
 
-#if ENABLE_PCAP
-void radio_set_pcap(RADIO_t *, pcap_t *pcap);
-#endif
+typedef void (*radio_rx_cb_t)(void *userdata, uint8_t *data, size_t len);
+
+void radio_set_rx_cb(RADIO_t *, radio_rx_cb_t cb, void *userdata);

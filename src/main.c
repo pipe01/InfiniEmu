@@ -132,7 +132,7 @@ int main(int argc, char **argv)
 #endif
 
     pcap_t *pcap = pcap_create("bluetooth.pcap");
-    radio_set_pcap(nrf52832_get_peripheral(nrf, INSTANCE_RADIO), pcap);
+    radio_set_rx_cb(nrf52832_get_peripheral(nrf, INSTANCE_RADIO), (radio_rx_cb_t)&pcap_write_packet, pcap);
 
     if (state_path)
     {

@@ -49,8 +49,10 @@ struct TIMER_inst_t
 
 void timer_increase_counter(TIMER_t *timer)
 {
-    if (++timer->prescaler_counter < timer->prescaler)
+    if (timer->prescaler_counter < timer->prescaler) {
+        timer->prescaler_counter++;
         return;
+    }
 
     timer->prescaler_counter = 0;
     timer->counter++;
@@ -95,7 +97,8 @@ void timer_tick(void *userdata)
 
 void timer_add_timer(TIMER_t *timer)
 {
-    ticker_add(timer->ticker, CLOCK_HFCLK, timer_tick, timer, TICK_INTERVAL, true);
+    // Timer frequency is 16MHz, since the HFCLK is 64MHz the interval is 64/16 = 4
+    ticker_add(timer->ticker, CLOCK_HFCLK, timer_tick, timer, 4, true);
 }
 
 OPERATION(timer)
@@ -210,6 +213,7 @@ PPI_TASK_HANDLER(timer_task_handler)
 
     case TASK_ID(TIMER_TASKS_CLEAR):
         timer->counter = 0;
+        timer->prescaler_counter = 0;
         break;
 
     case TASK_ID(TIMER_TASKS_CAPTURE0):
