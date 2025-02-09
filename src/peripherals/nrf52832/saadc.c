@@ -310,9 +310,10 @@ OPERATION(saadc)
                 *value = saadc->channels[ch_idx].pselp;
             else if (*value != saadc->channels[ch_idx].pselp)
             {
-                // TODO: Check for zero
-                pins_set_analog(saadc->pins, pins_table[saadc->channels[ch_idx].pselp - 1], false);
-                pins_set_analog(saadc->pins, pins_table[*value - 1], true);
+                if (saadc->channels[ch_idx].pselp != 0)
+                    pins_set_analog(saadc->pins, pins_table[saadc->channels[ch_idx].pselp - 1], false);
+                if (*value != 0)
+                    pins_set_analog(saadc->pins, pins_table[*value - 1], true);
 
                 saadc->channels[ch_idx].pselp = *value;
             }
@@ -323,9 +324,10 @@ OPERATION(saadc)
                 *value = saadc->channels[ch_idx].pseln;
             else if (*value != saadc->channels[ch_idx].pseln)
             {
-                // TODO: Check for zero
-                pins_set_analog(saadc->pins, pins_table[saadc->channels[ch_idx].pseln - 1], false);
-                pins_set_analog(saadc->pins, pins_table[*value - 1], true);
+                if (saadc->channels[ch_idx].pseln != 0)
+                    pins_set_analog(saadc->pins, pins_table[saadc->channels[ch_idx].pseln - 1], false);
+                if (*value != 0)
+                    pins_set_analog(saadc->pins, pins_table[*value - 1], true);
 
                 saadc->channels[ch_idx].pseln = *value;
             }
