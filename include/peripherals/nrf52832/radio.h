@@ -31,3 +31,4 @@ NRF52_PERIPHERAL(RADIO, radio)
 typedef void (*radio_tx_cb_t)(void *userdata, uint8_t *data, size_t len);
 
 void radio_set_tx_cb(RADIO_t *, radio_tx_cb_t cb, void *userdata);
+void radio_inject_packet(RADIO_t *, uint8_t *data, size_t len);

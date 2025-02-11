@@ -164,12 +164,13 @@ struct RADIO_inst_t
     inten_t inten;
 
     bool tx_sent_address, tx_sent_payload;
-    bool rx_received_address, rx_received_payload;
+    int rx_stage;
 
     uint32_t mode;
     uint32_t txpower;
     uint32_t packetptr;
     uint32_t bcc;
+    bool bcc_started;
 
     pcnf0_t pcnf0;
     pcnf1_t pcnf1;
@@ -258,22 +259,33 @@ void radio_do_state_change(void *userdata)
         break;
 
     case STATE_RX:
-        if (radio->rx_received_address && radio->rx_received_payload)
+        if (radio->rx_stage == 3)
         {
-            radio->rx_received_address = false;
-            radio->rx_received_payload = false;
+            radio->rx_stage = 0;
             radio->next_state = STATE_RXIDLE;
             delay = STATE_CHANGE_TXRX_DELAY_HFCLK;
         }
-        else if (radio->rx_received_address)
+        else if (radio->rx_stage == 2)
         {
-            radio->rx_received_payload = true;
+            radio->rx_stage++;
             ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_PAYLOAD), radio->inten.PAYLOAD);
+        }
+        else if (radio->rx_stage == 1)
+        {
+            radio->rx_stage++;
+            if (radio->bcc_started)
+            {
+                ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_BCMATCH), radio->inten.BCMATCH);
+            }
+        }
+        else if (radio->rx_data_len > 0)
+        {
+            radio->rx_stage++;
+            ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_ADDRESS), radio->inten.ADDRESS);
         }
         else
         {
-            radio->rx_received_address = true;
-            ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_ADDRESS), radio->inten.ADDRESS);
+            break;
         }
         request_update = true;
         break;
@@ -441,11 +453,14 @@ PPI_TASK_HANDLER(radio_task_handler)
                 radio->tx_cb(radio->rx_userdata, ll_packet, sizeof(ll_packet));
             }
 
+            uint8_t packet[30];
+            radio_inject_packet(radio, packet, sizeof(packet));
+
             radio->next_state = STATE_TX;
             break;
 
         case STATE_RXIDLE:
-            radio->next_state = radio->rx_data_len > 0 ? STATE_RX : STATE_RXIDLE;
+            radio->next_state = STATE_RX;
             break;
 
         default:
@@ -476,8 +491,11 @@ PPI_TASK_HANDLER(radio_task_handler)
         break;
 
     case TASK_ID(RADIO_TASKS_BCSTART):
+        radio->bcc_started = true;
+        break;
+
     case TASK_ID(RADIO_TASKS_BCSTOP):
-        // TODO: fault_take(FAULT_NOT_IMPLEMENTED);
+        radio->bcc_started = false;
         break;
     }
 
@@ -655,4 +673,22 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
     ppi_add_peripheral(ctx.ppi, ctx.id, radio_task_handler, radio);
 
     return radio;
+}
+
+void radio_inject_packet(RADIO_t *radio, uint8_t *data, size_t len)
+{
+    if (len > sizeof(radio->rx_data))
+        return; // TODO: Return an error
+
+    memcpy(radio->rx_data, data, len);
+    radio->rx_data_len = len;
+
+    // If we are currently waiting for a packet we immediately transition to the next state
+    // Otherwise, the next time we transition to the RX state we will fire the ADDRESS event
+
+    if (radio->state == STATE_RX && radio->rx_stage == 0)
+    {
+        radio->rx_stage++;
+        ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_ADDRESS), radio->inten.ADDRESS);
+    }
 }
