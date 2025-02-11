@@ -9,6 +9,7 @@
 #include "fault.h"
 #include "gdb.h"
 #include "ie_time.h"
+#include "lua.h"
 #include "pcap.h"
 #include "program.h"
 #include "segger_rtt.h"
@@ -35,10 +36,11 @@ int main(int argc, char **argv)
     char *runlog_path = NULL;
     bool big_ram = false;
     char *state_path = NULL;
+    char *lua_script_path = NULL;
 
     int c;
 
-    const char *optstring = "bdf:s:"
+    const char *optstring = "bdf:s:L:"
 #if ENABLE_RUNLOG
                             "l:"
 #endif
@@ -68,6 +70,10 @@ int main(int argc, char **argv)
 
         case 's':
             state_path = optarg;
+            break;
+
+        case 'L':
+            lua_script_path = optarg;
             break;
 
         default:
@@ -139,7 +145,11 @@ int main(int argc, char **argv)
 
     free(program);
 
-    if (run_gdb)
+    if (lua_script_path)
+    {
+        run_lua_file(lua_script_path, pt);
+    }
+    else if (run_gdb)
     {
         printf("Waiting for GDB connection...\n");
 

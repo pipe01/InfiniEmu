@@ -17,4 +17,7 @@ option(CAPSTONE_ARCHITECTURE_DEFAULT "" OFF)
 option(CAPSTONE_ARM_SUPPORT "" ON)
 add_subdirectory(lib/capstone)
 
+add_library(lua STATIC lib/lua/onelua.c)
+target_compile_options(lua PRIVATE -DMAKE_LIB)
+
 add_subdirectory(src)

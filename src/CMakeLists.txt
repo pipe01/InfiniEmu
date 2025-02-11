@@ -6,6 +6,7 @@ set(SRC_FILES
     cpu.c
     dma.c
     fault.c
+    lua.c
     memory.c
     nrf52832.c
     pinetime.c
@@ -87,7 +88,7 @@ set(WASM_EXPORTS
     lfs_info_malloc lfs_info_type lfs_info_size lfs_info_name
 )
 
-set(LIBS m tiny-aes capstone)
+set(LIBS m tiny-aes capstone lua)
 
 add_compile_options(-Werror -Wall -Wextra -Wno-unused-parameter -Wno-microsoft-anon-tag -fms-extensions)
 
