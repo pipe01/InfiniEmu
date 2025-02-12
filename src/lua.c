@@ -102,7 +102,13 @@ void run_lua_file(const char *script_path, pinetime_t *pt)
         return;
     }
 
-    fread(script_buffer, 1, script_size, script_file);
+    if (fread(script_buffer, 1, script_size, script_file) != script_size)
+    {
+        fprintf(stderr, "Failed to read Lua script: %s\n", script_path);
+        fclose(script_file);
+        free(script_buffer);
+        return;
+    }
     script_buffer[script_size] = '\0';
 
     fclose(script_file);
