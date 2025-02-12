@@ -25,6 +25,8 @@ set(SRC_FILES
     component/spi/spinorflash.c
     component/spi/st7789.c
 
+    lualibs/lua_pinetime.c
+
     peripherals/dcb.c
     peripherals/dwt.c
     peripherals/nvic.c

@@ -3,6 +3,10 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+#define macro_string2(x) #x
+#define macro_string(x) macro_string2(x)
 
 static inline uint8_t *read_file_u8(const char *path, size_t *size)
 {
