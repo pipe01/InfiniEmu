@@ -25,7 +25,7 @@ DEF_FN(new)
 
     program_t *program = program_new(flash_size);
 
-    size_t firmware_size;
+    size_t firmware_size = 0;
     uint8_t *firmware = read_file_u8(firmware_path, &firmware_size);
     if (firmware == NULL)
         luaL_error(L, "Failed to read firmware: %s", firmware_path);
