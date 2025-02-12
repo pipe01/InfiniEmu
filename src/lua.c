@@ -21,27 +21,36 @@ DEF_FN(run)
 {
     GET_PT;
 
-    int cycles = 1;
-    if (lua_gettop(L) >= 1)
-        cycles = luaL_checkinteger(L, 1);
+    int cycles;
 
-    while (cycles > 0)
+    if (lua_isnumber(L, 1))
     {
-        cycles -= pinetime_step(pt);
+        cycles = NRF52832_HFCLK_FREQUENCY * luaL_checknumber(L, 1);
+    }
+    else if (lua_istable(L, 1))
+    {
+        lua_pushstring(L, "seconds");
+        lua_gettable(L, 1);
+        if (!lua_isnil(L, -1))
+        {
+            cycles = NRF52832_HFCLK_FREQUENCY * luaL_checknumber(L, -1);
+        }
+        else
+        {
+            lua_pushstring(L, "cycles");
+            lua_gettable(L, 1);
+
+            if (lua_isnil(L, -1))
+                luaL_error(L, "Invalid argument: expected 'seconds' or 'cycles'");
+            
+            cycles = luaL_checkinteger(L, -1);
+        }
+    }
+    else
+    {
+        luaL_error(L, "Invalid argument: expected number or table");
     }
 
-    return 0;
-}
-
-DEF_FN(run_ms)
-{
-    GET_PT;
-
-    int ms = luaL_checkinteger(L, 1);
-    if (ms <= 0)
-        return 0;
-
-    int cycles = NRF52832_HFCLK_FREQUENCY / 1000 * ms;
     int rem_cycles = cycles;
 
     while (rem_cycles > 0)
@@ -50,7 +59,6 @@ DEF_FN(run_ms)
     }
 
     lua_pushinteger(L, cycles - rem_cycles);
-
     return 1;
 }
 
@@ -58,10 +66,9 @@ void run_lua(const char *script, size_t script_size, const char *name, pinetime_
 {
     lua_State *L = luaL_newstate();
 
-    luaL_openselectedlibs(L, LUA_GLIBK | LUA_OSLIBK | LUA_MATHLIBK | LUA_TABLIBK | LUA_STRLIBK, 0);
+    luaL_openselectedlibs(L, LUA_MATHLIBK | LUA_TABLIBK | LUA_STRLIBK, 0);
 
     REG_FN(run);
-    REG_FN(run_ms);
 
     lua_pushlightuserdata(L, (void *)&pt_key);
     lua_pushlightuserdata(L, pt);

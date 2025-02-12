@@ -46,6 +46,12 @@ void program_write_to(const program_t *program, uint8_t *data, size_t size)
     memcpy(data, program->data, size > program->size ? program->size : size);
 }
 
+void program_load(program_t *program, size_t offset, const uint8_t *data, size_t size)
+{
+    if (!program_load_elf(program, offset, data, size))
+        program_load_binary(program, offset, data, size);
+}
+
 void program_load_binary(program_t *program, size_t offset, const uint8_t *data, size_t size)
 {
     assert(offset + size <= program->size);

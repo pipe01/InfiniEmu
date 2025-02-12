@@ -81,6 +81,12 @@ int main(int argc, char **argv)
         }
     }
 
+    if (lua_script_path)
+    {
+        run_lua_file(lua_script_path, pt);
+        return 0;
+    }
+
     if (program_path == NULL)
     {
         fprintf(stderr, "Usage: %s [-d] [-l <logfile_path>] -f <program_path>\n", argv[0]);
@@ -93,8 +99,7 @@ int main(int argc, char **argv)
         return -1;
 
     program_t *program = program_new(big_ram ? 0x800000 : NRF52832_FLASH_SIZE);
-    if (!program_load_elf(program, 0, program_data, fsize))
-        program_load_binary(program, 0, program_data, fsize);
+    program_load(program, 0, program_data, fsize);
 
     printf("Loaded %ld bytes from %s\n", fsize, program_path);
 
@@ -145,11 +150,7 @@ int main(int argc, char **argv)
 
     free(program);
 
-    if (lua_script_path)
-    {
-        run_lua_file(lua_script_path, pt);
-    }
-    else if (run_gdb)
+    if (run_gdb)
     {
         printf("Waiting for GDB connection...\n");
 
