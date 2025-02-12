@@ -1,5 +1,6 @@
 #define LIB_NAME pinetime
 #include "lualibs/lualibs.h"
+#include "lualibs/lua_display.h"
 
 #include "pinetime.h"
 
@@ -100,6 +101,18 @@ DEF_FN(reset)
     return 0;
 }
 
+DEF_FN(display)
+{
+    pinetime_t **pt = luaL_checkudata(L, 1, METATABLE);
+    luaL_argcheck(L, *pt != NULL, 1, "Invalid pinetime");
+
+    lua_pushcclosure(L, l_display_new, 0);
+    lua_pushlightuserdata(L, pinetime_get_st7789(*pt));
+    lua_call(L, 1, 1);
+
+    return 1;
+}
+
 DEF_FUNCS{
     FN(new),
     END_FN,
@@ -108,6 +121,7 @@ DEF_FUNCS{
 DEF_METHODS{
     FN(run),
     FN(reset),
+    FN(display),
     END_FN,
 };
 

@@ -11,6 +11,7 @@
 #define METATABLE macro_string(LIB_NAME)
 
 #define DEF_FN(name) static int l_##name(lua_State *L)
+#define DEF_FN_PUBLIC(name) int l_##name(lua_State *L)
 
 #define REG_FN(name)                \
     lua_pushcfunction(L, l_##name); \
@@ -39,6 +40,9 @@
 
 #else
 
-#include "lua_pinetime.h"
+#define DEF_LIB(name) int luaopen_##name(lua_State *L)
+
+DEF_LIB(pinetime);
+DEF_LIB(display);
 
 #endif

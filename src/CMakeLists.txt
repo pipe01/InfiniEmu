@@ -25,6 +25,7 @@ set(SRC_FILES
     component/spi/spinorflash.c
     component/spi/st7789.c
 
+    lualibs/lua_display.c
     lualibs/lua_pinetime.c
 
     peripherals/dcb.c
@@ -91,6 +92,12 @@ set(WASM_EXPORTS
 )
 
 set(LIBS m tiny-aes capstone lua)
+
+if (PNG_FOUND)
+    list(APPEND LIBS ${PNG_LIBRARIES})
+    add_compile_definitions(ENABLE_PNG=1)
+    include_directories(${PNG_INCLUDE_DIRS})
+endif()
 
 add_compile_options(-Werror -Wall -Wextra -Wno-unused-parameter -Wno-microsoft-anon-tag -fms-extensions)
 

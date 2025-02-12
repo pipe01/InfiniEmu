@@ -7,6 +7,8 @@ if(CMAKE_TOOLCHAIN_FILE MATCHES "Emscripten.cmake")
     message("[*] Building using Emscripten toolchain")
 endif()
 
+find_package(PNG)
+
 include("./cmake/bundle.cmake")
 
 include_directories(include lib .)
