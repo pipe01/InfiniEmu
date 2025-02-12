@@ -49,7 +49,7 @@ DEF_FN(run)
     pinetime_t **pt = luaL_checkudata(L, 1, METATABLE);
     luaL_argcheck(L, *pt != NULL, 1, "Invalid pinetime");
 
-    int cycles;
+    int cycles = 0;
 
     if (lua_isnumber(L, 2))
     {
