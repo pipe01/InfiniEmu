@@ -5,6 +5,8 @@
 #include "lualibs/lualibs.h"
 #include "lualibs/lua_display.h"
 
+#include <string.h>
+
 DEF_FN(new)
 {
     if (!lua_istable(L, 1))
@@ -111,6 +113,25 @@ DEF_FN(display)
     return 1;
 }
 
+DEF_FN(__index)
+{
+    luaL_argcheck(L, lua_isstring(L, 2), 2, "Expected string");
+
+    const char *key = lua_tostring(L, 2);
+
+    if (strcmp(key, "display") == 0)
+    {
+        return l_display(L);
+    }
+
+    // Delegate to metatable
+    lua_getmetatable(L, 1);
+    lua_pushvalue(L, 2);
+    lua_gettable(L, -2);
+
+    return 1;
+}
+
 DEF_FUNCS{
     FN(new),
     END_FN,
@@ -120,6 +141,7 @@ DEF_METHODS{
     FN(run),
     FN(reset),
     FN(display),
+    FN(__index),
     END_FN,
 };
 
