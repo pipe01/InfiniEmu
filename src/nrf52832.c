@@ -171,6 +171,21 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size, state_store_t
     return chip;
 }
 
+void nrf52832_free(NRF52832_t *nrf)
+{
+    cpu_free(nrf->cpu);
+    free(nrf->sram);
+    pins_free(nrf->pins);
+    bus_spi_free(nrf->bus_spi);
+    i2c_free(nrf->bus_i2c);
+    ticker_free(nrf->ticker);
+    dma_free(nrf->dma);
+    free(nrf->flash);
+    // memory_map_free(nrf->mem);
+
+    free(nrf);
+}
+
 void nrf52832_reset(NRF52832_t *nrf52832)
 {
     nrf52832->cycle_counter = 0;

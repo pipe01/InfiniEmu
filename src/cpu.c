@@ -277,7 +277,7 @@ static void memory_map_write_traced(cpu_t *cpu, uint32_t addr, uint32_t value, b
 
 static uint32_t memory_map_read_traced(cpu_t *cpu, uint32_t addr, size_t size)
 {
-    uint32_t value;
+    uint32_t value = 0;
 
     memory_map_do_operation(cpu->mem, addr, size, &value);
 
@@ -1635,11 +1635,12 @@ static int execute_instruction(cpu_t *cpu, cs_insn *i, uint32_t next_pc)
         USE_CYCLES(1);
 
         assert(detail->op_count == 2);
-        op0 = OPERAND(0);
-        op1 = OPERAND(1);
+        op0 = OPERAND_REG(0);
 
         if ((op0 == 0) == (i->id == ARM_INS_CBZ))
         {
+            op1 = OPERAND_IMM(1);
+
             USE_CYCLES(1);
             BRANCH_WRITE_PC(cpu, op1 | 1);
         }

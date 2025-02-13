@@ -134,6 +134,15 @@ DEF_FN(__index)
     return 1;
 }
 
+DEF_FN(__gc)
+{
+    pinetime_t *pt = lua_getdata_p(L, 1);
+
+    pinetime_free(pt);
+
+    return 0;
+}
+
 DEF_FUNCS{
     FN(new),
     END_FN,
@@ -143,6 +152,7 @@ DEF_METHODS{
     FN(run),
     FN(reset),
     FN(__index),
+    FN(__gc),
     END_FN,
 };
 

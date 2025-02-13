@@ -52,6 +52,9 @@ pinetime_t *pinetime_new(const program_t *program)
 
 void pinetime_free(pinetime_t *pt)
 {
+    nrf52832_free(pt->nrf);
+    state_store_free(pt->state_store);
+
     free(pt);
 }
 

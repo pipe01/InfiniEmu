@@ -53,6 +53,7 @@ OPERATION(ecb)
 
     if (op == OP_RESET)
     {
+        memset(ecb, 0, sizeof(state_t));
         return MEMREG_RESULT_OK;
     }
 
