@@ -1,8 +1,9 @@
+#include "pinetime.h"
+
 #define LIB_NAME pinetime
+#define DATA_TYPE pinetime_t
 #include "lualibs/lualibs.h"
 #include "lualibs/lua_display.h"
-
-#include "pinetime.h"
 
 DEF_FN(new)
 {
@@ -47,8 +48,7 @@ DEF_FN(new)
 
 DEF_FN(run)
 {
-    pinetime_t **pt = luaL_checkudata(L, 1, METATABLE);
-    luaL_argcheck(L, *pt != NULL, 1, "Invalid pinetime");
+    pinetime_t *pt = lua_getdata_p(L, 1);
 
     int cycles = 0;
 
@@ -84,7 +84,7 @@ DEF_FN(run)
 
     while (rem_cycles > 0)
     {
-        rem_cycles -= pinetime_step(*pt);
+        rem_cycles -= pinetime_step(pt);
     }
 
     lua_pushinteger(L, cycles - rem_cycles);
@@ -93,21 +93,19 @@ DEF_FN(run)
 
 DEF_FN(reset)
 {
-    pinetime_t **pt = luaL_checkudata(L, 1, METATABLE);
-    luaL_argcheck(L, *pt != NULL, 1, "Invalid pinetime");
+    pinetime_t *pt = lua_getdata_p(L, 1);
 
-    pinetime_reset(*pt);
+    pinetime_reset(pt);
 
     return 0;
 }
 
 DEF_FN(display)
 {
-    pinetime_t **pt = luaL_checkudata(L, 1, METATABLE);
-    luaL_argcheck(L, *pt != NULL, 1, "Invalid pinetime");
+    pinetime_t *pt = lua_getdata_p(L, 1);
 
     lua_pushcclosure(L, l_display_new, 0);
-    lua_pushlightuserdata(L, pinetime_get_st7789(*pt));
+    lua_pushlightuserdata(L, pinetime_get_st7789(pt));
     lua_call(L, 1, 1);
 
     return 1;

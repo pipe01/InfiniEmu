@@ -26,6 +26,7 @@ set(SRC_FILES
     component/spi/st7789.c
 
     lualibs/lua_display.c
+    lualibs/lua_image.c
     lualibs/lua_pinetime.c
 
     peripherals/dcb.c
