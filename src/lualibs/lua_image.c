@@ -142,7 +142,7 @@ DEF_FN(load)
 DEF_FN(save)
 {
     image_t *image = lua_getdata(L, 1);
-    
+
     const char *filename = luaL_checkstring(L, 2);
 
     FILE *fp = fopen(filename, "wb");
@@ -204,6 +204,15 @@ DEF_FN(__eq)
 
 DEF_FN(__index)
 {
+    if (!lua_istable(L, 2))
+    {
+        // Delegate to metatable
+        lua_getmetatable(L, 1);
+        lua_pushvalue(L, 2);
+        lua_gettable(L, -2);
+        return 1;
+    }
+
     image_t *image = lua_getdata(L, 1);
 
     luaL_argcheck(L, lua_istable(L, 2), 2, "Expected table");
@@ -219,17 +228,58 @@ DEF_FN(__index)
     if (x >= image->width || y >= image->height)
         luaL_error(L, "Index out of bounds");
 
-    pixel_t *pixel = &image->pixels[y * image->width + x];
+    pixel_t pixel = image->pixels[y * image->width + x];
 
-    lua_createtable(L, 0, 3);
-    lua_pushinteger(L, pixel->r);
-    lua_setfield(L, -2, "r");
-    lua_pushinteger(L, pixel->g);
-    lua_setfield(L, -2, "g");
-    lua_pushinteger(L, pixel->b);
-    lua_setfield(L, -2, "b");
+    lua_newtable(L);
+    lua_pushinteger(L, 1);
+    lua_pushinteger(L, pixel.r);
+    lua_settable(L, -3);
+    
+    lua_pushinteger(L, 2);
+    lua_pushinteger(L, pixel.g);
+    lua_settable(L, -3);
+
+    lua_pushinteger(L, 3);
+    lua_pushinteger(L, pixel.b);
+    lua_settable(L, -3);
 
     return 1;
+}
+
+DEF_FN(__newindex)
+{
+    image_t *image = lua_getdata(L, 1);
+
+    luaL_argcheck(L, lua_istable(L, 2), 2, "Expected table");
+
+    lua_pushinteger(L, 1);
+    lua_gettable(L, 2);
+    size_t x = luaL_checkinteger(L, -1);
+
+    lua_pushinteger(L, 2);
+    lua_gettable(L, 2);
+    size_t y = luaL_checkinteger(L, -1);
+
+    if (x >= image->width || y >= image->height)
+        luaL_error(L, "Index out of bounds");
+
+    luaL_argcheck(L, lua_istable(L, 3), 3, "Expected table");
+
+    lua_pushinteger(L, 1);
+    lua_gettable(L, 3);
+    uint8_t r = luaL_checkinteger(L, -1);
+
+    lua_pushinteger(L, 2);
+    lua_gettable(L, 3);
+    uint8_t g = luaL_checkinteger(L, -1);
+
+    lua_pushinteger(L, 3);
+    lua_gettable(L, 3);
+    uint8_t b = luaL_checkinteger(L, -1);
+
+    image->pixels[y * image->width + x] = (pixel_t){r, g, b};
+
+    return 0;
 }
 
 DEF_FUNCS{
@@ -240,6 +290,7 @@ DEF_FUNCS{
 DEF_METHODS{
     FN(__eq),
     FN(__index),
+    FN(__newindex),
     FN(save),
     END_FN,
 };
