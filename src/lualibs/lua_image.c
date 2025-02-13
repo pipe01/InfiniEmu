@@ -187,7 +187,7 @@ DEF_FN(save)
     return 0;
 }
 
-DEF_FN(equal)
+DEF_FN(__eq)
 {
     image_t *image1 = lua_getdata(L, 1);
     image_t *image2 = lua_getdata(L, 2);
@@ -202,13 +202,44 @@ DEF_FN(equal)
     return 1;
 }
 
+DEF_FN(__index)
+{
+    image_t *image = lua_getdata(L, 1);
+
+    luaL_argcheck(L, lua_istable(L, 2), 2, "Expected table");
+
+    lua_pushinteger(L, 1);
+    lua_gettable(L, 2);
+    size_t x = luaL_checkinteger(L, -1);
+
+    lua_pushinteger(L, 2);
+    lua_gettable(L, 2);
+    size_t y = luaL_checkinteger(L, -1);
+
+    if (x >= image->width || y >= image->height)
+        luaL_error(L, "Index out of bounds");
+
+    pixel_t *pixel = &image->pixels[y * image->width + x];
+
+    lua_createtable(L, 0, 3);
+    lua_pushinteger(L, pixel->r);
+    lua_setfield(L, -2, "r");
+    lua_pushinteger(L, pixel->g);
+    lua_setfield(L, -2, "g");
+    lua_pushinteger(L, pixel->b);
+    lua_setfield(L, -2, "b");
+
+    return 1;
+}
+
 DEF_FUNCS{
     FN(load),
     END_FN,
 };
 
 DEF_METHODS{
-    FN2(__eq, equal),
+    FN(__eq),
+    FN(__index),
     FN(save),
     END_FN,
 };
