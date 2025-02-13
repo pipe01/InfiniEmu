@@ -61,6 +61,7 @@ static inline DATA_TYPE *lua_getdata(lua_State *L, int index)
 DEF_LIB(pinetime);
 DEF_LIB(display);
 DEF_LIB(image);
+DEF_LIB(touch);
 
 #undef DEF_LIB
 

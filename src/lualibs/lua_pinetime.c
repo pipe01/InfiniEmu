@@ -4,6 +4,7 @@
 #define DATA_TYPE pinetime_t
 #include "lualibs/lualibs.h"
 #include "lualibs/lua_display.h"
+#include "lualibs/lua_touch.h"
 
 #include <string.h>
 
@@ -102,26 +103,27 @@ DEF_FN(reset)
     return 0;
 }
 
-DEF_FN(display)
+DEF_FN(__index)
 {
     pinetime_t *pt = lua_getdata_p(L, 1);
 
-    lua_pushcclosure(L, l_display_new, 0);
-    lua_pushlightuserdata(L, pinetime_get_st7789(pt));
-    lua_call(L, 1, 1);
-
-    return 1;
-}
-
-DEF_FN(__index)
-{
     luaL_argcheck(L, lua_isstring(L, 2), 2, "Expected string");
 
     const char *key = lua_tostring(L, 2);
 
     if (strcmp(key, "display") == 0)
     {
-        return l_display(L);
+        lua_pushcclosure(L, l_display_new, 0);
+        lua_pushlightuserdata(L, pinetime_get_st7789(pt));
+        lua_call(L, 1, 1);
+        return 1;
+    }
+    if (strcmp(key, "touch") == 0)
+    {
+        lua_pushcclosure(L, l_touch_new, 0);
+        lua_pushlightuserdata(L, pinetime_get_cst816s(pt));
+        lua_call(L, 1, 1);
+        return 1;
     }
 
     // Delegate to metatable
@@ -140,7 +142,6 @@ DEF_FUNCS{
 DEF_METHODS{
     FN(run),
     FN(reset),
-    FN(display),
     FN(__index),
     END_FN,
 };

@@ -28,6 +28,7 @@ set(SRC_FILES
     lualibs/lua_display.c
     lualibs/lua_image.c
     lualibs/lua_pinetime.c
+    lualibs/lua_touch.c
 
     peripherals/dcb.c
     peripherals/dwt.c
