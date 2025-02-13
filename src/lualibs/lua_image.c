@@ -292,6 +292,15 @@ DEF_FN(__newindex)
     return 0;
 }
 
+DEF_FN(__gc)
+{
+    image_t *image = lua_getdata(L, 1);
+
+    free(image->pixels);
+
+    return 0;
+}
+
 DEF_FN(fill)
 {
     image_t *image = lua_getdata(L, 1);
@@ -354,6 +363,7 @@ DEF_METHODS{
     FN(__eq),
     FN(__index),
     FN(__newindex),
+    FN(__gc),
     FN(save),
     FN(draw_img),
     FN(fill),

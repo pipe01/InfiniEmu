@@ -17,8 +17,9 @@ void run_lua(const char *script, size_t script_size, const char *name, pinetime_
     if (luaL_loadbuffer(L, script, script_size, name) || lua_pcall(L, 0, 0, 0))
     {
         fprintf(stderr, "Failed to run Lua script: %s\n", lua_tostring(L, -1));
-        lua_close(L);
     }
+
+    lua_close(L);
 }
 
 void run_lua_file(const char *script_path, pinetime_t *pt)
