@@ -20,12 +20,8 @@ typedef struct
 
 #include <png.h>
 
-DEF_FN_PUBLIC(image_new)
+image_t *create_image(lua_State *L, size_t width, size_t height)
 {
-    size_t width = luaL_checkinteger(L, 1);
-    size_t height = luaL_checkinteger(L, 2);
-    bool has_data = lua_gettop(L) == 3;
-
     image_t *image = lua_newuserdata(L, sizeof(image_t));
     luaL_getmetatable(L, METATABLE);
     lua_setmetatable(L, -2);
@@ -33,6 +29,17 @@ DEF_FN_PUBLIC(image_new)
     image->width = width;
     image->height = height;
     image->pixels = malloc(width * height * sizeof(pixel_t));
+
+    return image;
+}
+
+DEF_FN_PUBLIC(image_new)
+{
+    size_t width = luaL_checkinteger(L, 1);
+    size_t height = luaL_checkinteger(L, 2);
+    bool has_data = lua_gettop(L) == 3;
+
+    image_t *image = create_image(L, width, height);
 
     if (has_data)
     {
@@ -60,6 +67,74 @@ DEF_FN_PUBLIC(image_new)
             }
         }
     }
+
+    return 1;
+}
+
+DEF_FN(load)
+{
+    const char *filename = luaL_checkstring(L, 1);
+
+    FILE *fp = fopen(filename, "rb");
+    if (!fp)
+        abort();
+
+    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png)
+        abort();
+
+    png_infop info = png_create_info_struct(png);
+    if (!info)
+        abort();
+
+    if (setjmp(png_jmpbuf(png)))
+        abort();
+
+    png_init_io(png, fp);
+
+    png_read_info(png, info);
+
+    size_t width = png_get_image_width(png, info);
+    size_t height = png_get_image_height(png, info);
+
+    png_byte color_type = png_get_color_type(png, info);
+    png_byte bit_depth = png_get_bit_depth(png, info);
+
+    if (bit_depth == 16)
+        png_set_strip_16(png);
+
+    if (color_type == PNG_COLOR_TYPE_PALETTE)
+        png_set_palette_to_rgb(png);
+
+    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
+        png_set_expand_gray_1_2_4_to_8(png);
+
+    if (png_get_valid(png, info, PNG_INFO_tRNS))
+        png_set_tRNS_to_alpha(png);
+
+    if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+        png_set_gray_to_rgb(png);
+
+    png_read_update_info(png, info);
+
+    if (setjmp(png_jmpbuf(png)))
+        abort();
+
+    image_t *image = create_image(L, width, height);
+
+    png_bytep *rows = malloc(height * sizeof(png_bytep));
+    for (size_t y = 0; y < height; y++)
+    {
+        rows[y] = (png_bytep)&image->pixels[y * width];
+    }
+
+    png_read_image(png, rows);
+
+    free(rows);
+
+    png_destroy_read_struct(&png, &info, NULL);
+
+    fclose(fp);
 
     return 1;
 }
@@ -128,6 +203,7 @@ DEF_FN(equal)
 }
 
 DEF_FUNCS{
+    FN(load),
     END_FN,
 };
 
