@@ -29,7 +29,7 @@ jobs:
           node-version: "20.x"
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y python3 git wget gcc g++ make cmake xz-utils
+        run: sudo apt-get update && sudo apt-get install -y python3 git wget gcc g++ make cmake xz-utils libpng-dev
 
       - name: Cache Emscripten
         id: cache-emscripten
