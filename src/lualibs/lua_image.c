@@ -20,6 +20,51 @@ typedef struct
 
 #include <png.h>
 
+void draw_image(image_t *dst, image_t *src, size_t x, size_t y)
+{
+    if (x + src->width > dst->width || y + src->height > dst->height)
+        abort();
+
+    for (size_t iy = 0; iy < src->height; iy++)
+    {
+        for (size_t ix = 0; ix < src->width; ix++)
+        {
+            pixel_t pixel = src->pixels[iy * src->width + ix];
+            dst->pixels[(y + iy) * dst->width + (x + ix)] = pixel;
+        }
+    }
+}
+
+void fill_image(image_t *image, pixel_t pixel)
+{
+    for (size_t i = 0; i < image->width * image->height; i++)
+    {
+        image->pixels[i] = pixel;
+    }
+}
+
+pixel_t load_pixel(lua_State *L, int index)
+{
+    luaL_checktype(L, index, LUA_TTABLE);
+
+    if (index < 0)
+        index = lua_gettop(L) + index + 1;
+
+    lua_pushinteger(L, 1);
+    lua_gettable(L, index);
+    uint8_t r = luaL_checkinteger(L, -1);
+
+    lua_pushinteger(L, 2);
+    lua_gettable(L, index);
+    uint8_t g = luaL_checkinteger(L, -1);
+
+    lua_pushinteger(L, 3);
+    lua_gettable(L, index);
+    uint8_t b = luaL_checkinteger(L, -1);
+
+    return (pixel_t){r, g, b};
+}
+
 image_t *create_image(lua_State *L, size_t width, size_t height)
 {
     image_t *image = lua_newuserdata(L, sizeof(image_t));
@@ -149,6 +194,78 @@ DEF_FN(load)
     return 1;
 }
 
+DEF_FN(combine)
+{
+    luaL_argcheck(L, lua_istable(L, 1), 1, "Expected table");
+
+    int num_images = lua_rawlen(L, 1);
+    bool vertical = false;
+    int spacing = 0;
+    pixel_t fill = {0, 0, 0};
+
+    if (lua_istable(L, 2))
+    {
+        lua_pushstring(L, "vertical");
+        lua_gettable(L, 2);
+        vertical = lua_toboolean(L, -1);
+
+        lua_pushstring(L, "spacing");
+        lua_gettable(L, 2);
+        spacing = luaL_optinteger(L, -1, 0);
+
+        lua_pushstring(L, "fill");
+        lua_gettable(L, 2);
+        if (lua_istable(L, -1))
+        {
+            fill = load_pixel(L, -1);
+        }
+    }
+
+    int width = -1, height = -1;
+    image_t *dst = NULL;
+    int dst_index = -1;
+
+    for (int i = 0; i < num_images; i++)
+    {
+        lua_pushinteger(L, i + 1);
+        lua_gettable(L, 1);
+
+        image_t *image = luaL_checkudata(L, -1, METATABLE);
+        if (!image)
+            luaL_error(L, "Invalid image");
+
+        if (width == -1)
+        {
+            width = image->width;
+            height = image->height;
+
+            dst = create_image(L, vertical ? width : ((width + spacing) * num_images - spacing), vertical ? ((height + spacing) * num_images - spacing) : height);
+            dst_index = lua_gettop(L);
+
+            fill_image(dst, fill);
+        }
+        else if (width != (int)image->width || height != (int)image->height)
+        {
+            luaL_error(L, "Images must have the same dimensions");
+        }
+
+        int x = vertical ? 0 : (i * (width + spacing));
+        int y = vertical ? (i * (height + spacing)) : 0;
+
+        draw_image(dst, image, x, y);
+    }
+
+    if (dst_index != -1)
+    {
+        lua_pushvalue(L, dst_index);
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 DEF_FN(save)
 {
     image_t *image = lua_getdata(L, 1);
@@ -244,7 +361,7 @@ DEF_FN(__index)
     lua_pushinteger(L, 1);
     lua_pushinteger(L, pixel.r);
     lua_settable(L, -3);
-    
+
     lua_pushinteger(L, 2);
     lua_pushinteger(L, pixel.g);
     lua_settable(L, -3);
@@ -307,25 +424,9 @@ DEF_FN(fill)
 
     luaL_argcheck(L, lua_istable(L, 2), 2, "Expected table");
 
-    lua_pushinteger(L, 1);
-    lua_gettable(L, 2);
-    uint8_t r = luaL_checkinteger(L, -1);
+    pixel_t pixel = load_pixel(L, 2);
 
-    lua_pushinteger(L, 2);
-    lua_gettable(L, 2);
-    uint8_t g = luaL_checkinteger(L, -1);
-
-    lua_pushinteger(L, 3);
-    lua_gettable(L, 2);
-    uint8_t b = luaL_checkinteger(L, -1);
-
-    for (size_t y = 0; y < image->height; y++)
-    {
-        for (size_t x = 0; x < image->width; x++)
-        {
-            image->pixels[y * image->width + x] = (pixel_t){r, g, b};
-        }
-    }
+    fill_image(image, pixel);
 
     return 0;
 }
@@ -341,14 +442,7 @@ DEF_FN(draw_img)
     if (x + src->width > dst->width || y + src->height > dst->height)
         luaL_error(L, "Image does not fit in destination");
 
-    for (size_t iy = 0; iy < src->height; iy++)
-    {
-        for (size_t ix = 0; ix < src->width; ix++)
-        {
-            pixel_t pixel = src->pixels[iy * src->width + ix];
-            dst->pixels[(y + iy) * dst->width + (x + ix)] = pixel;
-        }
-    }
+    draw_image(dst, src, x, y);
 
     return 0;
 }
@@ -356,6 +450,7 @@ DEF_FN(draw_img)
 DEF_FUNCS{
     FN(new),
     FN(load),
+    FN(combine),
     END_FN,
 };
 
