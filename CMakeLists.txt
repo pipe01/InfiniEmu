@@ -9,7 +9,7 @@ endif()
 
 find_package(PNG)
 if(PNG_FOUND)
-    add_compile_definitions(-DENABLE_PNG=1)
+    add_compile_definitions(ENABLE_PNG=1)
 endif()
 
 include("./cmake/bundle.cmake")
