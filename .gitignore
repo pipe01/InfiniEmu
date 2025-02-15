@@ -19,3 +19,4 @@ callgrind.out.*
 vgcore.*
 
 *.pcap
+*.pcapng

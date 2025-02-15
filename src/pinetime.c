@@ -11,6 +11,7 @@ struct pinetime_t
 {
     NRF52832_t *nrf;
     state_store_t *state_store;
+    event_queue_t *event_queue;
 
     st7789_t *lcd;
     cst816s_t *touch;
@@ -18,7 +19,7 @@ struct pinetime_t
     spinorflash_t *extflash;
 };
 
-pinetime_t *pinetime_new(const program_t *program)
+pinetime_t *pinetime_new(const program_t *program, event_queue_t *event_queue)
 {
     uint32_t initial_sp;
     program_write_to(program, (uint8_t *)&initial_sp, sizeof(initial_sp));
@@ -33,7 +34,8 @@ pinetime_t *pinetime_new(const program_t *program)
 
     pinetime_t *pt = malloc(sizeof(pinetime_t));
     pt->state_store = state_store_new();
-    pt->nrf = nrf52832_new(program, sram_size, pt->state_store);
+    pt->event_queue = event_queue;
+    pt->nrf = nrf52832_new(program, sram_size, pt->state_store, event_queue);
     pt->lcd = st7789_new(pt->state_store);
     pt->touch = cst816s_new(nrf52832_get_pins(pt->nrf), pt->state_store, PINETIME_CST816S_IRQ_PIN);
     pt->hrs = hrs3300_new(pt->state_store);

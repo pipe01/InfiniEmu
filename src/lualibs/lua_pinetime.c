@@ -1,7 +1,13 @@
 #include "pinetime.h"
 
+typedef struct
+{
+    pinetime_t *pt;
+    event_queue_t *event_queue;
+} lua_pinetime_t;
+
 #define LIB_NAME pinetime
-#define DATA_TYPE pinetime_t
+#define DATA_TYPE lua_pinetime_t
 #include "lualibs/lualibs.h"
 #include "lualibs/lua_display.h"
 #include "lualibs/lua_touch.h"
@@ -37,21 +43,21 @@ DEF_FN(new)
 
     program_load(program, 0, firmware, firmware_size);
 
-    pinetime_t **pt = lua_newuserdata(L, sizeof(pinetime_t **));
-
+    lua_pinetime_t *lpt = lua_newuserdata(L, sizeof(lua_pinetime_t *));
     luaL_getmetatable(L, METATABLE);
     lua_setmetatable(L, -2);
 
-    *pt = pinetime_new(program);
+    lpt->event_queue = event_queue_new();
+    lpt->pt = pinetime_new(program, lpt->event_queue);
 
-    pinetime_reset(*pt);
+    pinetime_reset(lpt->pt);
 
     return 1;
 }
 
 DEF_FN(run)
 {
-    pinetime_t *pt = lua_getdata_p(L, 1);
+    lua_pinetime_t *lpt = lua_getdata(L, 1);
 
     int cycles = 0;
 
@@ -87,7 +93,7 @@ DEF_FN(run)
 
     while (rem_cycles > 0)
     {
-        rem_cycles -= pinetime_step(pt);
+        rem_cycles -= pinetime_step(lpt->pt);
     }
 
     lua_pushinteger(L, cycles - rem_cycles);
@@ -96,16 +102,16 @@ DEF_FN(run)
 
 DEF_FN(reset)
 {
-    pinetime_t *pt = lua_getdata_p(L, 1);
+    lua_pinetime_t *lpt = lua_getdata(L, 1);
 
-    pinetime_reset(pt);
+    pinetime_reset(lpt->pt);
 
     return 0;
 }
 
 DEF_FN(__index)
 {
-    pinetime_t *pt = lua_getdata_p(L, 1);
+    lua_pinetime_t *lpt = lua_getdata(L, 1);
 
     luaL_argcheck(L, lua_isstring(L, 2), 2, "Expected string");
 
@@ -114,14 +120,14 @@ DEF_FN(__index)
     if (strcmp(key, "display") == 0)
     {
         lua_pushcclosure(L, l_display_new, 0);
-        lua_pushlightuserdata(L, pinetime_get_st7789(pt));
+        lua_pushlightuserdata(L, pinetime_get_st7789(lpt->pt));
         lua_call(L, 1, 1);
         return 1;
     }
     if (strcmp(key, "touch") == 0)
     {
         lua_pushcclosure(L, l_touch_new, 0);
-        lua_pushlightuserdata(L, pinetime_get_cst816s(pt));
+        lua_pushlightuserdata(L, pinetime_get_cst816s(lpt->pt));
         lua_call(L, 1, 1);
         return 1;
     }
@@ -136,9 +142,47 @@ DEF_FN(__index)
 
 DEF_FN(__gc)
 {
-    pinetime_t *pt = lua_getdata_p(L, 1);
+    lua_pinetime_t *lpt = lua_getdata(L, 1);
 
-    pinetime_free(pt);
+    pinetime_free(lpt->pt);
+    event_queue_free(lpt->event_queue);
+
+    free(lpt);
+
+    return 0;
+}
+
+DEF_FN(poll)
+{
+    lua_pinetime_t *lpt = lua_getdata(L, 1);
+
+    event_type_t ev;
+    void *data;
+
+    if (event_queue_poll(lpt->event_queue, &ev, &data))
+    {
+        lua_pushstring(L, event_type_str[ev]);
+
+        switch (ev)
+        {
+        case EVENT_RADIO_MESSAGE:
+        {
+            event_radio_message_t *msg = data;
+            lua_pushlstring(L, (const char *)msg->data, msg->len);
+            free(data);
+            return 2;
+        }
+        default:
+            if (data)
+                free(data);
+
+            luaL_error(L, "Unhandled event type: %d", ev);
+            break;
+        }
+
+        if (data)
+            free(data);
+    }
 
     return 0;
 }
@@ -153,6 +197,7 @@ DEF_METHODS{
     FN(reset),
     FN(__index),
     FN(__gc),
+    FN(poll),
     END_FN,
 };
 

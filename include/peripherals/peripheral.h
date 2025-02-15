@@ -7,6 +7,7 @@
 #include "bus_spi.h"
 #include "cpu.h"
 #include "dma.h"
+#include "event_queue.h"
 #include "memory.h"
 #include "pins.h"
 #include "ticker.h"
@@ -23,6 +24,7 @@ typedef struct
     bus_spi_t *spi;
     dma_t *dma;
     state_store_t *state_store;
+    event_queue_t *event_queue;
 } nrf52_peripheral_context_t;
 
 #define OPERATION(name) memreg_op_result_t name##_operation(uint32_t base, uint32_t offset, uint32_t *value, memreg_op_t op, void *userdata)

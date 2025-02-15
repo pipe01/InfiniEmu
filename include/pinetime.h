@@ -1,5 +1,6 @@
 #pragma once
 
+#include "event_queue.h"
 #include "nrf52832.h"
 #include "components/spi/spinorflash.h"
 #include "components/spi/st7789.h"
@@ -21,7 +22,7 @@
 
 typedef struct pinetime_t pinetime_t;
 
-pinetime_t *pinetime_new(const program_t *program);
+pinetime_t *pinetime_new(const program_t *program, event_queue_t *event_queue);
 void pinetime_free(pinetime_t *);
 void pinetime_reset(pinetime_t *);
 int pinetime_step(pinetime_t *);

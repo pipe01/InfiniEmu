@@ -7,6 +7,7 @@
 #include "byte_util.h"
 #include "fault.h"
 #include "nrf52832.h"
+#include "pcap.h"
 #include "peripherals/nrf52832/ppi.h"
 
 // Assume a 200 byte transmission at 1Mbps with a 64MHz clock
@@ -388,83 +389,90 @@ PPI_TASK_HANDLER(radio_task_handler)
         switch (radio->state)
         {
         case STATE_TXIDLE:
+        {
+            uint8_t packet[256];
+            dma_read(radio->dma, radio->packetptr, 256, packet);
+
+            size_t ptr = 0;
+
+            uint8_t s0[radio->pcnf0.S0LEN];
+            memcpy(s0, &packet[ptr], radio->pcnf0.S0LEN);
+            ptr += radio->pcnf0.S0LEN;
+
+            uint16_t length = READ_UINT16(packet, ptr);
+            length &= (1 << radio->pcnf0.LFLEN) - 1;
+            ptr += (radio->pcnf0.LFLEN + 7) / 8; // Round up to the nearest byte
+
+            if (radio->pcnf0.S1LEN > 0)
+            {
+                fault_take(FAULT_NOT_IMPLEMENTED);
+            }
+            else if (radio->pcnf0.S1INCL == 1)
+            {
+                ptr++;
+            }
+
+            uint8_t payload[length];
+            memcpy(payload, &packet[ptr], length);
+
+            uint8_t address[4];
+
+            assert(radio->pcnf1.BALEN == 3);
+
+            switch (radio->txaddress)
+            {
+            case 0:
+                WRITE_UINT32(address, 0, radio->base0 >> 8);
+                address[3] = radio->prefix0.ap[0];
+                break;
+
+            default:
+                WRITE_UINT32(address, 0, radio->base1 >> 8);
+                address[3] = radio->prefix1.ap[radio->txaddress & 7];
+                break;
+            }
+
+            uint8_t crc[3] = {0}; // TODO: Implement CRC
+
+            // Excludes preamble
+            uint8_t ll_packet[sizeof(address) + radio->pcnf0.S0LEN + sizeof(length) + sizeof(payload) + sizeof(crc)];
+            uint8_t *packet_ptr = ll_packet;
+
+            memcpy(packet_ptr, address, sizeof(address));
+            packet_ptr += sizeof(address);
+
+            memcpy(packet_ptr, s0, radio->pcnf0.S0LEN);
+            packet_ptr += radio->pcnf0.S0LEN;
+
+            int length_bytes = (radio->pcnf0.LFLEN + 7) / 8;
+            memcpy(packet_ptr, &length, length_bytes);
+            packet_ptr += length_bytes;
+
+            memcpy(packet_ptr, payload, sizeof(payload));
+            packet_ptr += sizeof(payload);
+
+            memcpy(packet_ptr, crc, sizeof(crc));
+            packet_ptr += sizeof(crc);
+
+            event_radio_message_t *ll_packet_event = malloc(sizeof(event_radio_message_t));
+            memcpy(ll_packet_event->data, ll_packet, sizeof(ll_packet));
+            ll_packet_event->len = sizeof(ll_packet);
+            event_queue_add(radio->event_queue, EVENT_RADIO_MESSAGE, ll_packet_event);
+
             if (radio->tx_cb)
             {
-                uint8_t packet[256];
-                dma_read(radio->dma, radio->packetptr, 256, packet);
-
-                size_t ptr = 0;
-
-                uint8_t s0[radio->pcnf0.S0LEN];
-                memcpy(s0, &packet[ptr], radio->pcnf0.S0LEN);
-                ptr += radio->pcnf0.S0LEN;
-
-                uint16_t length = READ_UINT16(packet, ptr);
-                length &= (1 << radio->pcnf0.LFLEN) - 1;
-                ptr += (radio->pcnf0.LFLEN + 7) / 8; // Round up to the nearest byte
-
-                if (radio->pcnf0.S1LEN > 0)
-                {
-                    fault_take(FAULT_NOT_IMPLEMENTED);
-                }
-                else if (radio->pcnf0.S1INCL == 1)
-                {
-                    ptr++;
-                }
-
-                uint8_t payload[length];
-                memcpy(payload, &packet[ptr], length);
-
-                uint8_t address[4];
-
-                assert(radio->pcnf1.BALEN == 3);
-
-                switch (radio->txaddress)
-                {
-                case 0:
-                    WRITE_UINT32(address, 0, radio->base0 >> 8);
-                    address[3] = radio->prefix0.ap[0];
-                    break;
-
-                default:
-                    WRITE_UINT32(address, 0, radio->base1 >> 8);
-                    address[3] = radio->prefix1.ap[radio->txaddress & 7];
-                    break;
-                }
-
-                uint8_t crc[3] = {0}; // TODO: Implement CRC
-
-                // Excludes preamble
-                uint8_t ll_packet[sizeof(address) + radio->pcnf0.S0LEN + sizeof(length) + sizeof(payload) + sizeof(crc)];
-                uint8_t *packet_ptr = ll_packet;
-
-                memcpy(packet_ptr, address, sizeof(address));
-                packet_ptr += sizeof(address);
-
-                memcpy(packet_ptr, s0, radio->pcnf0.S0LEN);
-                packet_ptr += radio->pcnf0.S0LEN;
-
-                int length_bytes = (radio->pcnf0.LFLEN + 7) / 8;
-                memcpy(packet_ptr, &length, length_bytes);
-                packet_ptr += length_bytes;
-
-                memcpy(packet_ptr, payload, sizeof(payload));
-                packet_ptr += sizeof(payload);
-
-                memcpy(packet_ptr, crc, sizeof(crc));
-                packet_ptr += sizeof(crc);
-
                 radio->tx_cb(radio->rx_userdata, ll_packet, sizeof(ll_packet));
             }
 
-            uint8_t packet[30];
-            radio_inject_packet(radio, packet, sizeof(packet));
+            // uint8_t packet[30];
+            // radio_inject_packet(radio, packet, sizeof(packet));
 
             radio->next_state = STATE_TX;
-            break;
+        }
+        break;
 
         case STATE_RXIDLE:
-            radio->next_state = STATE_RX;
+            // radio->next_state = STATE_RX;
             break;
 
         default:

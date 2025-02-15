@@ -5,6 +5,7 @@ set(SRC_FILES
     commander.c
     cpu.c
     dma.c
+    event_queue.c
     fault.c
     lua.c
     memory.c
