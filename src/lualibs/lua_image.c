@@ -241,7 +241,7 @@ DEF_FN(combine)
         if (!image)
             luaL_error(L, "Invalid image");
 
-        if (width == -1)
+        if (!dst)
         {
             width = image->width;
             height = image->height;
