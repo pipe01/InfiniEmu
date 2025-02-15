@@ -18,7 +18,9 @@ typedef struct
 #define DATA_TYPE image_t
 #include "lualibs/lualibs.h"
 
+#if ENABLE_PNG
 #include <png.h>
+#endif
 
 void draw_image(image_t *dst, image_t *src, size_t x, size_t y)
 {
@@ -128,6 +130,7 @@ DEF_FN(new)
 
 DEF_FN(load)
 {
+#if ENABLE_PNG
     const char *filename = luaL_checkstring(L, 1);
 
     FILE *fp = fopen(filename, "rb");
@@ -192,6 +195,10 @@ DEF_FN(load)
     fclose(fp);
 
     return 1;
+#else // ENABLE_PNG
+    luaL_error(L, "PNG support not enabled");
+    return 0;
+#endif // ENABLE_PNG
 }
 
 DEF_FN(combine)
@@ -268,6 +275,7 @@ DEF_FN(combine)
 
 DEF_FN(save)
 {
+#if ENABLE_PNG
     image_t *image = lua_getdata(L, 1);
 
     const char *filename = luaL_checkstring(L, 2);
@@ -312,6 +320,10 @@ DEF_FN(save)
     png_destroy_write_struct(&png, &info);
 
     return 0;
+#else
+    luaL_error(L, "PNG support not enabled");
+    return 0;
+#endif // ENABLE_PNG
 }
 
 DEF_FN(__eq)

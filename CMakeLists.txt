@@ -7,13 +7,18 @@ if(CMAKE_TOOLCHAIN_FILE MATCHES "Emscripten.cmake")
     message("[*] Building using Emscripten toolchain")
 endif()
 
-find_package(PNG REQUIRED)
+find_package(PNG)
+if(PNG_FOUND)
+    add_compile_definitions(-DENABLE_PNG=1)
+endif()
 
 include("./cmake/bundle.cmake")
 
 include_directories(include lib .)
 
 add_subdirectory(lib/tiny-AES-c)
+
+add_compile_options(-g -O0)
 
 option(CAPSTONE_ARCHITECTURE_DEFAULT "" OFF)
 option(CAPSTONE_ARM_SUPPORT "" ON)

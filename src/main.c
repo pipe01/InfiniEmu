@@ -83,7 +83,7 @@ int main(int argc, char **argv)
 
     if (lua_script_path)
     {
-        run_lua_file(lua_script_path, NULL);
+        run_lua_file(lua_script_path);
         return 0;
     }
 

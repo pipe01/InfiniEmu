@@ -3,7 +3,7 @@
 
 #include "util.h"
 
-void run_lua(const char *script, size_t script_size, const char *name, pinetime_t *pt)
+void run_lua(const char *script, size_t script_size, const char *name)
 {
     lua_State *L = luaL_newstate();
 
@@ -19,10 +19,10 @@ void run_lua(const char *script, size_t script_size, const char *name, pinetime_
         fprintf(stderr, "Failed to run Lua script: %s\n", lua_tostring(L, -1));
     }
 
-    lua_close(L);
+    // lua_close(L);
 }
 
-void run_lua_file(const char *script_path, pinetime_t *pt)
+void run_lua_file(const char *script_path)
 {
     size_t script_size;
     uint8_t *script = read_file_u8(script_path, &script_size);
@@ -33,7 +33,7 @@ void run_lua_file(const char *script_path, pinetime_t *pt)
         return;
     }
 
-    run_lua((const char *)script, script_size, script_path, pt);
+    run_lua((const char *)script, script_size, script_path);
 
     free(script);
 }

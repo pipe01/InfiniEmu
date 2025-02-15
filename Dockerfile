@@ -1,5 +1,5 @@
 FROM golang:1.23.2-bookworm AS builder
-RUN apt-get update && apt-get install -y wget git gcc-12 g++ make cmake pkg-config libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libopengl-dev libglx-dev libglu1-mesa-dev freeglut3-dev libxxf86vm-dev
+RUN apt-get update && apt-get install -y wget git gcc-12 g++ make cmake pkg-config libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libopengl-dev libglx-dev libglu1-mesa-dev freeglut3-dev libxxf86vm-dev libpng-dev
 
 WORKDIR /app
 COPY . .
