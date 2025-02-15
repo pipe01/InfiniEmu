@@ -6,8 +6,6 @@
 
 #include "lualibs/lua_image.h"
 
-#include <png.h>
-
 DEF_FN_PUBLIC(display_new)
 {
     if (!lua_isuserdata(L, 1))
