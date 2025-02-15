@@ -158,6 +158,10 @@ struct RADIO_inst_t
 {
     ticker_t *ticker;
     dma_t *dma;
+    event_queue_t *event_queue;
+#if ENABLE_PCAP
+    pcap_t *pcap;
+#endif
 
     bool powered_on;
     radio_state_t state, next_state;
@@ -669,6 +673,7 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
     RADIO_t *radio = calloc(1, sizeof(RADIO_t));
     radio->ticker = ctx.ticker;
     radio->dma = ctx.dma;
+    radio->event_queue = ctx.event_queue;
 
     ppi_add_peripheral(ctx.ppi, ctx.id, radio_task_handler, radio);
 

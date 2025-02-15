@@ -41,6 +41,7 @@ struct NRF52832_inst_t
 {
     cpu_t *cpu;
     state_store_t *state_store;
+    event_queue_t *event_queue;
 
     uint8_t *flash;
     size_t flash_size;
@@ -87,13 +88,14 @@ struct NRF52832_inst_t
         memory_map_add_region((chip)->mem, memreg_new_operation(0x40000000 | (((idn) & 0xFF) << 12), 0x1000, name##_operation, (chip)->field)); \
     } while (0)
 
-NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size, state_store_t *store)
+NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size, state_store_t *store, event_queue_t *event_queue)
 {
     uint8_t *sram = malloc(sram_size);
     memset(sram, SRAM_FILL_BYTE, sram_size);
 
     NRF52832_t *chip = malloc(sizeof(NRF52832_t));
     chip->state_store = store;
+    chip->event_queue = event_queue;
     chip->sram = sram;
     chip->sram_size = sram_size;
     chip->pins = pins_new(store, 3300, 2310);
@@ -125,6 +127,7 @@ NRF52832_t *nrf52832_new(const program_t *flash, size_t sram_size, state_store_t
         .spi = chip->bus_spi,
         .dma = chip->dma,
         .state_store = store,
+        .event_queue = event_queue,
     };
 
     NEW_NRF52_PERIPH(chip, NVMC, nvmc, nvmc, INSTANCE_NVMC, chip->flash, program_size(flash));
