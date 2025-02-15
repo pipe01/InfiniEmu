@@ -13,6 +13,7 @@ void run_lua(const char *script, size_t script_size, const char *name)
     luaopen_pinetime(L);
     luaopen_image(L);
     luaopen_touch(L);
+    luaopen_buffer(L);
 
     if (luaL_loadbuffer(L, script, script_size, name) || lua_pcall(L, 0, 0, 0))
     {

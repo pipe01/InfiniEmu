@@ -472,7 +472,7 @@ PPI_TASK_HANDLER(radio_task_handler)
         break;
 
         case STATE_RXIDLE:
-            // radio->next_state = STATE_RX;
+            radio->next_state = STATE_RX;
             break;
 
         default:

@@ -9,6 +9,7 @@ typedef struct
 #define LIB_NAME pinetime
 #define DATA_TYPE lua_pinetime_t
 #include "lualibs/lualibs.h"
+#include "lualibs/lua_buffer.h"
 #include "lualibs/lua_display.h"
 #include "lualibs/lua_touch.h"
 
@@ -168,7 +169,11 @@ DEF_FN(poll)
         case EVENT_RADIO_MESSAGE:
         {
             event_radio_message_t *msg = data;
-            lua_pushlstring(L, (const char *)msg->data, msg->len);
+            lua_pushcclosure(L, l_buffer_new_copy, 0);
+            lua_pushlightuserdata(L, msg->data);
+            lua_pushinteger(L, msg->len);
+            lua_call(L, 2, 1);
+
             free(data);
             return 2;
         }

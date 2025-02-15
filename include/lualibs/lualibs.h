@@ -62,6 +62,7 @@ DEF_LIB(pinetime);
 DEF_LIB(display);
 DEF_LIB(image);
 DEF_LIB(touch);
+DEF_LIB(buffer);
 
 #undef DEF_LIB
 
