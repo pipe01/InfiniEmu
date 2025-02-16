@@ -1,4 +1,5 @@
 #include "pinetime.h"
+#include "peripherals/nrf52832/radio.h"
 
 typedef struct
 {
@@ -61,6 +62,7 @@ DEF_FN(run)
     lua_pinetime_t *lpt = lua_getdata(L, 1);
 
     int cycles = 0;
+    bool exit_on_event = false;
 
     if (lua_isnumber(L, 2))
     {
@@ -84,6 +86,13 @@ DEF_FN(run)
 
             cycles = luaL_checkinteger(L, -1);
         }
+
+        lua_pushstring(L, "exitonevent");
+        lua_gettable(L, 2);
+        if (!lua_isnil(L, -1))
+        {
+            exit_on_event = lua_toboolean(L, -1);
+        }
     }
     else
     {
@@ -95,6 +104,9 @@ DEF_FN(run)
     while (rem_cycles > 0)
     {
         rem_cycles -= pinetime_step(lpt->pt);
+
+        if (exit_on_event && event_queue_peek(lpt->event_queue))
+            break;
     }
 
     lua_pushinteger(L, cycles - rem_cycles);
@@ -192,17 +204,33 @@ DEF_FN(poll)
     return 0;
 }
 
+DEF_FN(sendradio)
+{
+    lua_pinetime_t *lpt = lua_getdata(L, 1);
+
+    luaL_argcheck(L, lua_isuserdata(L, 2), 2, "Expected userdata");
+
+    buffer_t *buffer = lua_touserdata(L, 2); //TODO: Check if buffer is valid
+
+    RADIO_t *radio = nrf52832_get_peripheral(pinetime_get_nrf52832(lpt->pt), INSTANCE_RADIO);
+
+    radio_inject_packet(radio, buffer_get_data(buffer), buffer_get_len(buffer));
+
+    return 0;
+}
+
 DEF_FUNCS{
     FN(new),
     END_FN,
 };
 
 DEF_METHODS{
-    FN(run),
-    FN(reset),
     FN(__index),
     FN(__gc),
+    FN(run),
+    FN(reset),
     FN(poll),
+    FN(sendradio),
     END_FN,
 };
 

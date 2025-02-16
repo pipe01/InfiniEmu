@@ -24,3 +24,4 @@ void event_queue_free(event_queue_t *);
 
 void event_queue_add(event_queue_t *, event_type_t ev, void *data);
 bool event_queue_poll(event_queue_t *, event_type_t *ev, void **data);
+bool event_queue_peek(event_queue_t *);

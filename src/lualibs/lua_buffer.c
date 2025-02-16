@@ -2,14 +2,14 @@
 #include <stdint.h>
 #include <string.h>
 
-typedef struct
+struct buffer_t
 {
     uint8_t *data;
     size_t len;
-} buffer_t;
+};
 
 #define LIB_NAME buffer
-#define DATA_TYPE buffer_t
+#define DATA_TYPE struct buffer_t
 #include "lualibs/lualibs.h"
 
 #include "lualibs/lua_buffer.h"
@@ -24,6 +24,16 @@ buffer_t *create_buffer(lua_State *L, size_t len)
     lua_setmetatable(L, -2);
 
     return buffer;
+}
+
+uint8_t *buffer_get_data(buffer_t *buffer)
+{
+    return buffer->data;
+}
+
+size_t buffer_get_len(buffer_t *buffer)
+{
+    return buffer->len;
 }
 
 DEF_FN(new)
@@ -164,6 +174,38 @@ DEF_FN(__tostring)
     return 1;
 }
 
+DEF_FN(__eq)
+{
+    buffer_t *buffer1 = lua_getdata(L, 1);
+    buffer_t *buffer2 = lua_getdata(L, 2);
+
+    if (buffer1->len != buffer2->len)
+        lua_pushboolean(L, 0);
+    else
+        lua_pushboolean(L, memcmp(buffer1->data, buffer2->data, buffer1->len) == 0);
+
+    return 1;
+}
+
+DEF_FN(__len)
+{
+    buffer_t *buffer = lua_getdata(L, 1);
+    lua_pushinteger(L, buffer->len);
+    return 1;
+}
+
+DEF_FN(__concat)
+{
+    buffer_t *buffer1 = lua_getdata(L, 1);
+    buffer_t *buffer2 = lua_getdata(L, 2);
+
+    buffer_t *concat = create_buffer(L, buffer1->len + buffer2->len);
+    memcpy(concat->data, buffer1->data, buffer1->len);
+    memcpy(&concat->data[buffer1->len], buffer2->data, buffer2->len);
+
+    return 1;
+}
+
 DEF_FN(print)
 {
     buffer_t *buffer = lua_getdata(L, 1);
@@ -257,6 +299,41 @@ DEF_FN(write)
     return 0;
 }
 
+DEF_FN(toutf8)
+{
+    buffer_t *buffer = lua_getdata(L, 1);
+
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+
+    for (size_t i = 0; i < buffer->len; i++)
+    {
+        luaL_addchar(&b, buffer->data[i]);
+    }
+
+    luaL_pushresult(&b);
+
+    return 1;
+}
+
+DEF_FN(resize)
+{
+    buffer_t *buffer = lua_getdata(L, 1);
+
+    luaL_argcheck(L, lua_isnumber(L, 2), 2, "Expected number");
+
+    size_t len = lua_tonumber(L, 2);
+    if (len <= 0)
+    {
+        return luaL_error(L, "Invalid argument: expected positive number");
+    }
+
+    buffer->data = realloc(buffer->data, len);
+    buffer->len = len;
+
+    return 0;
+}
+
 DEF_FUNCS{
     FN(new),
     END_FN,
@@ -267,10 +344,15 @@ DEF_METHODS{
     FN(__index),
     FN(__newindex),
     FN(__tostring),
+    FN(__eq),
+    FN(__len),
+    FN(__concat),
     FN(print),
     FN(slice),
     FN(reverse),
     FN(write),
+    FN(toutf8),
+    FN(resize),
     END_FN,
 };
 

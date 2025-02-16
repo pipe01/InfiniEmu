@@ -14,6 +14,12 @@
 #define STATE_CHANGE_TXRX_DELAY_HFCLK (200 * 8 * (64000000 / 1000000))
 #define STATE_CHANGE_DELAY_HFCLK 100
 
+#if ENABLE_RADIO_LOG
+#define RADIO_LOG(x, ...) printf(x, ##__VA_ARGS__)
+#else
+#define RADIO_LOG(x, ...)
+#endif
+
 typedef union
 {
     struct
@@ -139,6 +145,7 @@ typedef enum
     STATE_TXDISABLE = 12, // The radio is disabling the transmitter
 } radio_state_t;
 
+#if RADIO_LOG
 static const char *radio_state_names[] = {
     "DISABLED",
     "RXRU",
@@ -154,6 +161,19 @@ static const char *radio_state_names[] = {
     "TX",
     "TXDISABLE",
 };
+
+static const char *radio_task_names[] = {
+    [RADIO_TASKS_TXEN] = "TXEN",
+    [RADIO_TASKS_RXEN] = "RXEN",
+    [RADIO_TASKS_START] = "START",
+    [RADIO_TASKS_STOP] = "STOP",
+    [RADIO_TASKS_DISABLE] = "DISABLE",
+    [RADIO_TASKS_RSSISTART] = "RSSISTART",
+    [RADIO_TASKS_RSSISTOP] = "RSSISTOP",
+    [RADIO_TASKS_BCSTART] = "BCSTART",
+    [RADIO_TASKS_BCSTOP] = "BCSTOP",
+};
+#endif
 
 struct RADIO_inst_t
 {
@@ -198,7 +218,7 @@ struct RADIO_inst_t
     radio_tx_cb_t tx_cb;
     void *rx_userdata;
 
-    uint8_t rx_data[258];
+    uint8_t rx_data[270];
     size_t rx_data_len;
 };
 
@@ -282,15 +302,21 @@ void radio_do_state_change(void *userdata)
             {
                 ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_BCMATCH), radio->inten.BCMATCH);
             }
+            ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_RSSIEND), radio->inten.RSSIEND);
+            ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_CRCOK), radio->inten.CRCOK);
         }
         else if (radio->rx_data_len > 0)
         {
+            dma_write(radio->dma, radio->packetptr, radio->rx_data_len, radio->rx_data);
+
+            radio->rx_data_len = 0;
+
             radio->rx_stage++;
             ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_ADDRESS), radio->inten.ADDRESS);
         }
         else
         {
-            break;
+            break; // No data to receive, don't request update
         }
         request_update = true;
         break;
@@ -323,29 +349,17 @@ void radio_do_state_change(void *userdata)
         break;
     }
 
-    printf("Radio state change: %s -> %s\n", radio_state_names[radio->state], radio_state_names[radio->next_state]);
+    RADIO_LOG("Radio state change: %s -> %s\n", radio_state_names[radio->state], radio_state_names[radio->next_state]);
 
     if (request_update)
         ticker_add(radio->ticker, CLOCK_HFCLK, radio_do_state_change, radio, delay, false);
 }
 
-static const char *radio_task_names[] = {
-    [RADIO_TASKS_TXEN] = "TXEN",
-    [RADIO_TASKS_RXEN] = "RXEN",
-    [RADIO_TASKS_START] = "START",
-    [RADIO_TASKS_STOP] = "STOP",
-    [RADIO_TASKS_DISABLE] = "DISABLE",
-    [RADIO_TASKS_RSSISTART] = "RSSISTART",
-    [RADIO_TASKS_RSSISTOP] = "RSSISTOP",
-    [RADIO_TASKS_BCSTART] = "BCSTART",
-    [RADIO_TASKS_BCSTOP] = "BCSTOP",
-};
-
 PPI_TASK_HANDLER(radio_task_handler)
 {
     RADIO_t *radio = userdata;
 
-    printf("Radio task: %s\n", radio_task_names[task * 4]);
+    RADIO_LOG("Radio task: %s\n", radio_task_names[task * 4]);
 
     switch (task)
     {
@@ -636,6 +650,13 @@ OPERATION(radio)
     case 0x544: // TIFS
         OP_RETURN_REG(radio->tifs, WORD);
 
+    case 0x548: // RSSISAMPLE
+        if (OP_IS_READ(op))
+        {
+            *value = 69;
+        }
+        return MEMREG_RESULT_OK;
+
     case 0x550: // STATE
         OP_ASSERT_READ(op);
         *value = radio->state;
@@ -688,20 +709,21 @@ NRF52_PERIPHERAL_CONSTRUCTOR(RADIO, radio)
     return radio;
 }
 
-void radio_inject_packet(RADIO_t *radio, uint8_t *data, size_t len)
+void radio_inject_packet(RADIO_t *radio, const uint8_t *data, size_t len)
 {
-    if (len > sizeof(radio->rx_data))
+    if (len > sizeof(radio->rx_data) || len < 4)
         return; // TODO: Return an error
 
-    memcpy(radio->rx_data, data, len);
-    radio->rx_data_len = len;
+    radio->rx_data_len = len - 4 + 1;
+    radio->rx_data[0] = data[4];
+    radio->rx_data[1] = data[5];
+    radio->rx_data[2] = 0; // Skip S1 byte
+    memcpy(radio->rx_data + 3, data + 6, len - 6);
 
     // If we are currently waiting for a packet we immediately transition to the next state
     // Otherwise, the next time we transition to the RX state we will fire the ADDRESS event
-
     if (radio->state == STATE_RX && radio->rx_stage == 0)
     {
-        radio->rx_stage++;
-        ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_ADDRESS), radio->inten.ADDRESS);
+        radio_do_state_change(radio);
     }
 }

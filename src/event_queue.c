@@ -56,3 +56,8 @@ bool event_queue_poll(event_queue_t *queue, event_type_t *ev, void **data)
 
     return true;
 }
+
+bool event_queue_peek(event_queue_t *queue)
+{
+    return queue->head != queue->tail;
+}
