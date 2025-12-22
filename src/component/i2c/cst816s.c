@@ -14,7 +14,6 @@
 
 typedef struct __attribute__((packed))
 {
-    uint8_t _unknown;
     uint8_t gesture;
     uint8_t pointNum;
     uint8_t xHigh;
@@ -55,7 +54,7 @@ void cst816s_write(uint8_t *data, size_t data_size, void *userdata)
 
     switch (reg)
     {
-    case 0x00: // Read touch data
+    case 0x01: // Read touch data
     {
         if (cst816s->has_touch)
         {
@@ -78,7 +77,6 @@ void cst816s_write(uint8_t *data, size_t data_size, void *userdata)
 
     case 0xA7: // ChipID
         cst816s->next_read[0] = CHIPID;
-        cst816s->next_read_size = 1;
         cst816s->next_read_size = 1;
         break;
 
