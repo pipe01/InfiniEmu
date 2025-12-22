@@ -105,6 +105,7 @@ void cst816s_write(uint8_t *data, size_t data_size, void *userdata)
         break;
 
     default:
+        printf("Unknown CST816S register: 0x%02X\n", reg);
         fault_take(FAULT_I2C_UNKNOWN_COMMAND);
     }
 }
