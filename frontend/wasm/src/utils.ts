@@ -115,7 +115,8 @@ export async function getZipOrNested(data: Uint8Array, maxDepth = 5): Promise<FS
 export function resolveArtifactUrl(url: string) {
     const matches = /artifact:\/\/(.+\/.+)\/(\d+)/.exec(url);
     if (matches) {
-        return `https://proxy.corsfix.com/?https://nightly.link/${matches[1]}/actions/artifacts/${matches[2]}.zip`;
+        // TODO: Maybe support other repos? I'm not too eager to let anyone download any files though
+        return `https://pipe01.net/infiniemu/artifact?artifact_id=${matches[2]}`
     }
 
     return url;
