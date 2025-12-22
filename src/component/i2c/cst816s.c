@@ -100,6 +100,10 @@ void cst816s_write(uint8_t *data, size_t data_size, void *userdata)
         // Do nothing
         break;
 
+    case 0xFB: // AutoReset
+        // Do nothing
+        break;
+
     default:
         fault_take(FAULT_I2C_UNKNOWN_COMMAND);
     }
