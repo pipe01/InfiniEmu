@@ -288,7 +288,7 @@ type Emulator struct {
 
 var emulators = map[uint64]*Emulator{}
 
-func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
+func NewEmulator(program *Program, big bool) *Emulator {
 	flash := program.Flatten()
 
 	var pinner runtime.Pinner
@@ -319,10 +319,6 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 
 	extflashContents := make([]byte, C.PINETIME_EXTFLASH_SIZE)
 	longPinner.Pin(&extflashContents[0])
-
-	if len(spiFlash) > 0 {
-		copy(extflashContents, spiFlash)
-	}
 
 	C.spinorflash_set_buffer(extflash, (*C.uchar)(&extflashContents[0]))
 
@@ -635,6 +631,10 @@ func (e *Emulator) DidSPIFlashChange() bool {
 
 func (e *Emulator) SPIFlash() []byte {
 	return e.extflashContents
+}
+
+func (e *Emulator) SetSPIFlash(data []byte) {
+	copy(e.extflashContents, data)
 }
 
 func (e *Emulator) FindFreeHeapBlocks() {
