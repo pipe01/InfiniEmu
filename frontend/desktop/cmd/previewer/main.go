@@ -36,7 +36,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	e := emulator.NewEmulator(program, nil, true)
+	e := emulator.NewEmulator(program, true)
 
 	screenshots, err := script.Execute(e, scriptBytes)
 	if err != nil {
