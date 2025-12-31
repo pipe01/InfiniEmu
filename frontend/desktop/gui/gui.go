@@ -47,10 +47,7 @@ func pinCheckbox(id string, emulator *emulator.Emulator, pin int) {
 func screenWindow(screenBuffer []byte, e *emulator.Emulator) {
 	var err error
 
-	flags := imgui.WindowFlagsNoResize | imgui.WindowFlagsAlwaysAutoResize
-	if allowScreenSwipes {
-		flags |= imgui.WindowFlagsNoMove
-	}
+	flags := imgui.WindowFlagsNoResize | imgui.WindowFlagsAlwaysAutoResize | imgui.WindowFlagsNoMove
 
 	imgui.SetNextWindowPosV(imgui.Vec2{X: 20, Y: 20}, imgui.ConditionOnce, imgui.Vec2{})
 	if imgui.BeginV("Display", nil, flags) {
@@ -73,15 +70,14 @@ func screenWindow(screenBuffer []byte, e *emulator.Emulator) {
 		imgui.Image(screenTextureID, imgui.Vec2{X: emulator.DisplayWidth, Y: emulator.DisplayHeight})
 
 		if imgui.IsItemHovered() {
-			if mouseLeftIsDown && !mouseLeftWasDown {
-				screenMouseDownPos = imgui.MousePos().Minus(imgui.GetItemRectMin())
-				screenDidSwipe = false
+			pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
 
-				if !allowScreenSwipes {
-					e.DoTouch(emulator.GestureSingleTap, int(screenMouseDownPos.X), int(screenMouseDownPos.Y))
-				}
+			if mouseLeftIsDown && !mouseLeftWasDown && allowScreenSwipes {
+				screenMouseDownPos = pos
+				screenDidSwipe = false
+			} else if mouseLeftIsDown && !allowScreenSwipes {
+				e.DoTouch(emulator.GestureSingleTap, int(pos.X), int(pos.Y))
 			} else if mouseLeftIsDown && mouseLeftWasDown && !screenDidSwipe && allowScreenSwipes {
-				pos := imgui.MousePos().Minus(imgui.GetItemRectMin())
 				distVec := pos.Minus(screenMouseDownPos)
 				dist := math.Sqrt(float64(distVec.X*distVec.X) + float64(distVec.Y*distVec.Y))
 
