@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"time"
 
 	"github.com/pipe01/InfiniEmu/frontend/desktop/emulator"
 	"github.com/pipe01/InfiniEmu/frontend/desktop/gui"
@@ -34,12 +36,24 @@ func main() {
 
 	fmt.Printf("Loaded %d symbols and %d functions\n", len(program.Symbols), len(program.Functions))
 
-	var extflashInit []byte
-	if v, err := os.ReadFile("spiflash.bin"); err == nil {
-		extflashInit = v
-	}
+	e := emulator.NewEmulator(program, true)
 
-	e := emulator.NewEmulator(program, extflashInit, true)
+	if f, err := os.OpenFile("spiflash.bin", os.O_RDWR, 0); err == nil {
+		go func() {
+			defer f.Close()
+
+			t := time.Tick(1 * time.Second)
+
+			for {
+				f.Seek(0, io.SeekStart)
+
+				data, _ := io.ReadAll(f)
+				e.SetSPIFlash(data)
+
+				<-t
+			}
+		}()
+	}
 
 	if *emitRunlog {
 		e.RecordRunlog("runlog.bin")

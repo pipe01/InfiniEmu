@@ -19,7 +19,7 @@ package emulator
 extern unsigned long inst_counter;
 extern bool stop_loop;
 
-scheduler_t *create_sched(pinetime_t *pt, size_t freq);
+scheduler_t *create_sched(pinetime_t *pt, size_t freq, rtt_t *rtt);
 int run(int type, void *arg, rtt_t *rtt);
 void set_cpu_branch_cb(cpu_t *cpu, void *userdata);
 int run_iterations(pinetime_t *pt, rtt_t *rtt, unsigned long iterations, unsigned long iterations_per_us);
@@ -288,7 +288,7 @@ type Emulator struct {
 
 var emulators = map[uint64]*Emulator{}
 
-func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
+func NewEmulator(program *Program, big bool) *Emulator {
 	flash := program.Flatten()
 
 	var pinner runtime.Pinner
@@ -320,10 +320,6 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 	extflashContents := make([]byte, C.PINETIME_EXTFLASH_SIZE)
 	longPinner.Pin(&extflashContents[0])
 
-	if len(spiFlash) > 0 {
-		copy(extflashContents, spiFlash)
-	}
-
 	C.spinorflash_set_buffer(extflash, (*C.uchar)(&extflashContents[0]))
 
 	// Active low pins with pull ups
@@ -344,12 +340,13 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 	}
 
 	id := rand.Uint64()
+	rtt := C.rtt_new(C.cpu_mem(cpu))
 
 	emulator := Emulator{
 		id:      id,
 		program: program,
 		pt:      pt,
-		sched:   C.create_sched(pt, BaseFrequencyHZ),
+		sched:   C.create_sched(pt, BaseFrequencyHZ, rtt),
 
 		initialSP: binary.LittleEndian.Uint32(flash),
 
@@ -359,7 +356,7 @@ func NewEmulator(program *Program, spiFlash []byte, big bool) *Emulator {
 		lcd:         C.pinetime_get_st7789(pt),
 		touchScreen: C.pinetime_get_cst816s(pt),
 		hrs:         C.pinetime_get_hrs3300(pt),
-		rtt:         C.rtt_new(C.cpu_mem(cpu)),
+		rtt:         rtt,
 		extflash:    extflash,
 		pins:        pins,
 		rtcs:        rtcs,
@@ -634,6 +631,10 @@ func (e *Emulator) DidSPIFlashChange() bool {
 
 func (e *Emulator) SPIFlash() []byte {
 	return e.extflashContents
+}
+
+func (e *Emulator) SetSPIFlash(data []byte) {
+	copy(e.extflashContents, data)
 }
 
 func (e *Emulator) FindFreeHeapBlocks() {

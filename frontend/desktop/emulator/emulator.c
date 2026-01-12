@@ -78,9 +78,9 @@ int run_iterations(pinetime_t *pt, rtt_t *rtt, unsigned long iterations, unsigne
 	return 0;
 }
 
-scheduler_t *create_sched(pinetime_t *pt, size_t freq)
+scheduler_t *create_sched(pinetime_t *pt, size_t freq, rtt_t *rtt)
 {
-	return scheduler_new((scheduler_cb_t)pinetime_step, pt, freq);
+	return scheduler_new((scheduler_cb_t)pinetime_step, pt, freq, rtt);
 }
 
 int run(int type, void *arg, rtt_t *rtt)
