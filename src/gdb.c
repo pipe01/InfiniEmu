@@ -94,6 +94,7 @@ struct gdb_t
     pthread_cond_t conn_cond;
     pthread_mutex_t conn_lock;
     bool has_connected;
+    uint16_t port;
 
     _Atomic bool is_running;
     pthread_t run_thread;
@@ -987,6 +988,8 @@ void gdb_start(gdb_t *gdb)
             exit(1);
         }
 
+        gdb->port = addr.sin_port;
+
         printf("GDB stub listening on port %d\n", ntohs(addr.sin_port));
         break;
     }
@@ -1043,4 +1046,9 @@ void gdb_wait_for_connection(gdb_t *gdb)
     }
 
     pthread_mutex_unlock(&gdb->conn_lock);
+}
+
+uint16_t gdb_get_port(gdb_t *gdb)
+{
+    return gdb->port;
 }
