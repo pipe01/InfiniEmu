@@ -41,7 +41,7 @@ DEF_FN(new)
     if (lua_isnumber(L, 1))
     {
         int len = lua_tonumber(L, 1);
-        if (len <= 0)
+        if (len < 0)
         {
             return luaL_error(L, "Invalid argument: expected positive number");
         }
@@ -235,7 +235,7 @@ DEF_FN(slice)
 
     if (end < 0)
     {
-        end = buffer->len + end;
+        end = buffer->len + end + 1;
     }
 
     if (start < 0 || start >= (int)buffer->len)

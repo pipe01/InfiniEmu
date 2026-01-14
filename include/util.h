@@ -21,7 +21,7 @@ static inline uint8_t *read_file_u8(const char *path, size_t *size)
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    uint8_t *data = malloc(fsize);
+    uint8_t *data = (uint8_t *)malloc(fsize);
     if (fread(data, 1, fsize, f) != (size_t)fsize)
     {
         fprintf(stderr, "Failed to read %s\n", path);

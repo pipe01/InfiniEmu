@@ -1,10 +1,18 @@
 #include "pinetime.h"
+#include "gdb.h"
+#include "segger_rtt.h"
 #include "peripherals/nrf52832/radio.h"
 
 typedef struct
 {
     pinetime_t *pt;
     event_queue_t *event_queue;
+    double ran_seconds;
+
+    rtt_t *rtt;
+    bool found_rtt;
+    size_t rtt_counter, rtt_read;
+    char rtt_buffer[1024];
 } lua_pinetime_t;
 
 #define LIB_NAME pinetime
@@ -45,12 +53,14 @@ DEF_FN(new)
 
     program_load(program, 0, firmware, firmware_size);
 
-    lua_pinetime_t *lpt = lua_newuserdata(L, sizeof(lua_pinetime_t *));
+    lua_pinetime_t *lpt = lua_newuserdata(L, sizeof(lua_pinetime_t));
     luaL_getmetatable(L, METATABLE);
     lua_setmetatable(L, -2);
 
+    memset(lpt, 0, sizeof(*lpt));
     lpt->event_queue = event_queue_new();
     lpt->pt = pinetime_new(program, lpt->event_queue);
+    lpt->rtt = rtt_new(cpu_mem(nrf52832_get_cpu(pinetime_get_nrf52832(lpt->pt))));
 
     pinetime_reset(lpt->pt);
 
@@ -108,6 +118,21 @@ DEF_FN(run)
         if (exit_on_event && event_queue_peek(lpt->event_queue))
             break;
     }
+
+    if (lpt->found_rtt || lpt->rtt_counter < 1000000)
+    {
+        if (!lpt->found_rtt)
+            lpt->found_rtt = rtt_find_control(lpt->rtt);
+
+        lpt->rtt_read = rtt_flush_buffers(lpt->rtt, lpt->rtt_buffer, sizeof(lpt->rtt_buffer));
+        if (lpt->rtt_read > 0)
+        {
+            fwrite(lpt->rtt_buffer, 1, lpt->rtt_read, stderr);
+            fflush(stderr);
+        }
+    }
+
+    lpt->ran_seconds += (double)(cycles - rem_cycles) / NRF52832_HFCLK_FREQUENCY;
 
     lua_pushinteger(L, cycles - rem_cycles);
     return 1;
@@ -210,13 +235,31 @@ DEF_FN(sendradio)
 
     luaL_argcheck(L, lua_isuserdata(L, 2), 2, "Expected userdata");
 
-    buffer_t *buffer = lua_touserdata(L, 2); //TODO: Check if buffer is valid
+    buffer_t *buffer = lua_touserdata(L, 2); // TODO: Check if buffer is valid
 
     RADIO_t *radio = nrf52832_get_peripheral(pinetime_get_nrf52832(lpt->pt), INSTANCE_RADIO);
 
     radio_inject_packet(radio, buffer_get_data(buffer), buffer_get_len(buffer));
 
     return 0;
+}
+
+DEF_FN(startdebug)
+{
+    lua_pinetime_t *lpt = lua_getdata(L, 1);
+
+    gdb_t *gdb = gdb_new(lpt->pt, true);
+    gdb_start(gdb);
+
+    return 0;
+}
+
+DEF_FN(rantime)
+{
+    lua_pinetime_t *lpt = lua_getdata(L, 1);
+
+    lua_pushnumber(L, lpt->ran_seconds);
+    return 1;
 }
 
 DEF_FUNCS{
@@ -231,6 +274,8 @@ DEF_METHODS{
     FN(reset),
     FN(poll),
     FN(sendradio),
+    FN(startdebug),
+    FN(rantime),
     END_FN,
 };
 

@@ -145,7 +145,7 @@ typedef enum
     STATE_TXDISABLE = 12, // The radio is disabling the transmitter
 } radio_state_t;
 
-#if RADIO_LOG
+#if ENABLE_RADIO_LOG
 static const char *radio_state_names[] = {
     "DISABLED",
     "RXRU",
