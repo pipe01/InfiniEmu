@@ -8,6 +8,8 @@ local our_access_address = buffer.new({ 0xaa, 0xbb, 0xcc, 0xdd }):reverse()
 
 local sent_req = false
 
+local Packet = require("lua/packet")
+
 local pdu_types = {
     [0] = "ADV_IND",
     [1] = "ADV_DIRECT_IND",
@@ -20,13 +22,19 @@ local pdu_types = {
     [8] = "AUX_CONNECT_RSP",
 }
 
+local ADV_IND <const> = 0x00
+local SCAN_REQ <const> = 0x03
+local SCAN_RSP <const> = 0x04
+local CONNECT_IND <const> = 0x05
+
+local LL_OPCODE_PERIPHERAL_FEATURE_REQ <const> = 0x0E
+local LL_OPCODE_FEATURE_RSP <const> = 0x09
+
 local L2CAP_CHANNEL_ATT = 0x04
 
 local fakeCRC = buffer.new({ 0xFF, 0xFF, 0xFF })
 
-local sent_test = false
-local connected = false
-local peripheral_access_addr = nil
+connected = false
 
 local transmitSeqNum = 0
 local nextExpectedSeqNum = 0
@@ -34,9 +42,80 @@ local nextExpectedSeqNum = 0
 local last_packet_sent_time = 0
 local packet_queue = {}
 
+local LEUncodedPacket = Packet.define("LEUncodedPacket")
+    :bytes("access_address", 4)
+    :bytes_rest("pdu")
+    :build()
+
+local AdvertisingChannelPDU = Packet.define("AdvertisingChannelPDU")
+    :bitfield("header", 2, {
+        { "PDU_Type", 4 },
+        { "RFU", 1 },
+        { "ChSel", 1 },
+        { "TxAdd", 1 },
+        { "RxAdd", 1 },
+        { "Length", 8 },
+    })
+    :bytes_rest("payload")
+    :build()
+
+local AdvertisingADV_IND = Packet.define("ADV_IND")
+    :bytes("AdvA", 6)
+    :bytes_rest("AdvData")
+    :build()
+
+local AdvertisingSCAN_REQ = Packet.define("SCAN_REQ")
+    :bytes("ScanA", 6)
+    :bytes("AdvA", 6)
+    :build()
+
+local AdvertisingSCAN_RSP = Packet.define("SCAN_RSP")
+    :bytes("AdvA", 6)
+    :bytes_rest("ScanRspData")
+    :build()
+
+local AdvertisingCONNECT_IND = Packet.define("CONNECT_IND")
+    :bytes("InitA", 6)
+    :bytes("AdvA", 6)
+    :bytes("AA", 4)
+    :bytes("CRCInit", 3)
+    :u8("WinSize")
+    :u16("WinOffset")
+    :u16("Interval")
+    :u16("Latency")
+    :u16("Timeout")
+    :bytes("ChM", 5)
+    :bitfield("Hop_SCA", 1, {
+        { "Hop", 5 },
+        { "SCA", 3 },
+    })
+    :build()
+
+local DataPhysicalChannelPDU = Packet.define("DataPhysicalChannelPDU")
+    :bitfield("header", 2, {
+        { "LLID", 2 },
+        { "NESN", 1 },
+        { "SN", 1 },
+        { "MD", 1 },
+        { "CP", 1 },
+        { "RFU", 2 },
+        { "Length", 8 },
+    })
+    :bytes_rest("payload")
+    :build()
+
+local AttributeATT_FIND_BY_TYPE_VALUE_REQ = Packet.define("ATT_FIND_BY_TYPE_VALUE_REQ")
+    :u16("Starting_Handle")
+    :u16("Ending_Handle")
+    :u16("Attribute_Type")
+    :bytes_rest("Attribute_Value")
+    :build()
+
 function send(packet)
-    print("sending " .. #packet .. " bytes: ", packet)
-    pt:sendradio(packet)
+    local with_crc = packet .. fakeCRC
+
+    print("-> " .. #with_crc .. " bytes: " .. tostring(with_crc))
+    pt:sendradio(with_crc)
     last_packet_sent_time = pt:rantime()
 end
 
@@ -44,11 +123,53 @@ function queue_packet(packet)
     table.insert(packet_queue, packet)
 end
 
-function build_adv_pdu(pdu_type, payload)
-    -- https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-54/out/en/low-energy-controller/link-layer-specification.html#UUID-22b4515e-1d0c-1503-7135-af187bccf617
+function dequeue_packet()
+    return table.remove(packet_queue, 1)
+end
 
-    -- CRC doesn't matter, our radio peripheral doesn't check it
-    return adv_access_address .. buffer.new({ pdu_type, #payload }) .. payload .. fakeCRC
+function queue_le_packet(payload)
+    queue_packet(LEUncodedPacket.encode {
+        access_address = our_access_address,
+        pdu = payload,
+    })
+end
+
+function queue_ll_control_pdu(opcode, params)
+    local payload = buffer.new({ opcode }) .. params
+    queue_le_packet(DataPhysicalChannelPDU.encode {
+        header = {
+            LLID = 3,
+            NESN = nextExpectedSeqNum,
+            SN = transmitSeqNum,
+            Length = #payload,
+        },
+        payload = payload
+    })
+end
+
+function queue_ll_data_pdu(payload)
+    queue_le_packet(DataPhysicalChannelPDU.encode {
+        header = {
+            LLID = 1,
+            NESN = nextExpectedSeqNum,
+            SN = transmitSeqNum,
+            Length = #payload,
+        },
+        payload = payload
+    })
+end
+
+function queue_advertising_packet(pdu_type, payload)
+    queue_packet(LEUncodedPacket.encode {
+        access_address = adv_access_address,
+        pdu = AdvertisingChannelPDU.encode {
+            header = {
+                PDU_Type = pdu_type,
+                Length = #payload,
+            },
+            payload = payload
+        },
+    })
 end
 
 function le16(value)
@@ -59,50 +180,16 @@ function fromle16(buffer, start)
     return buffer[start] | (buffer[start + 1] << 8)
 end
 
-function build_scan_req_pdu(adv_address)
-    return build_adv_pdu(3, our_address .. adv_address)
-end
-
-function build_connect_ind_pdu(adv_address, AA, CRCInit, WinSize, WinOffset, Interval, Latency, Timeout, ChM, Hop, SCA)
-    InitA = buffer.new({ 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA })
-    LLData = AA .. CRCInit .. buffer.new({ WinSize }) .. le16(WinOffset) .. le16(Interval) .. le16(Latency) .. le16(Timeout) .. ChM .. buffer.new({ (Hop << 5) | SCA })
-
-    return build_adv_pdu(5, InitA .. adv_address .. LLData)
-end
-
 -- Vol 6 Part B Section 2.4
-function build_data_physical_pdu(llid, adv_address, payload)
-    local nesn = nextExpectedSeqNum
-    local sn = transmitSeqNum
-    local md = 0
-    local cp = 0
-    local rfu = 0
+function handle_data_physical_channel(data)
+    local packet = DataPhysicalChannelPDU.decode(data)
+    print(DataPhysicalChannelPDU.tostring(packet))
 
-    assert(#adv_address == 4)
+    assert(#packet.payload == packet.header.Length)
 
-    print(adv_address, payload, sn)
-
-    return adv_address .. buffer.new({
-        llid | nesn << 2 | sn << 3 | md << 4 | cp << 5 | rfu << 6,
-        #payload & 0xFF,
-    }) .. payload .. fakeCRC
-end
-
-function build_ll_control_pdu(opcode, params)
-    return build_data_physical_pdu(3, our_access_address, buffer.new({ opcode }) .. params)
-end
-
--- function build_att_pdu()
-
--- Vol 6 Part B Section 2.4
-function handle_data_physical_channel(packet)
-    local llid = packet[0] & 0x03
-    local nesn = (packet[0] >> 2) & 0x01
-    local sn = (packet[0] >> 3) & 0x01
-    local md = (packet[0] >> 4) & 0x01
-    local cp = (packet[0] >> 5) & 0x01
-    local rfu = (packet[0] >> 6) & 0x03
-    local length = packet[1]
+    local llid = packet.header.LLID
+    local nesn = packet.header.NESN
+    local sn = packet.header.SN
 
     if sn == nextExpectedSeqNum then
         -- Good packet, increment
@@ -124,39 +211,68 @@ function handle_data_physical_channel(packet)
 
     local is_data = llid == 1 or llid == 2
     if is_data then
-        -- LL Data PDU
-        print("LL Data PDU:")
+        print("LL Data PDU")
     else
-        -- LL Control PDU
-        print("LL Control PDU:")
+        print("LL Control PDU")
     end
 
-    print("  llid", llid)
-    print("  nesn", nesn)
-    print("  sn", sn)
-    print("  md", md)
-    print("  cp", cp)
-    print("  length", length)
-
     if is_data then
-        local payload = packet:slice(2, 2 + length)
-        print("  payload: ", payload)
-
-        handle_l2cap(payload)
+        handle_l2cap(packet.payload)
     else
-        local opcode = packet[2]
-        local params = packet:slice(3, 2 + length)
-        print("  opcode: ", opcode)
-        print("  params: ", params)
-        
+        local opcode = packet.payload[0]
+        local params = packet.payload:slice(1)
+
         handle_ll_control(opcode, params)
     end
 end
 
+function handle_advertising_channel(pdu)
+    local adv_packet = AdvertisingChannelPDU.decode(pdu)
+    print(AdvertisingChannelPDU.tostring(adv_packet))
+
+    if adv_packet.header.PDU_Type == ADV_IND then
+        local adv_ind = AdvertisingADV_IND.decode(adv_packet.payload)
+        print(AdvertisingADV_IND.tostring(adv_ind))
+
+        if not sent_req then
+            sent_req = true
+
+            queue_advertising_packet(SCAN_REQ, AdvertisingSCAN_REQ.encode {
+                ScanA = our_address,
+                AdvA = adv_ind.AdvA
+            })
+        end
+    elseif adv_packet.header.PDU_Type == SCAN_RSP then
+        local scan_rsp = AdvertisingSCAN_RSP.decode(adv_packet.payload)
+        print(AdvertisingSCAN_RSP.tostring(scan_rsp))
+
+        queue_advertising_packet(CONNECT_IND, AdvertisingCONNECT_IND.encode {
+            InitA = our_address,
+            AdvA = scan_rsp.AdvA,
+            AA = our_access_address,
+            CRCInit = buffer.new({ 0xBB, 0xBB, 0xBB }),
+            WinSize = 1800,
+            WinOffset = 0,
+            Interval = 2000,
+            Latency = 1,
+            Timeout = 1600,
+            ChM = buffer.new({ 0xCC, 0xCC, 0xCC, 0xCC, 0xCC }),
+            Hop_SCA = {
+                Hop = 7,
+                SCA = 0,
+            }
+        })
+
+        connected = true
+    else
+        assert(false, "Unknown advertising PDU type " .. tostring(adv_packet.header.PDU_Type))
+    end
+end
+
 function handle_ll_control(opcode, params)
-    if opcode == 0x0E then -- LL_PERIPHERAL_FEATURE_REQ
-        -- LL_FEATURE_RSP
-        queue_packet(build_ll_control_pdu(0x09, buffer.new(8)))
+    if opcode == LL_OPCODE_PERIPHERAL_FEATURE_REQ then
+        print("LL_PERIPHERAL_FEATURE_REQ received")
+        queue_ll_control_pdu(LL_OPCODE_FEATURE_RSP, buffer.new(0))
     end
 end
 
@@ -196,36 +312,26 @@ function handle_att(packet)
 
     -- Vol 3 Part F Section 3.4
     if method == ATT_FIND_BY_TYPE_VALUE_REQ then
-        local starting_handle = fromle16(params, 0)
-        local ending_handle = fromle16(params, 2)
-        local attribute_type = fromle16(params, 4)
-        local attribute_value = params:slice(6)
+        local req = AttributeATT_FIND_BY_TYPE_VALUE_REQ.decode(params)
+        print(AttributeATT_FIND_BY_TYPE_VALUE_REQ.tostring(req))
 
-        print("  ATT_FIND_BY_TYPE_VALUE_REQ")
-        print("    starting_handle", starting_handle)
-        print("    ending_handle", ending_handle)
-        print("    attribute_type", attribute_type)
-        print("    attribute_value", attribute_value)
     end
 end
 
 -- function build_l2cap_signaling_frame()
 
-local empty_counter = 0
 while true do
     pt:run({ seconds = 0.4, exitonevent = true })
 
     if pt:rantime() - last_packet_sent_time > 0.4 then
-        local packet
-        if #packet_queue > 0 then
-            print("[*] Sending queued packet")
-            packet = table.remove(packet_queue, 1)
-        else
+        if #packet_queue == 0 then
             print("[*] Sending empty LL packet")
-            packet = build_data_physical_pdu(1, our_access_address, buffer.new(0))
+            queue_ll_data_pdu(buffer.new(0))
+        else
+            print("[*] Sending queued packet")
         end
 
-        send(packet)
+        send(dequeue_packet())
     end
 
     while true do
@@ -237,80 +343,15 @@ while true do
         pt:run({ seconds = 0.05 })
 
         if ev == "radio_message" then
-            print(data)
+            print("<- " .. #data .. " bytes: " .. tostring(data))
 
-            local access_address = data:slice(0, 4)
-            local pdu = data:slice(4)
+            local le_packet = LEUncodedPacket.decode(data:slice(0, -5))
+            print(LEUncodedPacket.tostring(le_packet))
 
-            if access_address == adv_access_address then
-                -- Advertising channel PDU
-
-                local ll_header = pdu:slice(0, 2)
-                local pdu_type = ll_header[0] & 0x0f
-                local payload = pdu:slice(2)
-
-                print("payload", payload)
-
-                print("pdu_type", pdu_types[pdu_type], pdu_type)
-                print("  address", access_address)
-
-                if pdu_type == 0 then -- ADV_IND
-                    local adv_address = payload:slice(0, 6)
-                    peripheral_access_addr = adv_address
-
-                    local len_16bit_uuids = payload[9]
-                    local len_128bit_uuids = payload[10 + len_16bit_uuids]
-
-                    print("  adv_address", adv_address)
-                    print("  num_16bit_uuids", len_16bit_uuids)
-                    print("  num_128bit_uuids", len_128bit_uuids)
-
-                    if not sent_req then
-                        sent_req = true
-
-                        packet = build_scan_req_pdu(adv_address)
-                        print("sending SCAN_REQ: " .. tostring(packet))
-                        queue_packet(packet)
-                    else
-                        -- pt:run({ seconds = 1.5 })
-                        -- send(buffer.new(15))
-                        -- pt:startdebug()
-                    end
-                elseif pdu_type == 4 then -- SCAN_RSP
-                    local adv_address = payload:slice(0, 6)
-                    local scan_data = payload:slice(6)
-
-                    local length = scan_data[0]
-                    local type = scan_data[1]
-                    local value = scan_data:slice(2, 2 + length - 1)
-
-                    print("  adv_address", adv_address)
-                    print("  type", type)
-                    print("  value", value:toutf8())
-
-                    packet = build_connect_ind_pdu(
-                        adv_address,
-                        our_access_address,                     -- AA
-                        buffer.new({ 0xBB, 0xBB, 0xBB }),       -- CRCInit
-                        1800,                                   -- WinSize
-                        0,                                      -- WinOffset
-                        2000,                                   -- Interval
-                        1,                                      -- Latency
-                        1600,                                   -- Timeout
-                        buffer.new({ 0xCC, 0xCC, 0xCC, 0xCC, 0xCC }), -- ChM
-                        7,                                      -- Hop
-                        0                                       -- SCA
-                    )
-                    print("sending CONNECT_IND: " .. tostring(packet))
-                    queue_packet(packet)
-                    -- pt:startdebug()
-
-                    connected = true
-                else
-                    os.exit(0)
-                end
+            if le_packet.access_address == adv_access_address then
+                handle_advertising_channel(le_packet.pdu)
             else
-                handle_data_physical_channel(pdu)
+                handle_data_physical_channel(le_packet.pdu)
             end
 
             print()
