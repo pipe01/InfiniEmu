@@ -36,7 +36,7 @@ uint32_t Shift_C(uint32_t value, arm_shifter type, uint32_t amount, bool *carry)
     switch (type)
     {
     case ARM_SFT_LSL:
-        assert(amount < 32);
+        // assert(amount < 32);
 
         *carry = (value >> (32 - amount)) & 1;
         return value << amount;

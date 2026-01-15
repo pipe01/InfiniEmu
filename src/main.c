@@ -3,6 +3,7 @@
 #include <string.h>
 #include <sys/time.h>
 
+#include "bluetooth.h"
 #include "commander.h"
 #include "config.h"
 #include "pinetime.h"
@@ -16,7 +17,46 @@
 #include "util.h"
 #include "peripherals/nrf52832/radio.h"
 
-void run_emulation(pinetime_t *pt, cpu_t *cpu, NRF52832_t *nrf);
+typedef struct
+{
+    pinetime_t *pt;
+    cpu_t *cpu;
+    NRF52832_t *nrf;
+
+#if ENABLE_SEGGER_RTT
+    rtt_t *rtt;
+    bool found_rtt;
+    size_t rtt_counter, rtt_read;
+    char rtt_buffer[1024];
+#endif
+
+#if ENABLE_MEASUREMENT
+    uint64_t start, now;
+    uint64_t cycles_counter;
+    size_t perf_counter;
+#endif
+
+    bluetooth_t *bt;
+    size_t cycle_counter;
+} emulation_t;
+
+emulation_t *new_emulation(pinetime_t *pt, cpu_t *cpu, NRF52832_t *nrf)
+{
+    emulation_t *emu = calloc(1, sizeof(emulation_t));
+    emu->pt = pt;
+    emu->cpu = cpu;
+    emu->nrf = nrf;
+    emu->bt = bluetooth_new(pt);
+#if ENABLE_SEGGER_RTT
+    emu->rtt = rtt_new(cpu_mem(cpu));
+#endif
+#if ENABLE_MEASUREMENT
+    emu->start = microseconds_now_real();
+#endif
+    return emu;
+}
+
+void step_emulation(emulation_t *emu);
 
 void commander_output(const char *msg, void *userdata)
 {
@@ -108,6 +148,7 @@ int main(int argc, char **argv)
 
     NRF52832_t *nrf = pinetime_get_nrf52832(pt);
     cpu_t *cpu = nrf52832_get_cpu(nrf);
+    emulation_t *emu = new_emulation(pt, cpu, nrf);
 
 #if ENABLE_RUNLOG
     runlog_t *runlog = NULL;
@@ -155,7 +196,7 @@ int main(int argc, char **argv)
     {
         printf("Waiting for GDB connection...\n");
 
-        gdb_t *gdb = gdb_new(pt, true);
+        gdb_t *gdb = gdb_new(pt, true, (step_emulation_t)step_emulation, emu);
         gdb_start(gdb);
     }
     else
@@ -186,7 +227,10 @@ int main(int argc, char **argv)
         {
             fault_set_jmp(&fault_jmp);
 
-            run_emulation(pt, cpu, nrf);
+            for (;;)
+            {
+                step_emulation(emu);
+            }
         }
 
         fault_clear_jmp();
@@ -200,63 +244,46 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void run_emulation(pinetime_t *pt, cpu_t *cpu, NRF52832_t *nrf)
+void step_emulation(emulation_t *emu)
 {
+    bluetooth_run(emu->bt);
+
+    emu->cycle_counter += pinetime_step(emu->pt);
+
 #if ENABLE_SEGGER_RTT
-    rtt_t *rtt = rtt_new(cpu_mem(cpu));
-    bool found_rtt = false;
-    size_t rtt_counter = 0, rtt_read = 0;
-    char rtt_buffer[1024];
-#endif
-
-#if ENABLE_MEASUREMENT
-    uint64_t start, now;
-    uint64_t cycles_counter = 0;
-    size_t perf_counter = 0;
-    start = microseconds_now_real();
-#endif
-
-    size_t cycle_counter = 0;
-
-    for (;;)
+    if (emu->found_rtt || emu->rtt_counter < 1000000)
     {
-        cycle_counter += pinetime_step(pt);
-
-#if ENABLE_SEGGER_RTT
-        if (found_rtt || rtt_counter < 1000000)
+        if (emu->rtt_counter % 1000 == 0)
         {
-            if (rtt_counter % 1000 == 0)
+            if (!emu->found_rtt)
+                emu->found_rtt = rtt_find_control(emu->rtt);
+
+            emu->rtt_read = rtt_flush_buffers(emu->rtt, emu->rtt_buffer, sizeof(emu->rtt_buffer));
+            if (emu->rtt_read > 0)
             {
-                if (!found_rtt)
-                    found_rtt = rtt_find_control(rtt);
-
-                rtt_read = rtt_flush_buffers(rtt, rtt_buffer, sizeof(rtt_buffer));
-                if (rtt_read > 0)
-                {
-                    fwrite(rtt_buffer, 1, rtt_read, stdout);
-                    fflush(stdout);
-                }
+                fwrite(emu->rtt_buffer, 1, emu->rtt_read, stdout);
+                fflush(stdout);
             }
-
-            rtt_counter++;
         }
+
+        emu->rtt_counter++;
+    }
 #endif
 
 #if ENABLE_MEASUREMENT
-        if (++perf_counter == 10000000)
-        {
-            now = microseconds_now_real();
+    if (++emu->perf_counter == 10000000)
+    {
+        emu->now = microseconds_now_real();
 
-            uint64_t elapsed = now - start;
-            uint64_t elapsed_cycles = nrf52832_get_cycle_counter(nrf) - cycles_counter;
-            cycles_counter = nrf52832_get_cycle_counter(nrf);
+        uint64_t elapsed = emu->now - emu->start;
+        uint64_t elapsed_cycles = nrf52832_get_cycle_counter(emu->nrf) - emu->cycles_counter;
+        emu->cycles_counter = nrf52832_get_cycle_counter(emu->nrf);
 
-            start = now;
+        emu->start = emu->now;
 
-            printf("Cycles per second: %.0f, target: %d\n", (1000000.f / elapsed) * elapsed_cycles, NRF52832_HFCLK_FREQUENCY);
+        printf("Cycles per second: %.0f, target: %d\n", (1000000.f / elapsed) * elapsed_cycles, NRF52832_HFCLK_FREQUENCY);
 
-            perf_counter = 0;
-        }
-#endif
+        emu->perf_counter = 0;
     }
+#endif
 }

@@ -248,7 +248,7 @@ DEF_FN(startdebug)
 {
     lua_pinetime_t *lpt = lua_getdata(L, 1);
 
-    gdb_t *gdb = gdb_new(lpt->pt, true);
+    gdb_t *gdb = gdb_new(lpt->pt, true, NULL, NULL);
     gdb_start(gdb);
 
     return 0;

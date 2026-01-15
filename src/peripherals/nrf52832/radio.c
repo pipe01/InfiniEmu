@@ -302,6 +302,7 @@ void radio_do_state_change(void *userdata)
             {
                 ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_BCMATCH), radio->inten.BCMATCH);
             }
+            RADIO_LOG("Firing RSSIEND and CRCOK\n");
             ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_RSSIEND), radio->inten.RSSIEND);
             ppi_fire_event(current_ppi, INSTANCE_RADIO, EVENT_ID(RADIO_EVENTS_CRCOK), radio->inten.CRCOK);
         }

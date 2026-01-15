@@ -95,6 +95,11 @@ spinorflash_t *pinetime_get_spinorflash(pinetime_t *pt)
     return pt->extflash;
 }
 
+event_queue_t *pinetime_get_event_queue(pinetime_t *pt)
+{
+    return pt->event_queue;
+}
+
 uint8_t *pinetime_save_state(pinetime_t *pt, size_t *size)
 {
     return state_store_save(pt->state_store, size);

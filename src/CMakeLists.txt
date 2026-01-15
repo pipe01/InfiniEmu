@@ -1,4 +1,5 @@
 set(SRC_FILES
+    bluetooth.cpp
     bus_i2c.c
     bus_spi.c
     circular_buffer.c
@@ -61,6 +62,8 @@ set(SRC_FILES
 
     ../lib/littlefs/lfs.c       # TODO: Include littlefs from root CMakeLists.txt
     ../lib/littlefs/lfs_util.c
+
+    bluetooth/ble_packets.cpp
 )
 
 set(SRC_WASM_FILES
@@ -106,6 +109,7 @@ endif()
 add_compile_options(-Werror -Wall -Wextra -Wno-unused-parameter -Wno-microsoft-anon-tag -fms-extensions)
 
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 add_compile_definitions(_POSIX_C_SOURCE=200809L)
 

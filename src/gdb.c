@@ -91,6 +91,9 @@ struct gdb_t
     pinetime_t *pt;
     gdbstub *current_stub;
 
+    step_emulation_t step;
+    void *step_userdata;
+
     pthread_cond_t conn_cond;
     pthread_mutex_t conn_lock;
     bool has_connected;
@@ -396,7 +399,7 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
     }
     else if (strcmp(command, "step") == 0)
     {
-        nrf52832_step(gdb->gdb->nrf);
+        gdb->gdb->step(gdb->gdb->step_userdata);
 
         send_response_str(gdb->fd, "OK");
     }
@@ -577,7 +580,7 @@ char *gdb_queryWriteRegisters(gdbstub *gdb, char *msg)
             cpu_reg_write(cpu, ARM_REG_LR, registers[i]);
             break;
         case 15:
-            cpu_reg_write(cpu, ARM_REG_PC, registers[i]);
+            cpu_reg_write(cpu, ARM_REG_PC, registers[i] | 1);
             break;
         case 16:
             cpu_sysreg_write(cpu, ARM_SYSREG_XPSR, registers[i], true);
@@ -792,7 +795,7 @@ void *gdb_run_cpu(void *userdata)
             if (gdb_has_breakpoint_at(stub->gdb, pc))
                 break;
 
-            pinetime_step(stub->gdb->pt);
+            stub->gdb->step(stub->gdb->step_userdata);
         }
     }
 
@@ -1022,13 +1025,15 @@ void gdb_start(gdb_t *gdb)
     }
 }
 
-gdb_t *gdb_new(pinetime_t *pt, bool start_paused)
+gdb_t *gdb_new(pinetime_t *pt, bool start_paused, step_emulation_t step, void *step_userdata)
 {
     gdb_t *gdb = malloc(sizeof(gdb_t));
     memset(gdb, 0, sizeof(gdb_t));
 
     gdb->nrf = pinetime_get_nrf52832(pt);
     gdb->pt = pt;
+    gdb->step = step;
+    gdb->step_userdata = step_userdata;
 
     pthread_mutex_init(&gdb->conn_lock, NULL);
     pthread_cond_init(&gdb->conn_cond, NULL);
