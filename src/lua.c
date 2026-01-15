@@ -7,7 +7,7 @@ void run_lua(const char *script, size_t script_size, const char *name)
 {
     lua_State *L = luaL_newstate();
 
-    luaL_openselectedlibs(L, LUA_GLIBK | LUA_MATHLIBK | LUA_TABLIBK | LUA_STRLIBK | LUA_LOADLIBK, 0);
+    luaL_openselectedlibs(L, LUA_GLIBK | LUA_MATHLIBK | LUA_TABLIBK | LUA_STRLIBK | LUA_LOADLIBK | LUA_IOLIBK, 0);
 
     luaopen_display(L);
     luaopen_pinetime(L);

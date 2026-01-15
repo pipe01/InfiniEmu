@@ -1,26 +1,14 @@
 local pt = pinetime.new { firmware = "/home/pipe/git/InfiniTime/build/src/pinetime-app-1.16.0.out" }
 
-local adv_access_address = buffer.new({ 0x8e, 0x89, 0xbe, 0xd6 }):reverse()
+local adv_access_address <const> = buffer.new({ 0x8e, 0x89, 0xbe, 0xd6 }):reverse()
 
-local our_address = buffer.new({ 0x0a, 0x1f, 0x63, 0x39, 0xb0, 0x47 }):reverse()
+local our_address <const> = buffer.new({ 0x0a, 0x1f, 0x63, 0x39, 0xb0, 0x47 }):reverse()
 
-local our_access_address = buffer.new({ 0xaa, 0xbb, 0xcc, 0xdd }):reverse()
+local our_access_address <const> = buffer.new({ 0xaa, 0xbb, 0xcc, 0xdd }):reverse()
 
 local sent_req = false
 
 local Packet = require("lua/packet")
-
-local pdu_types = {
-    [0] = "ADV_IND",
-    [1] = "ADV_DIRECT_IND",
-    [2] = "ADV_NONCONN_IND",
-    [3] = "SCAN_REQ",
-    [4] = "SCAN_RSP",
-    [5] = "CONNECT_IND",
-    [6] = "ADV_SCAN_IND",
-    [7] = "ADV_EXT_IND",
-    [8] = "AUX_CONNECT_RSP",
-}
 
 local ADV_IND <const> = 0x00
 local SCAN_REQ <const> = 0x03
@@ -32,11 +20,9 @@ local LL_FEATURE_RSP <const> = 0x09
 local LL_LENGTH_REQ <const> = 0x14
 local LL_LENGTH_RSP <const> = 0x15
 
-local L2CAP_CHANNEL_ATT = 0x04
+local L2CAP_CHANNEL_ATT <const> = 0x04
 
-local fakeCRC = buffer.new({ 0xFF, 0xFF, 0xFF })
-
-connected = false
+local fakeCRC <const> = buffer.new({ 0xFF, 0xFF, 0xFF })
 
 local transmitSeqNum = 0
 local nextExpectedSeqNum = 0
@@ -44,12 +30,15 @@ local nextExpectedSeqNum = 0
 local last_packet_sent_time = 0
 local packet_queue = {}
 
-local LEUncodedPacket = Packet.define("LEUncodedPacket")
+local packet_log_file = assert(io.open("packets.log", "w"))
+local comms_log_file = assert(io.open("comms.log", "w"))
+
+local LEUncodedPacket <const> = Packet.define("LEUncodedPacket")
     :bytes("access_address", 4)
     :bytes_rest("pdu")
     :build()
 
-local AdvertisingChannelPDU = Packet.define("AdvertisingChannelPDU")
+local AdvertisingChannelPDU <const> = Packet.define("AdvertisingChannelPDU")
     :bitfield("header", 2, {
         { "PDU_Type", 4 },
         { "RFU", 1 },
@@ -61,22 +50,22 @@ local AdvertisingChannelPDU = Packet.define("AdvertisingChannelPDU")
     :bytes_rest("payload")
     :build()
 
-local AdvertisingADV_IND = Packet.define("ADV_IND")
+local AdvertisingADV_IND <const> = Packet.define("ADV_IND")
     :bytes("AdvA", 6)
     :bytes_rest("AdvData")
     :build()
 
-local AdvertisingSCAN_REQ = Packet.define("SCAN_REQ")
+local AdvertisingSCAN_REQ <const> = Packet.define("SCAN_REQ")
     :bytes("ScanA", 6)
     :bytes("AdvA", 6)
     :build()
 
-local AdvertisingSCAN_RSP = Packet.define("SCAN_RSP")
+local AdvertisingSCAN_RSP <const> = Packet.define("SCAN_RSP")
     :bytes("AdvA", 6)
     :bytes_rest("ScanRspData")
     :build()
 
-local AdvertisingCONNECT_IND = Packet.define("CONNECT_IND")
+local AdvertisingCONNECT_IND <const> = Packet.define("CONNECT_IND")
     :bytes("InitA", 6)
     :bytes("AdvA", 6)
     :bytes("AA", 4)
@@ -93,7 +82,7 @@ local AdvertisingCONNECT_IND = Packet.define("CONNECT_IND")
     })
     :build()
 
-local DataPhysicalChannelPDU = Packet.define("DataPhysicalChannelPDU")
+local DataPhysicalChannelPDU <const> = Packet.define("DataPhysicalChannelPDU")
     :bitfield("header", 2, {
         { "LLID", 2 },
         { "NESN", 1 },
@@ -106,7 +95,7 @@ local DataPhysicalChannelPDU = Packet.define("DataPhysicalChannelPDU")
     :bytes_rest("payload")
     :build()
 
-local AttributePDU = Packet.define("AttributePDU")
+local AttributePDU <const> = Packet.define("AttributePDU")
     :bitfield("Header", 1, {
         { "Method", 6 },
         { "Command", 1 },
@@ -115,28 +104,37 @@ local AttributePDU = Packet.define("AttributePDU")
     :bytes_rest("Parameters")
     :build()
 
-local AttributeATT_FIND_BY_TYPE_VALUE_REQ = Packet.define("ATT_FIND_BY_TYPE_VALUE_REQ")
+local AttributeATT_FIND_BY_TYPE_VALUE_REQ <const> = Packet.define("ATT_FIND_BY_TYPE_VALUE_REQ")
     :u16("StartingHandle")
     :u16("EndingHandle")
     :u16("AttributeType")
     :bytes_rest("AttributeValue")
     :build()
 
-local AttributeATT_ERROR_RSP = Packet.define("ATT_ERROR_RSP")
+local AttributeATT_ERROR_RSP <const> = Packet.define("ATT_ERROR_RSP")
     :u8("RequestOpcode")
     :u16("AttributeHandle")
     :u8("ErrorCode")
     :build()
 
-local AttributeATT_HANDLE_VALUE_NTF = Packet.define("ATT_HANDLE_VALUE_NTF")
+local AttributeATT_HANDLE_VALUE_NTF <const> = Packet.define("ATT_HANDLE_VALUE_NTF")
     :u16("AttributeHandle")
     :bytes_rest("AttributeValue")
     :build()
 
+function log_packet(packet, level)
+    packet_log_file:write(string.format("[%f] %d: %s", pt:rantime(), level, packet))
+    packet_log_file:write("\n\n")
+end
+
+function debug_log(...)
+    -- print(...)
+end
+
 function send(packet)
     local with_crc = packet .. fakeCRC
 
-    print("-> " .. #with_crc .. " bytes: " .. tostring(with_crc))
+    comms_log_file:write("-> " .. #with_crc .. " bytes: " .. tostring(with_crc) .. "\n")
     pt:sendradio(with_crc)
     last_packet_sent_time = pt:rantime()
 end
@@ -221,7 +219,7 @@ end
 -- Vol 6 Part B Section 2.4
 function handle_data_physical_channel(data)
     local packet = DataPhysicalChannelPDU.decode(data)
-    print(DataPhysicalChannelPDU.tostring(packet))
+    if packet.header.Length > 0 then log_packet(packet, 1) end
 
     assert(#packet.payload == packet.header.Length)
 
@@ -232,16 +230,16 @@ function handle_data_physical_channel(data)
     if sn == nextExpectedSeqNum then
         -- Good packet, increment
         nextExpectedSeqNum = 1 - nextExpectedSeqNum
-        print("[*] Good packet received")
+        debug_log("[*] Good packet received")
     else
-        print("[*] Ignoring resent packet")
+        debug_log("[*] Ignoring resent packet")
         return
     end
 
     if nesn == transmitSeqNum then
-        print("[*] Last packet not acknowledged")
+        debug_log("[*] Last packet not acknowledged")
     else
-        print("[*] Last packet acknowledged")
+        debug_log("[*] Last packet acknowledged")
 
         -- Last packet was received, increment seqnum
         transmitSeqNum = 1 - transmitSeqNum
@@ -249,16 +247,16 @@ function handle_data_physical_channel(data)
 
     local is_data = llid == 1 or llid == 2
     if is_data then
-        print("LL Data PDU")
+        debug_log("LL Data PDU")
     else
-        print("LL Control PDU")
+        debug_log("LL Control PDU")
     end
 
     if is_data then
         if #packet.payload > 0 then
             handle_l2cap(packet.payload)
         else
-            print("Ignoring empty packet")
+            debug_log("Ignoring empty packet")
         end
     else
         local opcode = packet.payload[0]
@@ -270,11 +268,11 @@ end
 
 function handle_advertising_channel(pdu)
     local adv_packet = AdvertisingChannelPDU.decode(pdu)
-    print(AdvertisingChannelPDU.tostring(adv_packet))
+    log_packet(adv_packet, 1)
 
     if adv_packet.header.PDU_Type == ADV_IND then
         local adv_ind = AdvertisingADV_IND.decode(adv_packet.payload)
-        print(AdvertisingADV_IND.tostring(adv_ind))
+        log_packet(adv_ind, 2)
 
         if not sent_req then
             sent_req = true
@@ -286,7 +284,7 @@ function handle_advertising_channel(pdu)
         end
     elseif adv_packet.header.PDU_Type == SCAN_RSP then
         local scan_rsp = AdvertisingSCAN_RSP.decode(adv_packet.payload)
-        print(AdvertisingSCAN_RSP.tostring(scan_rsp))
+        log_packet(scan_rsp, 2)
 
         queue_advertising_packet(CONNECT_IND, AdvertisingCONNECT_IND.encode {
             InitA = our_address,
@@ -313,11 +311,11 @@ end
 
 function handle_ll_control(opcode, params)
     if opcode == LL_PERIPHERAL_FEATURE_REQ then
-        print("LL_PERIPHERAL_FEATURE_REQ received")
+        debug_log("LL_PERIPHERAL_FEATURE_REQ received")
 
         queue_ll_control_pdu(LL_FEATURE_RSP, buffer.new(8))
     elseif opcode == LL_LENGTH_REQ then
-        print("LL_LENGTH_REQ received")
+        debug_log("LL_LENGTH_REQ received")
 
         -- Send the same values back, as if we support whatever the client supports
         queue_ll_control_pdu(LL_LENGTH_RSP, params)
@@ -331,12 +329,12 @@ function handle_l2cap(packet)
     local pdu_length = packet[0] | (packet[1] << 8)
     local channel = packet[2] | (packet[3] << 8)
 
-    print("L2CAP PDU:")
-    print("  length", pdu_length)
-    print("  channel", channel)
+    debug_log("L2CAP PDU:")
+    debug_log("  length", pdu_length)
+    debug_log("  channel", channel)
 
     local payload = packet:slice(4, 4 + pdu_length)
-    print("  payload", payload)
+    debug_log("  payload", payload)
 
     if channel == L2CAP_CHANNEL_ATT then
         handle_att(payload)
@@ -350,7 +348,7 @@ local ATT_HANDLE_VALUE_NTF <const> = 0x1B
 
 function handle_att(data)
     local packet = AttributePDU.decode(data)
-    print(AttributePDU.tostring(packet))
+    log_packet(packet, 3)
 
     if packet.Header.Auth ~= 0 then
         print("Auth flag is 1, unsupported")
@@ -360,7 +358,7 @@ function handle_att(data)
     -- Vol 3 Part F Section 3.4
     if packet.Header.Method == ATT_FIND_BY_TYPE_VALUE_REQ then
         local req = AttributeATT_FIND_BY_TYPE_VALUE_REQ.decode(packet.Parameters)
-        print(AttributeATT_FIND_BY_TYPE_VALUE_REQ.tostring(req))
+        log_packet(req, 4)
 
         queue_attribute_packet(ATT_ERROR_RSP, AttributeATT_ERROR_RSP.encode {
             RequestOpcode = packet.Header.Method,
@@ -369,29 +367,27 @@ function handle_att(data)
         })
     elseif packet.Header.Method == ATT_HANDLE_VALUE_NTF then
         local ntf = AttributeATT_HANDLE_VALUE_NTF.decode(packet.Parameters)
-        print(AttributeATT_HANDLE_VALUE_NTF.tostring(ntf))
+        log_packet(ntf, 4)
     else
         print("Unknown ATT Method " .. string.format("0x%02X", packet.Header.Method))
         assert(false)
     end
 end
 
--- function build_l2cap_signaling_frame()
-
 while true do
     pt:run({ seconds = 0.1, exitonevent = true })
 
-    if pt:rantime() - last_packet_sent_time > 0.2 then
-        if #packet_queue == 0 then
-            print("[*] Sending empty LL packet")
-            queue_ll_data_pdu(buffer.new(0))
-        else
-            print("[*] Sending queued packet")
-        end
+    if #packet_queue == 0 then
+        -- The peripheral can only send packets to us when it receives one, so if we have nothing to send we should still
+        -- send an empty packet
 
-        send(dequeue_packet())
-        if sentattresp then pt:startdebug() end
+        debug_log("[*] Sending empty LL packet")
+        queue_ll_data_pdu(buffer.new(0))
+    else
+        debug_log("[*] Sending queued packet")
     end
+
+    send(dequeue_packet())
 
     while true do
         local ev, data = pt:poll()
@@ -399,21 +395,17 @@ while true do
             break
         end
 
-        -- pt:run({ seconds = 0.05 })
-
         if ev == "radio_message" then
-            print("<- " .. #data .. " bytes: " .. tostring(data))
+            comms_log_file:write("<- " .. #data .. " bytes: " .. tostring(data) .. "\n")
 
             local le_packet = LEUncodedPacket.decode(data:slice(0, -5))
-            print(LEUncodedPacket.tostring(le_packet))
+            log_packet(le_packet, 0)
 
             if le_packet.access_address == adv_access_address then
                 handle_advertising_channel(le_packet.pdu)
             else
                 handle_data_physical_channel(le_packet.pdu)
             end
-
-            print()
         end
     end
 end

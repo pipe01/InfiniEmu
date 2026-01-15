@@ -295,6 +295,7 @@ function Builder:build()
     local fields = self.fields
     local total_size = nil
     local struct = {}
+    local builder = self
 
     if not self.has_variable then
         total_size = self.size
@@ -316,7 +317,19 @@ function Builder:build()
         for _, f in ipairs(fields) do
             out[f[1]] = f[2].read(r)
         end
-        return out
+
+        return setmetatable(out, {
+            __tostring = function(t)
+                local lines = { builder.name .. " {" }
+                for _, f in ipairs(fields) do
+                    local name = f[1]
+                    local value = t[name]
+                    lines[#lines + 1] = "  " .. name .. " = " .. format_value(value, 1) .. ","
+                end
+                lines[#lines + 1] = "}"
+                return table.concat(lines, "\n")
+            end
+        })
     end
 
     function struct.size()
