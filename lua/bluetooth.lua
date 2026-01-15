@@ -27,8 +27,10 @@ local SCAN_REQ <const> = 0x03
 local SCAN_RSP <const> = 0x04
 local CONNECT_IND <const> = 0x05
 
-local LL_OPCODE_PERIPHERAL_FEATURE_REQ <const> = 0x0E
-local LL_OPCODE_FEATURE_RSP <const> = 0x09
+local LL_PERIPHERAL_FEATURE_REQ <const> = 0x0E
+local LL_FEATURE_RSP <const> = 0x09
+local LL_LENGTH_REQ <const> = 0x14
+local LL_LENGTH_RSP <const> = 0x15
 
 local L2CAP_CHANNEL_ATT = 0x04
 
@@ -104,11 +106,31 @@ local DataPhysicalChannelPDU = Packet.define("DataPhysicalChannelPDU")
     :bytes_rest("payload")
     :build()
 
+local AttributePDU = Packet.define("AttributePDU")
+    :bitfield("Header", 1, {
+        { "Method", 6 },
+        { "Command", 1 },
+        { "Auth", 1 },
+    })
+    :bytes_rest("Parameters")
+    :build()
+
 local AttributeATT_FIND_BY_TYPE_VALUE_REQ = Packet.define("ATT_FIND_BY_TYPE_VALUE_REQ")
-    :u16("Starting_Handle")
-    :u16("Ending_Handle")
-    :u16("Attribute_Type")
-    :bytes_rest("Attribute_Value")
+    :u16("StartingHandle")
+    :u16("EndingHandle")
+    :u16("AttributeType")
+    :bytes_rest("AttributeValue")
+    :build()
+
+local AttributeATT_ERROR_RSP = Packet.define("ATT_ERROR_RSP")
+    :u8("RequestOpcode")
+    :u16("AttributeHandle")
+    :u8("ErrorCode")
+    :build()
+
+local AttributeATT_HANDLE_VALUE_NTF = Packet.define("ATT_HANDLE_VALUE_NTF")
+    :u16("AttributeHandle")
+    :bytes_rest("AttributeValue")
     :build()
 
 function send(packet)
@@ -150,7 +172,7 @@ end
 function queue_ll_data_pdu(payload)
     queue_le_packet(DataPhysicalChannelPDU.encode {
         header = {
-            LLID = 1,
+            LLID = 2, -- LLID is 2 for first L2CAP fragment and 1 for others
             NESN = nextExpectedSeqNum,
             SN = transmitSeqNum,
             Length = #payload,
@@ -170,6 +192,22 @@ function queue_advertising_packet(pdu_type, payload)
             payload = payload
         },
     })
+end
+
+function queue_l2cap_packet(channel, payload)
+    local pdu_length = #payload
+    local l2cap_payload = buffer.new {
+        pdu_length & 0xFF,
+        (pdu_length >> 8) & 0xFF,
+        channel & 0xFF,
+        (channel >> 8) & 0xFF,
+    } .. payload
+
+    queue_ll_data_pdu(l2cap_payload)
+end
+
+function queue_attribute_packet(opcode, payload)
+    queue_l2cap_packet(L2CAP_CHANNEL_ATT, buffer.new({ opcode }) .. payload)
 end
 
 function le16(value)
@@ -217,7 +255,11 @@ function handle_data_physical_channel(data)
     end
 
     if is_data then
-        handle_l2cap(packet.payload)
+        if #packet.payload > 0 then
+            handle_l2cap(packet.payload)
+        else
+            print("Ignoring empty packet")
+        end
     else
         local opcode = packet.payload[0]
         local params = packet.payload:slice(1)
@@ -253,7 +295,7 @@ function handle_advertising_channel(pdu)
             CRCInit = buffer.new({ 0xBB, 0xBB, 0xBB }),
             WinSize = 1800,
             WinOffset = 0,
-            Interval = 2000,
+            Interval = 200,
             Latency = 1,
             Timeout = 1600,
             ChM = buffer.new({ 0xCC, 0xCC, 0xCC, 0xCC, 0xCC }),
@@ -270,9 +312,18 @@ function handle_advertising_channel(pdu)
 end
 
 function handle_ll_control(opcode, params)
-    if opcode == LL_OPCODE_PERIPHERAL_FEATURE_REQ then
+    if opcode == LL_PERIPHERAL_FEATURE_REQ then
         print("LL_PERIPHERAL_FEATURE_REQ received")
-        queue_ll_control_pdu(LL_OPCODE_FEATURE_RSP, buffer.new(0))
+
+        queue_ll_control_pdu(LL_FEATURE_RSP, buffer.new(8))
+    elseif opcode == LL_LENGTH_REQ then
+        print("LL_LENGTH_REQ received")
+
+        -- Send the same values back, as if we support whatever the client supports
+        queue_ll_control_pdu(LL_LENGTH_RSP, params)
+    else
+        print("Unknown LL Control Opcode " .. string.format("0x%02X", opcode))
+        assert(false)
     end
 end
 
@@ -292,38 +343,45 @@ function handle_l2cap(packet)
     end
 end
 
+local ATT_ERROR_RSP <const> = 0x01
 local ATT_FIND_BY_TYPE_VALUE_REQ <const> = 0x06
 local ATT_FIND_BY_TYPE_VALUE_RSP <const> = 0x07
-local ATT_ERROR_RSP <const> = 0x01
+local ATT_HANDLE_VALUE_NTF <const> = 0x1B
 
-function handle_att(packet)
-    local auth_flag = packet[0] >> 7
-    if auth_flag ~= 0 then
+function handle_att(data)
+    local packet = AttributePDU.decode(data)
+    print(AttributePDU.tostring(packet))
+
+    if packet.Header.Auth ~= 0 then
         print("Auth flag is 1, unsupported")
         return
     end
 
-    local method = packet[0] & 0x3F
-    local params = packet:slice(1, #packet)
-
-    print("ATT PDU:")
-    print("  method", method)
-    print("  params", params)
-
     -- Vol 3 Part F Section 3.4
-    if method == ATT_FIND_BY_TYPE_VALUE_REQ then
-        local req = AttributeATT_FIND_BY_TYPE_VALUE_REQ.decode(params)
+    if packet.Header.Method == ATT_FIND_BY_TYPE_VALUE_REQ then
+        local req = AttributeATT_FIND_BY_TYPE_VALUE_REQ.decode(packet.Parameters)
         print(AttributeATT_FIND_BY_TYPE_VALUE_REQ.tostring(req))
 
+        queue_attribute_packet(ATT_ERROR_RSP, AttributeATT_ERROR_RSP.encode {
+            RequestOpcode = packet.Header.Method,
+            AttributeHandle = req.StartingHandle,
+            ErrorCode = 0x0A,
+        })
+    elseif packet.Header.Method == ATT_HANDLE_VALUE_NTF then
+        local ntf = AttributeATT_HANDLE_VALUE_NTF.decode(packet.Parameters)
+        print(AttributeATT_HANDLE_VALUE_NTF.tostring(ntf))
+    else
+        print("Unknown ATT Method " .. string.format("0x%02X", packet.Header.Method))
+        assert(false)
     end
 end
 
 -- function build_l2cap_signaling_frame()
 
 while true do
-    pt:run({ seconds = 0.4, exitonevent = true })
+    pt:run({ seconds = 0.1, exitonevent = true })
 
-    if pt:rantime() - last_packet_sent_time > 0.4 then
+    if pt:rantime() - last_packet_sent_time > 0.2 then
         if #packet_queue == 0 then
             print("[*] Sending empty LL packet")
             queue_ll_data_pdu(buffer.new(0))
@@ -332,6 +390,7 @@ while true do
         end
 
         send(dequeue_packet())
+        if sentattresp then pt:startdebug() end
     end
 
     while true do
@@ -340,7 +399,7 @@ while true do
             break
         end
 
-        pt:run({ seconds = 0.05 })
+        -- pt:run({ seconds = 0.05 })
 
         if ev == "radio_message" then
             print("<- " .. #data .. " bytes: " .. tostring(data))
