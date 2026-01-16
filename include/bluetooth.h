@@ -21,11 +21,13 @@ namespace BLE {
 #include <memory>
 #include <queue>
 
-constexpr uint32_t ConnIntervalMS = 600;
-constexpr uint32_t ConnPeripheralLatency = 1;
+constexpr uint32_t ConnIntervalMS = 100;
+constexpr uint32_t ConnPeripheralLatency = 0;
 constexpr uint32_t TransmitWindowSizeMS = 10; // Must be at most 10
 constexpr uint32_t ConnSupervisionTimeoutMS = (1 + ConnPeripheralLatency) * ConnIntervalMS * 2 + 100;
 constexpr std::array<uint8_t, 3> FakeCRC = { 0xFF, 0xFF, 0xFF };
+
+constexpr uint16_t WantATT_MTU = 247;
 
 struct bluetooth_t
 {
@@ -33,6 +35,9 @@ struct bluetooth_t
     event_queue_t *ev_queue;
     NRF52832_t *nrf;
     bool connected = false;
+
+    bool exchanged_mtu = false;
+    uint16_t att_mtu = 23; // Default MTU
 
     uint64_t last_conn_event_cycles = 0;
 

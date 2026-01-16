@@ -317,6 +317,8 @@ void radio_do_state_change(void *userdata)
         }
         else
         {
+            event_queue_add(radio->event_queue, EVENT_RADIO_RECEIVING, NULL);
+
             break; // No data to receive, don't request update
         }
         request_update = true;

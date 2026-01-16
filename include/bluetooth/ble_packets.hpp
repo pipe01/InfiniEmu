@@ -136,7 +136,7 @@ namespace BLE
 
         virtual void run(bluetooth_t &bt)
         {
-            assert(false);
+            abort();
         }
     };
 
@@ -412,9 +412,59 @@ namespace BLE
             }
         };
 
+        struct EXCHANGE_MTU_REQ : public BLE::Packet
+        {
+            NAME("ATT::EXCHANGE_MTU_REQ")
+
+            static constexpr uint32_t Method = 0x02;
+
+            uint16_t ClientRxMTU;
+
+            size_t size() override
+            {
+                return 2;
+            }
+
+            void serialize(BinaryBuffer &buffer) const override
+            {
+                buffer.write(ClientRxMTU);
+            }
+
+            void deserialize(BinaryBuffer &buffer) override
+            {
+                buffer.read(ClientRxMTU);
+            }
+        };
+
+        struct EXCHANGE_MTU_RSP : public BLE::Packet
+        {
+            NAME("ATT::EXCHANGE_MTU_RSP")
+
+            static constexpr uint32_t Method = 0x03;
+
+            uint16_t ServerRxMTU;
+
+            size_t size() override
+            {
+                return 2;
+            }
+
+            void serialize(BinaryBuffer &buffer) const override
+            {
+                buffer.write(ServerRxMTU);
+            }
+
+            void deserialize(BinaryBuffer &buffer) override
+            {
+                buffer.read(ServerRxMTU);
+            }
+
+            void run(bluetooth_t &bt) override;
+        };
+
         struct FIND_BY_TYPE_VALUE_REQ : public BLE::Packet
         {
-            NAME("ATT:FIND_BY_TYPE_VALUE_REQ")
+            NAME("ATT::FIND_BY_TYPE_VALUE_REQ")
 
             static constexpr uint32_t Method = 0x06;
 
@@ -508,6 +558,16 @@ namespace BLE
                 buffer.read(Header);
                 switch (Header.Method)
                 {
+                case ERROR_RSP::Method:
+                    Parameters = std::make_unique<ERROR_RSP>();
+                    break;
+                case EXCHANGE_MTU_REQ::Method:
+                    Parameters = std::make_unique<EXCHANGE_MTU_REQ>();
+                    break;
+                case EXCHANGE_MTU_RSP::Method:
+                    Parameters = std::make_unique<EXCHANGE_MTU_RSP>();
+                    ;
+                    break;
                 case FIND_BY_TYPE_VALUE_REQ::Method:
                     Parameters = std::make_unique<FIND_BY_TYPE_VALUE_REQ>();
                     break;
@@ -526,7 +586,7 @@ namespace BLE
             void run(bluetooth_t &bt) override;
 
             template <typename T>
-            static std::unique_ptr<BLE::LL::UncodedPacket> Create(const T &inner_packet, bluetooth_t &bt);
+            static std::unique_ptr<BLE::LL::UncodedPacket> Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt);
         };
         static_assert(!std::is_abstract<Packet>());
     };
@@ -554,7 +614,7 @@ namespace BLE
 
             void serialize(BinaryBuffer &buffer) const override
             {
-                buffer.write(PDU->size());
+                buffer.write((uint16_t)PDU->size());
                 buffer.write(Channel);
                 PDU->serialize(buffer);
             }
@@ -570,8 +630,7 @@ namespace BLE
                     break;
 
                 default:
-                    assert(false);
-                    break;
+                    abort();
                 }
                 PDU->deserialize(buffer);
             }
@@ -587,6 +646,7 @@ namespace BLE
     namespace Data
     {
         constexpr byte LL_PERIPHERAL_FEATURE_REQ = 0x0E;
+        constexpr byte LL_UNKNOWN_RSP = 0x07;
         constexpr byte LL_FEATURE_RSP = 0x09;
         constexpr byte LL_LENGTH_REQ = 0x14;
         constexpr byte LL_LENGTH_RSP = 0x15;
@@ -634,7 +694,7 @@ namespace BLE
                 unsigned int SN : 1;
                 unsigned int MD : 1;
                 unsigned int CP : 1;
-                unsigned int RFU : 1;
+                unsigned int : 2;
                 unsigned int Length : 8;
             } __attribute__((packed)) Header;
             static_assert(sizeof(Header) == 2);
@@ -707,7 +767,7 @@ namespace BLE
                 packet->access_address = OurAccessAddress;
 
                 auto data_packet = std::make_unique<Packet>();
-                data_packet->Header.LLID = 3;
+                data_packet->Header.LLID = 1;
                 data_packet->Header.SN = bt.transmitSeqNum;
                 data_packet->Header.NESN = bt.nextExpectedSeqNum;
                 data_packet->PDU = nullptr;
@@ -718,3 +778,23 @@ namespace BLE
         };
     };
 };
+
+template <typename T>
+inline std::unique_ptr<BLE::LL::UncodedPacket> BLE::L2CAP::Packet::Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt)
+{
+    auto packet = std::make_unique<Packet>();
+    packet->Channel = T::Channel;
+    packet->PDU = std::move(inner_packet);
+
+    return Data::Packet::Create(std::move(packet), bt);
+}
+
+template <typename T>
+inline std::unique_ptr<BLE::LL::UncodedPacket> BLE::ATT::Packet::Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt)
+{
+    auto packet = std::make_unique<Packet>();
+    packet->Header.Method = T::Method;
+    packet->Parameters = std::move(inner_packet);
+
+    return L2CAP::Packet::Create(std::move(packet), bt);
+}

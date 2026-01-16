@@ -12,30 +12,6 @@ void BLE::LL::UncodedPacket::deserialize(BinaryBuffer &buffer)
     pdu->deserialize(buffer);
 }
 
-template <typename T>
-inline std::unique_ptr<BLE::LL::UncodedPacket> BLE::L2CAP::Packet::Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt)
-{
-    static_assert(T::Channel >= 0);
-
-    auto packet = std::make_unique<Packet>();
-    packet->Channel = T::Channel;
-    packet->PDU = std::move(inner_packet);
-
-    return Data::Packet::Create(std::move(packet), bt);
-}
-
-template <typename T>
-inline std::unique_ptr<BLE::LL::UncodedPacket> BLE::ATT::Packet::Create(const T &inner_packet, bluetooth_t &bt)
-{
-    static_assert(T::Method >= 0);
-
-    auto packet = std::make_unique<Packet>();
-    packet->Header.Method = T::Method;
-    packet->Parameters = std::make_unique<T>(inner_packet);
-
-    return L2CAP::Packet::Create(std::move(packet), bt);
-}
-
 void BLE::LL::UncodedPacket::run(bluetooth_t &bt)
 {
     assert(pdu);
@@ -65,6 +41,7 @@ void BLE::LL::Advertising::ADV_IND::run(bluetooth_t &bt)
 
     bt.Enqueue(Advertising::Packet::Create(inner));
     bt.connected = true;
+    bt.last_conn_event_cycles = nrf52832_get_cycle_counter(bt.nrf);
 }
 
 void BLE::Data::Packet::run(bluetooth_t &bt)
@@ -107,8 +84,7 @@ void BLE::Data::Control::run(bluetooth_t &bt)
     }
 
     default:
-        assert(false);
-        break;
+        abort();
     }
 }
 
@@ -126,15 +102,20 @@ void BLE::ATT::Packet::run(bluetooth_t &bt)
 
 void BLE::ATT::FIND_BY_TYPE_VALUE_REQ::run(bluetooth_t &bt)
 {
-    ERROR_RSP resp;
-    resp.ReqOpcode = Method;
-    resp.Handle = StartingHandle;
-    resp.ErrorCode = 0x0A;
+    auto resp = std::make_unique<ERROR_RSP>();
+    resp->ReqOpcode = Method;
+    resp->Handle = StartingHandle;
+    resp->ErrorCode = 0x0A;
 
-    bt.Enqueue(ATT::Packet::Create(resp, bt));
+    bt.Enqueue(ATT::Packet::Create(std::move(resp), bt));
 }
 
 void BLE::ATT::HANDLE_VALUE_NTF::run(bluetooth_t &bt)
 {
     printf(GRN "Attribute %d value updated to %s\n", Handle, ShowHex(Value).c_str());
+}
+
+void BLE::ATT::EXCHANGE_MTU_RSP::run(bluetooth_t &bt)
+{
+    bt.att_mtu = std::min(WantATT_MTU, ServerRxMTU);
 }

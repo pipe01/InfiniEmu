@@ -9,6 +9,7 @@ typedef struct event_queue_t event_queue_t;
 typedef enum
 {
     EVENT_RADIO_MESSAGE,
+    EVENT_RADIO_RECEIVING,
 } event_type_t;
 
 extern const char *event_type_str[];
