@@ -1,7 +1,7 @@
 #include "ansi_colors.h"
 #include "bluetooth/ble_packets.hpp"
 
-void BLE::LL::UncodedPacket::deserialize(BinaryBuffer &buffer)
+void BLE::LL::UncodedPacket::deserialize(bluetooth_t &bt, BinaryBuffer &buffer)
 {
     buffer.fill(access_address);
 
@@ -9,7 +9,7 @@ void BLE::LL::UncodedPacket::deserialize(BinaryBuffer &buffer)
         pdu = std::make_unique<Advertising::Packet>();
     else
         pdu = std::make_unique<Data::Packet>();
-    pdu->deserialize(buffer);
+    pdu->deserialize(bt, buffer);
 }
 
 void BLE::LL::UncodedPacket::run(bluetooth_t &bt)
@@ -41,6 +41,7 @@ void BLE::LL::Advertising::ADV_IND::run(bluetooth_t &bt)
 
     bt.Enqueue(Advertising::Packet::Create(inner));
     bt.connected = true;
+    bt.stage = CONNECTED;
     bt.last_conn_event_cycles = nrf52832_get_cycle_counter(bt.nrf);
 }
 
@@ -67,6 +68,35 @@ void BLE::Data::Packet::run(bluetooth_t &bt)
 
     if (PDU) // PDU may be null on empty packets
         PDU->run(bt);
+    else if (!bt.sent_req)
+    {
+        bt.sent_req = true;
+
+        switch (bt.stage)
+        {
+        case CONNECTED:
+        {
+            auto packet = std::make_unique<BLE::ATT::EXCHANGE_MTU_REQ>();
+            packet->ClientRxMTU = WantATT_MTU;
+            auto le_packet = BLE::ATT::Packet::Create(std::move(packet), bt);
+            bt.Enqueue(std::move(le_packet));
+            break;
+        }
+
+        case EXCHANGED_MTU:
+        {
+            auto packet = std::make_unique<BLE::ATT::FIND_INFORMATION_REQ>();
+            packet->StartingHandle = 1;
+            packet->EndingHandle = 0xFFFF;
+            auto le_packet = BLE::ATT::Packet::Create(std::move(packet), bt);
+            bt.Enqueue(std::move(le_packet), 3000);
+            break;
+        }
+
+        default:
+            break;
+        }
+    }
 }
 
 void BLE::Data::Control::run(bluetooth_t &bt)
@@ -118,4 +148,65 @@ void BLE::ATT::HANDLE_VALUE_NTF::run(bluetooth_t &bt)
 void BLE::ATT::EXCHANGE_MTU_RSP::run(bluetooth_t &bt)
 {
     bt.att_mtu = std::min(WantATT_MTU, ServerRxMTU);
+    bt.sent_req = false;
+    bt.stage = EXCHANGED_MTU;
+}
+
+void BLE::ATT::ERROR_RSP::run(bluetooth_t &bt)
+{
+    abort();
+}
+
+void BLE::ATT::FIND_INFORMATION_RSP::run(bluetooth_t &bt)
+{
+    if (Format == 1)
+    {
+        // 16-bit UUIDs
+        size_t handle_count = InformationData.size() / 4;
+        BinaryBuffer buffer(InformationData);
+
+        uint16_t last_handle = 0xFFFF;
+        for (size_t i = 0; i < handle_count; i++)
+        {
+            uint16_t handle = buffer.u16();
+            uint16_t uuid = buffer.u16();
+
+            printf(BCYN "Discovered handle %d, UUID: 0x%X\n" CRESET, handle, uuid);
+            last_handle = handle;
+        }
+
+        // Send again to discover 128-bit UUID handles
+        auto packet = std::make_unique<BLE::ATT::FIND_INFORMATION_REQ>();
+        packet->StartingHandle = last_handle + 1;
+        packet->EndingHandle = 0xFFFF;
+        auto le_packet = BLE::ATT::Packet::Create(std::move(packet), bt);
+        bt.Enqueue(std::move(le_packet));
+    }
+    else if (Format == 2)
+    {
+        // 128-bit UUIDs
+
+        size_t handle_count = InformationData.size() / 18;
+        BinaryBuffer buffer(InformationData);
+
+        std::array<uint8_t, 128 / 8> uuid;
+        for (size_t i = 0; i < handle_count; i++)
+        {
+            uint16_t handle = buffer.u16();
+            buffer.fill(uuid);
+
+            printf(BCYN "Discovered handle %d, UUID: ", handle);
+            for (auto it = uuid.rbegin(); it != uuid.rend(); ++it)
+            {
+                printf("%02X", *it);
+            }
+            printf("\n" CRESET);
+        }
+
+        bt.stage = REQUESTED_INFO;
+    }
+    else
+    {
+        abort();
+    }
 }

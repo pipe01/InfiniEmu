@@ -37,6 +37,8 @@ public:
         return data;
     }
 
+    size_t get_position() { return position; }
+
     void write(uint8_t value)
     {
         data.push_back(value);
@@ -131,8 +133,8 @@ namespace BLE
         virtual size_t size() = 0;
         virtual const std::string name() const = 0;
 
-        virtual void serialize(BinaryBuffer &buffer) const = 0;
-        virtual void deserialize(BinaryBuffer &buffer) = 0;
+        virtual void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const = 0;
+        virtual void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) = 0;
 
         virtual void run(bluetooth_t &bt)
         {
@@ -162,13 +164,13 @@ namespace BLE
                 return 4 + (pdu ? pdu->size() : 0);
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 buffer.write(access_address);
-                pdu->serialize(buffer);
+                pdu->serialize(bt, buffer);
             }
 
-            void deserialize(BinaryBuffer &buffer) override;
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override;
 
             void run(bluetooth_t &bt) override;
         };
@@ -187,13 +189,13 @@ namespace BLE
                     return 6 + AdvData.size();
                 }
 
-                void serialize(BinaryBuffer &buffer) const override
+                void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
                 {
                     buffer.write(AdvA);
                     buffer.write(AdvData);
                 }
 
-                void deserialize(BinaryBuffer &buffer) override
+                void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
                 {
                     buffer.fill(AdvA);
                     buffer.fill_remaining(AdvData);
@@ -214,13 +216,13 @@ namespace BLE
                     return 12;
                 }
 
-                void serialize(BinaryBuffer &buffer) const override
+                void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
                 {
                     buffer.write(Scan);
                     buffer.write(AdvA);
                 }
 
-                void deserialize(BinaryBuffer &buffer) override
+                void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
                 {
                     buffer.fill(Scan);
                     buffer.fill(AdvA);
@@ -239,13 +241,13 @@ namespace BLE
                     return 6 + ScanRspData.size();
                 }
 
-                void serialize(BinaryBuffer &buffer) const override
+                void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
                 {
                     buffer.write(AdvA);
                     buffer.write(ScanRspData);
                 }
 
-                void deserialize(BinaryBuffer &buffer) override
+                void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
                 {
                     buffer.fill(AdvA);
                     buffer.fill_remaining(ScanRspData);
@@ -273,7 +275,7 @@ namespace BLE
                     return 34;
                 }
 
-                void serialize(BinaryBuffer &buffer) const override
+                void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
                 {
                     buffer.write(InitA);
                     buffer.write(AdvA);
@@ -288,7 +290,7 @@ namespace BLE
                     buffer.write(Hop_SCA);
                 }
 
-                void deserialize(BinaryBuffer &buffer) override
+                void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
                 {
                     buffer.fill(InitA);
                     buffer.fill(AdvA);
@@ -326,16 +328,16 @@ namespace BLE
                     return 2 + (PDU ? PDU->size() : 0);
                 }
 
-                void serialize(BinaryBuffer &buffer) const override
+                void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
                 {
                     auto hdr = Header;
                     hdr.Length = PDU ? PDU->size() : 0;
 
                     buffer.write(hdr);
-                    PDU->serialize(buffer);
+                    PDU->serialize(bt, buffer);
                 }
 
-                void deserialize(BinaryBuffer &buffer) override
+                void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
                 {
                     buffer.read(Header);
                     switch (Header.PDUType)
@@ -357,7 +359,7 @@ namespace BLE
                         PDU = nullptr;
                         return;
                     }
-                    PDU->deserialize(buffer);
+                    PDU->deserialize(bt, buffer);
                 }
 
                 void run(bluetooth_t &bt) override;
@@ -397,19 +399,21 @@ namespace BLE
                 return 4;
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 buffer.write(ReqOpcode);
                 buffer.write(Handle);
                 buffer.write(ErrorCode);
             }
 
-            void deserialize(BinaryBuffer &buffer) override
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
                 buffer.read(ReqOpcode);
                 buffer.read(Handle);
                 buffer.read(ErrorCode);
             }
+
+            void run(bluetooth_t &bt) override;
         };
 
         struct EXCHANGE_MTU_REQ : public BLE::Packet
@@ -425,12 +429,12 @@ namespace BLE
                 return 2;
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 buffer.write(ClientRxMTU);
             }
 
-            void deserialize(BinaryBuffer &buffer) override
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
                 buffer.read(ClientRxMTU);
             }
@@ -449,14 +453,70 @@ namespace BLE
                 return 2;
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 buffer.write(ServerRxMTU);
             }
 
-            void deserialize(BinaryBuffer &buffer) override
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
                 buffer.read(ServerRxMTU);
+            }
+
+            void run(bluetooth_t &bt) override;
+        };
+
+        struct FIND_INFORMATION_REQ : public BLE::Packet
+        {
+            NAME("ATT::FIND_INFORMATION_REQ")
+
+            static constexpr uint32_t Method = 0x04;
+
+            uint16_t StartingHandle;
+            uint16_t EndingHandle;
+
+            size_t size() override
+            {
+                return 4;
+            }
+
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
+            {
+                buffer.write(StartingHandle);
+                buffer.write(EndingHandle);
+            }
+
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
+            {
+                buffer.read(StartingHandle);
+                buffer.read(EndingHandle);
+            }
+        };
+
+        struct FIND_INFORMATION_RSP : public BLE::Packet
+        {
+            NAME("ATT::FIND_INFORMATION_RSP")
+
+            static constexpr uint32_t Method = 0x05;
+
+            uint8_t Format;
+            any_bytes InformationData;
+
+            size_t size() override
+            {
+                return 1 + InformationData.size();
+            }
+
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
+            {
+                buffer.write(Format);
+                buffer.write(InformationData);
+            }
+
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
+            {
+                buffer.read(Format);
+                buffer.fill_remaining(InformationData);
             }
 
             void run(bluetooth_t &bt) override;
@@ -478,7 +538,7 @@ namespace BLE
                 return 6 + AttributeValue.size();
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 buffer.write(StartingHandle);
                 buffer.write(EndingHandle);
@@ -486,7 +546,7 @@ namespace BLE
                 buffer.write(AttributeValue);
             }
 
-            void deserialize(BinaryBuffer &buffer) override
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
                 buffer.read(StartingHandle);
                 buffer.read(EndingHandle);
@@ -511,13 +571,13 @@ namespace BLE
                 return 2 + Value.size();
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 buffer.write(Handle);
                 buffer.write(Value);
             }
 
-            void deserialize(BinaryBuffer &buffer) override
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
                 buffer.read(Handle);
                 buffer.fill_remaining(Value);
@@ -547,13 +607,13 @@ namespace BLE
                 return 1 + Parameters->size();
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 buffer.write(Header);
-                buffer.write(Parameters);
+                Parameters->serialize(bt, buffer);
             }
 
-            void deserialize(BinaryBuffer &buffer) override
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
                 buffer.read(Header);
                 switch (Header.Method)
@@ -566,7 +626,12 @@ namespace BLE
                     break;
                 case EXCHANGE_MTU_RSP::Method:
                     Parameters = std::make_unique<EXCHANGE_MTU_RSP>();
-                    ;
+                    break;
+                case FIND_INFORMATION_REQ::Method:
+                    Parameters = std::make_unique<FIND_INFORMATION_REQ>();
+                    break;
+                case FIND_INFORMATION_RSP::Method:
+                    Parameters = std::make_unique<FIND_INFORMATION_RSP>();
                     break;
                 case FIND_BY_TYPE_VALUE_REQ::Method:
                     Parameters = std::make_unique<FIND_BY_TYPE_VALUE_REQ>();
@@ -580,7 +645,7 @@ namespace BLE
                     break;
                 }
                 if (Parameters)
-                    Parameters->deserialize(buffer);
+                    Parameters->deserialize(bt, buffer);
             }
 
             void run(bluetooth_t &bt) override;
@@ -600,6 +665,13 @@ namespace BLE
             uint16_t PDULength;
             uint16_t Channel;
 
+            bool is_first;
+
+            // Packet() : is_first(true) {}
+            Packet(bool is_first) : is_first(is_first)
+            {
+            }
+
             child PDU;
 
             uint8_t LLID() const
@@ -612,17 +684,64 @@ namespace BLE
                 return 4 + (PDU ? PDU->size() : 0);
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 buffer.write((uint16_t)PDU->size());
                 buffer.write(Channel);
-                PDU->serialize(buffer);
+                PDU->serialize(bt, buffer);
             }
 
-            void deserialize(BinaryBuffer &buffer) override
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
-                buffer.read(PDULength);
-                buffer.read(Channel);
+                if (!bt.l2cap_frag.in_fragmented)
+                {
+                    buffer.read(PDULength);
+                    buffer.read(Channel);
+
+                    if (PDULength > buffer.get_data().size() - buffer.get_position() + (is_first ? 4 : 0))
+                    {
+                        assert(is_first);
+                        // Start defragmentation
+                        bt.l2cap_frag.in_fragmented = true;
+                        bt.l2cap_frag.total_length = PDULength;
+                        bt.l2cap_frag.channel = Channel;
+                        bt.l2cap_frag.buffer.reserve(PDULength);
+                        bt.l2cap_frag.buffer.insert(bt.l2cap_frag.buffer.begin(), buffer.get_data().begin() + buffer.get_position(), buffer.get_data().end());
+                    }
+                    else
+                    {
+                        deserialize_inner(bt, buffer);
+                    }
+                }
+                else
+                {
+                    assert(!is_first);
+                    bt.l2cap_frag.buffer.insert(bt.l2cap_frag.buffer.end(), buffer.get_data().begin() + buffer.get_position(), buffer.get_data().end());
+
+                    if (bt.l2cap_frag.buffer.size() == bt.l2cap_frag.total_length)
+                    {
+                        // Received complete packet
+
+                        PDULength = bt.l2cap_frag.total_length;
+                        Channel = bt.l2cap_frag.channel;
+
+                        BinaryBuffer buffer(bt.l2cap_frag.buffer);
+                        deserialize_inner(bt, buffer);
+
+                        bt.l2cap_frag.buffer.resize(0);
+                        bt.l2cap_frag.in_fragmented = false;
+                    }
+                }
+            }
+
+            void run(bluetooth_t &bt) override;
+
+            template <typename T>
+            static std::unique_ptr<BLE::LL::UncodedPacket> Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt);
+
+        private:
+            void deserialize_inner(bluetooth_t &bt, BinaryBuffer &buffer)
+            {
                 switch (Channel)
                 {
                 case L2CAP_CHANNEL_ATT:
@@ -632,13 +751,8 @@ namespace BLE
                 default:
                     abort();
                 }
-                PDU->deserialize(buffer);
+                PDU->deserialize(bt, buffer);
             }
-
-            void run(bluetooth_t &bt) override;
-
-            template <typename T>
-            static std::unique_ptr<BLE::LL::UncodedPacket> Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt);
         };
         static_assert(!std::is_abstract<Packet>());
     };
@@ -668,13 +782,13 @@ namespace BLE
                 return 1 + Params.size();
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 buffer.write(Opcode);
                 buffer.write(Params);
             }
 
-            void deserialize(BinaryBuffer &buffer) override
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
                 buffer.read(Opcode);
                 buffer.fill_remaining(Params);
@@ -706,27 +820,34 @@ namespace BLE
                 return 2 + (PDU ? PDU->size() : 0);
             }
 
-            void serialize(BinaryBuffer &buffer) const override
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
                 auto hdr = Header;
                 hdr.Length = PDU ? PDU->size() : 0;
+                hdr.SN = bt.transmitSeqNum;
+                hdr.NESN = bt.nextExpectedSeqNum;
 
                 buffer.write(hdr);
                 if (PDU)
-                    PDU->serialize(buffer);
+                    PDU->serialize(bt, buffer);
             }
 
-            void deserialize(BinaryBuffer &buffer) override
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
                 buffer.read(Header);
                 if (Header.Length == 0)
                     return;
 
+                assert(!Header.CP);
+
                 switch (Header.LLID)
                 {
                 case 2: // First fragment
+                    PDU = std::make_unique<L2CAP::Packet>(true);
+                    break;
+
                 case 1: // Remaining fragments
-                    PDU = std::make_unique<L2CAP::Packet>();
+                    PDU = std::make_unique<L2CAP::Packet>(false);
                     break;
 
                 case 3:
@@ -734,7 +855,7 @@ namespace BLE
                     break;
                 }
                 if (PDU)
-                    PDU->deserialize(buffer);
+                    PDU->deserialize(bt, buffer);
             }
 
             void run(bluetooth_t &bt) override;
@@ -753,8 +874,6 @@ namespace BLE
 
                 auto data_packet = std::make_unique<Packet>();
                 data_packet->Header.LLID = inner_packet->LLID();
-                data_packet->Header.SN = bt.transmitSeqNum;
-                data_packet->Header.NESN = bt.nextExpectedSeqNum;
                 data_packet->PDU = std::move(inner_packet);
 
                 packet->pdu = std::move(data_packet);
@@ -782,7 +901,7 @@ namespace BLE
 template <typename T>
 inline std::unique_ptr<BLE::LL::UncodedPacket> BLE::L2CAP::Packet::Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt)
 {
-    auto packet = std::make_unique<Packet>();
+    auto packet = std::make_unique<Packet>(true);
     packet->Channel = T::Channel;
     packet->PDU = std::move(inner_packet);
 

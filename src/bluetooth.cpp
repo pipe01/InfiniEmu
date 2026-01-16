@@ -37,15 +37,6 @@ extern "C" void bluetooth_run(bluetooth_t *bt)
     event_type_t ev;
     void *data;
 
-    if (bt->connected && !bt->exchanged_mtu && nrf52832_get_cycle_counter(bt->nrf) / NRF52832_HFCLK_FREQUENCY > 1)
-    {
-        auto packet = std::make_unique<BLE::ATT::EXCHANGE_MTU_REQ>();
-        packet->ClientRxMTU = WantATT_MTU;
-        auto le_packet = BLE::ATT::Packet::Create(std::move(packet), *bt);
-        bt->Enqueue(std::move(le_packet));
-        bt->exchanged_mtu = true;
-    }
-
     while (event_queue_poll(bt->ev_queue, &ev, &data))
     {
         switch (ev)
@@ -57,9 +48,9 @@ extern "C" void bluetooth_run(bluetooth_t *bt)
             printf(MAG "RX ");
             print_hex(std::vector<uint8_t>(message->data, message->data + message->len));
 
-            BinaryBuffer buffer(message->data, message->len - 3); // Ignore the 3 CRC bytes at the end
+            BinaryBuffer buffer(message->data, message->len - 4); // Ignore the 3 CRC bytes at the end plus one byte that I can't figure out where it's coming from
             BLE::LL::UncodedPacket packet;
-            packet.deserialize(buffer);
+            packet.deserialize(*bt, buffer);
             printf(BMAG "Received packet: %s\n" CRESET, packet.name().c_str());
             packet.run(*bt);
             break;
@@ -67,14 +58,20 @@ extern "C" void bluetooth_run(bluetooth_t *bt)
 
         case EVENT_RADIO_RECEIVING:
         {
+            bool sent = false;
             if (!bt->pending_packets.empty())
             {
-                auto &packet = bt->pending_packets.front();
-                printf(BBLU "Sending packet: %s\n" CRESET, packet->name().c_str());
-                bt->Send(*packet);
-                bt->pending_packets.pop();
+                auto &packet = bt->pending_packets.top();
+                if (nrf52832_get_cycle_counter(bt->nrf) >= packet.send_at)
+                {
+                    printf(BBLU "Sending packet: %s\n" CRESET, packet.packet->name().c_str());
+                    bt->Send(*packet.packet);
+                    bt->pending_packets.pop();
+                    sent = true;
+                }
             }
-            else if (bt->connected)
+            
+            if (!sent && bt->connected)
             {
                 auto packet = BLE::Data::Packet::CreateEmpty(*bt);
                 BLE::Packet *p = packet.get();
@@ -95,7 +92,7 @@ extern "C" void bluetooth_run(bluetooth_t *bt)
 void bluetooth_t::Send(const BLE::Packet &packet)
 {
     BinaryBuffer buffer;
-    packet.serialize(buffer);
+    packet.serialize(*this, buffer);
     buffer.write(FakeCRC);
 
     printf(BLU "TX ");
@@ -104,7 +101,13 @@ void bluetooth_t::Send(const BLE::Packet &packet)
     radio_inject_packet(radio, buffer.get_data().data(), buffer.get_data().size());
 }
 
-void bluetooth_t::Enqueue(std::unique_ptr<BLE::Packet> packet)
+void bluetooth_t::Enqueue(std::unique_ptr<BLE::Packet> packet, size_t delay_ms)
 {
-    pending_packets.push(std::move(packet));
+    pending_packet_t pend{};
+    pend.packet = std::move(packet);
+
+    if (delay_ms > 0)
+        pend.send_at = nrf52832_get_cycle_counter(nrf) + (delay_ms * NRF52832_HFCLK_FREQUENCY) / 1000;
+
+    pending_packets.push(std::move(pend));
 }
