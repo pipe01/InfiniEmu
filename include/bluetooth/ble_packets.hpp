@@ -5,6 +5,8 @@
 #include <memory>
 #include <string>
 #include <format>
+#include <type_traits>
+
 #include <string.h>
 #include <stdint.h>
 
@@ -98,6 +100,20 @@ public:
         return value;
     }
 };
+
+static inline std::string ShowHex(any_bytes b)
+{
+    std::string result;
+    result.reserve(b.size() * 5);
+
+    for (size_t i = 0; i < b.size(); ++i)
+    {
+        result += std::format("0x{:02X}", b[i]);
+        if (i + 1 < b.size())
+            result += " ";
+    }
+    return result;
+}
 
 namespace BLE
 {
@@ -366,9 +382,105 @@ namespace BLE
 
     namespace ATT
     {
+        struct ERROR_RSP : public BLE::Packet
+        {
+            NAME("ATT::ERROR_RSP")
+
+            static constexpr uint32_t Method = 0x01;
+
+            uint8_t ReqOpcode;
+            uint16_t Handle;
+            uint8_t ErrorCode;
+
+            size_t size() override
+            {
+                return 4;
+            }
+
+            void serialize(BinaryBuffer &buffer) const override
+            {
+                buffer.write(ReqOpcode);
+                buffer.write(Handle);
+                buffer.write(ErrorCode);
+            }
+
+            void deserialize(BinaryBuffer &buffer) override
+            {
+                buffer.read(ReqOpcode);
+                buffer.read(Handle);
+                buffer.read(ErrorCode);
+            }
+        };
+
+        struct FIND_BY_TYPE_VALUE_REQ : public BLE::Packet
+        {
+            NAME("ATT:FIND_BY_TYPE_VALUE_REQ")
+
+            static constexpr uint32_t Method = 0x06;
+
+            uint16_t StartingHandle;
+            uint16_t EndingHandle;
+            uint16_t AttributeType;
+            any_bytes AttributeValue;
+
+            size_t size() override
+            {
+                return 6 + AttributeValue.size();
+            }
+
+            void serialize(BinaryBuffer &buffer) const override
+            {
+                buffer.write(StartingHandle);
+                buffer.write(EndingHandle);
+                buffer.write(AttributeType);
+                buffer.write(AttributeValue);
+            }
+
+            void deserialize(BinaryBuffer &buffer) override
+            {
+                buffer.read(StartingHandle);
+                buffer.read(EndingHandle);
+                buffer.read(AttributeType);
+                buffer.fill_remaining(AttributeValue);
+            }
+
+            void run(bluetooth_t &bt) override;
+        };
+
+        struct HANDLE_VALUE_NTF : public BLE::Packet
+        {
+            NAME("ATT::HANDLE_VALUE_NTF")
+
+            static constexpr uint32_t Method = 0x1B;
+
+            uint16_t Handle;
+            any_bytes Value;
+
+            size_t size() override
+            {
+                return 2 + Value.size();
+            }
+
+            void serialize(BinaryBuffer &buffer) const override
+            {
+                buffer.write(Handle);
+                buffer.write(Value);
+            }
+
+            void deserialize(BinaryBuffer &buffer) override
+            {
+                buffer.read(Handle);
+                buffer.fill_remaining(Value);
+            }
+
+            void run(bluetooth_t &bt) override;
+        };
+
         struct Packet : public BLE::Packet
         {
-            NAME("LL::L2CAP::ATT::Packet")
+            NAME_PARENT("ATT::Packet", Parameters)
+
+            static constexpr uint32_t Channel = L2CAP_CHANNEL_ATT;
 
             struct
             {
@@ -378,11 +490,11 @@ namespace BLE
             } __attribute__((packed)) Header;
             static_assert(sizeof(Header) == 1);
 
-            any_bytes Parameters;
+            child Parameters;
 
             size_t size() override
             {
-                return 1 + Parameters.size();
+                return 1 + Parameters->size();
             }
 
             void serialize(BinaryBuffer &buffer) const override
@@ -394,16 +506,36 @@ namespace BLE
             void deserialize(BinaryBuffer &buffer) override
             {
                 buffer.read(Header);
-                buffer.fill_remaining(Parameters);
+                switch (Header.Method)
+                {
+                case FIND_BY_TYPE_VALUE_REQ::Method:
+                    Parameters = std::make_unique<FIND_BY_TYPE_VALUE_REQ>();
+                    break;
+                case HANDLE_VALUE_NTF::Method:
+                    Parameters = std::make_unique<HANDLE_VALUE_NTF>();
+                    break;
+
+                default:
+                    printf(BYEL "Unhandled ATT command 0x%X\n" CRESET, Header.Method);
+                    break;
+                }
+                if (Parameters)
+                    Parameters->deserialize(buffer);
             }
+
+            void run(bluetooth_t &bt) override;
+
+            template <typename T>
+            static std::unique_ptr<BLE::LL::UncodedPacket> Create(const T &inner_packet, bluetooth_t &bt);
         };
+        static_assert(!std::is_abstract<Packet>());
     };
 
     namespace L2CAP
     {
         struct Packet : public BLE::Packet
         {
-            NAME_PARENT("LL::L2CAP::Packet", PDU)
+            NAME_PARENT("L2CAP::Packet", PDU)
 
             uint16_t PDULength;
             uint16_t Channel;
@@ -445,7 +577,11 @@ namespace BLE
             }
 
             void run(bluetooth_t &bt) override;
+
+            template <typename T>
+            static std::unique_ptr<BLE::LL::UncodedPacket> Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt);
         };
+        static_assert(!std::is_abstract<Packet>());
     };
 
     namespace Data
@@ -457,7 +593,7 @@ namespace BLE
 
         struct Control : public Packet
         {
-            NAME_FMT("LL::Data::Control {}", Opcode)
+            NAME_FMT("Data::Control {}", Opcode)
 
             byte Opcode;
             any_bytes Params;
@@ -489,7 +625,7 @@ namespace BLE
 
         struct Packet : public BLE::Packet
         {
-            NAME_PARENT("LL::Data::Packet", PDU)
+            NAME_PARENT("Data::Packet", PDU)
 
             struct
             {
@@ -546,14 +682,20 @@ namespace BLE
             template <typename T>
             static std::unique_ptr<LL::UncodedPacket> Create(const T &inner_packet, bluetooth_t &bt)
             {
+                return Create(std::make_unique<T>(inner_packet), bt);
+            }
+
+            template <typename T>
+            static std::unique_ptr<LL::UncodedPacket> Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt)
+            {
                 auto packet = std::make_unique<LL::UncodedPacket>();
                 packet->access_address = OurAccessAddress;
 
                 auto data_packet = std::make_unique<Packet>();
-                data_packet->Header.LLID = inner_packet.LLID();
+                data_packet->Header.LLID = inner_packet->LLID();
                 data_packet->Header.SN = bt.transmitSeqNum;
                 data_packet->Header.NESN = bt.nextExpectedSeqNum;
-                data_packet->PDU = std::make_unique<T>(inner_packet);
+                data_packet->PDU = std::move(inner_packet);
 
                 packet->pdu = std::move(data_packet);
                 return packet;

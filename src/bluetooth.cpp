@@ -56,13 +56,13 @@ extern "C" void bluetooth_run(bluetooth_t *bt)
         case EVENT_RADIO_MESSAGE:
             auto message = static_cast<event_radio_message_t *>(data);
 
-            printf(YEL "RX ");
+            printf(MAG "RX ");
             print_hex(std::vector<uint8_t>(message->data, message->data + message->len));
 
             BinaryBuffer buffer(message->data, message->len - 3); // Ignore the 3 CRC bytes at the end
             BLE::LL::UncodedPacket packet;
             packet.deserialize(buffer);
-            printf(BYEL "Received packet: %s\n" CRESET, packet.name().c_str());
+            printf(BMAG "Received packet: %s\n" CRESET, packet.name().c_str());
             packet.run(*bt);
             break;
         }

@@ -12,6 +12,30 @@ void BLE::LL::UncodedPacket::deserialize(BinaryBuffer &buffer)
     pdu->deserialize(buffer);
 }
 
+template <typename T>
+inline std::unique_ptr<BLE::LL::UncodedPacket> BLE::L2CAP::Packet::Create(std::unique_ptr<T> inner_packet, bluetooth_t &bt)
+{
+    static_assert(T::Channel >= 0);
+
+    auto packet = std::make_unique<Packet>();
+    packet->Channel = T::Channel;
+    packet->PDU = std::move(inner_packet);
+
+    return Data::Packet::Create(std::move(packet), bt);
+}
+
+template <typename T>
+inline std::unique_ptr<BLE::LL::UncodedPacket> BLE::ATT::Packet::Create(const T &inner_packet, bluetooth_t &bt)
+{
+    static_assert(T::Method >= 0);
+
+    auto packet = std::make_unique<Packet>();
+    packet->Header.Method = T::Method;
+    packet->Parameters = std::make_unique<T>(inner_packet);
+
+    return L2CAP::Packet::Create(std::move(packet), bt);
+}
+
 void BLE::LL::UncodedPacket::run(bluetooth_t &bt)
 {
     assert(pdu);
@@ -51,13 +75,13 @@ void BLE::Data::Packet::run(bluetooth_t &bt)
     }
     else
     {
-        printf(RED "Packet with invalid SN received\n" CRESET);
+        printf(BYEL "Packet with invalid SN received\n" CRESET);
         return;
     }
 
     if (Header.NESN == bt.transmitSeqNum)
     {
-        printf(RED "Last packet not acknowledged\n" CRESET);
+        printf(BYEL "Last packet not acknowledged\n" CRESET);
     }
     else
     {
@@ -90,5 +114,27 @@ void BLE::Data::Control::run(bluetooth_t &bt)
 
 void BLE::L2CAP::Packet::run(bluetooth_t &bt)
 {
-    assert(false);
+    if (PDU)
+        PDU->run(bt);
+}
+
+void BLE::ATT::Packet::run(bluetooth_t &bt)
+{
+    assert(Parameters);
+    Parameters->run(bt);
+}
+
+void BLE::ATT::FIND_BY_TYPE_VALUE_REQ::run(bluetooth_t &bt)
+{
+    ERROR_RSP resp;
+    resp.ReqOpcode = Method;
+    resp.Handle = StartingHandle;
+    resp.ErrorCode = 0x0A;
+
+    bt.Enqueue(ATT::Packet::Create(resp, bt));
+}
+
+void BLE::ATT::HANDLE_VALUE_NTF::run(bluetooth_t &bt)
+{
+    printf(GRN "Attribute %d value updated to %s\n", Handle, ShowHex(Value).c_str());
 }
