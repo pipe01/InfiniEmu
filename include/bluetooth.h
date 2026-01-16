@@ -21,6 +21,7 @@ namespace BLE
 #include <array>
 #include <memory>
 #include <queue>
+#include <map>
 
 constexpr uint32_t ConnIntervalMS = 100;
 constexpr uint32_t ConnPeripheralLatency = 0;
@@ -77,6 +78,8 @@ struct bluetooth_t
 
     unsigned int transmitSeqNum : 1;
     unsigned int nextExpectedSeqNum : 1;
+
+    std::map<uint16_t, uint16_t> attrs16;
 
     std::priority_queue<pending_packet_t, std::vector<pending_packet_t>, PendingCompare> pending_packets;
 

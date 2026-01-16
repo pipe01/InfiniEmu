@@ -67,13 +67,18 @@ void BLE::Data::Packet::run(bluetooth_t &bt)
     }
 
     if (PDU) // PDU may be null on empty packets
+    {
         PDU->run(bt);
+    }
     else if (!bt.sent_req)
     {
         bt.sent_req = true;
 
         switch (bt.stage)
         {
+        case NONE:
+            break;
+
         case CONNECTED:
         {
             auto packet = std::make_unique<BLE::ATT::EXCHANGE_MTU_REQ>();
@@ -89,12 +94,28 @@ void BLE::Data::Packet::run(bluetooth_t &bt)
             packet->StartingHandle = 1;
             packet->EndingHandle = 0xFFFF;
             auto le_packet = BLE::ATT::Packet::Create(std::move(packet), bt);
-            bt.Enqueue(std::move(le_packet), 3000);
+            bt.Enqueue(std::move(le_packet), 1000);
             break;
         }
 
-        default:
+        case REQUESTED_INFO:
+        {
+            uint16_t handle = 0;
+            for (auto p = bt.attrs16.begin(); p != bt.attrs16.end(); ++p)
+            {
+                if (p->second == 0x2803)
+                {
+                    handle = p->first;
+                    break;
+                }
+            }
+
+            auto packet = std::make_unique<BLE::ATT::READ_REQ>();
+            packet->Handle = handle;
+            auto le_packet = BLE::ATT::Packet::Create(std::move(packet), bt);
+            bt.Enqueue(std::move(le_packet));
             break;
+        }
         }
     }
 }
@@ -171,6 +192,8 @@ void BLE::ATT::FIND_INFORMATION_RSP::run(bluetooth_t &bt)
             uint16_t handle = buffer.u16();
             uint16_t uuid = buffer.u16();
 
+            bt.attrs16[handle] = uuid;
+
             printf(BCYN "Discovered handle %d, UUID: 0x%X\n" CRESET, handle, uuid);
             last_handle = handle;
         }
@@ -203,10 +226,16 @@ void BLE::ATT::FIND_INFORMATION_RSP::run(bluetooth_t &bt)
             printf("\n" CRESET);
         }
 
+        bt.sent_req = false;
         bt.stage = REQUESTED_INFO;
     }
     else
     {
         abort();
     }
+}
+
+void BLE::ATT::READ_RSP::run(bluetooth_t &bt)
+{
+    printf(GRN "Read Response: %s\n" CRESET, ShowHex(Value).c_str());
 }

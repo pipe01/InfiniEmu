@@ -557,6 +557,56 @@ namespace BLE
             void run(bluetooth_t &bt) override;
         };
 
+        struct READ_REQ : public BLE::Packet
+        {
+            NAME("ATT::READ_REQ")
+
+            static constexpr uint32_t Method = 0x0A;
+
+            uint16_t Handle;
+
+            size_t size() override
+            {
+                return 2;
+            }
+
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
+            {
+                buffer.write(Handle);
+            }
+
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
+            {
+                buffer.read(Handle);
+            }
+        };
+
+        struct READ_RSP : public BLE::Packet
+        {
+            NAME("ATT::READ_RSP")
+
+            static constexpr uint32_t Method = 0x0B;
+
+            any_bytes Value;
+
+            size_t size() override
+            {
+                return Value.size();
+            }
+
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
+            {
+                buffer.write(Value);
+            }
+
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
+            {
+                buffer.fill_remaining(Value);
+            }
+
+            void run(bluetooth_t &bt) override;
+        };
+
         struct HANDLE_VALUE_NTF : public BLE::Packet
         {
             NAME("ATT::HANDLE_VALUE_NTF")
@@ -635,6 +685,12 @@ namespace BLE
                     break;
                 case FIND_BY_TYPE_VALUE_REQ::Method:
                     Parameters = std::make_unique<FIND_BY_TYPE_VALUE_REQ>();
+                    break;
+                case READ_REQ::Method:
+                    Parameters = std::make_unique<READ_REQ>();
+                    break;
+                case READ_RSP::Method:
+                    Parameters = std::make_unique<READ_RSP>();
                     break;
                 case HANDLE_VALUE_NTF::Method:
                     Parameters = std::make_unique<HANDLE_VALUE_NTF>();
