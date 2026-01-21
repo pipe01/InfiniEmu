@@ -1,121 +1,25 @@
 #pragma once
 
-#include <array>
-#include <vector>
 #include <memory>
 #include <string>
-#include <format>
-#include <type_traits>
 
 #include <string.h>
 #include <stdint.h>
 
-#include "bluetooth.h"
-
-using byte = uint8_t;
-template <std::size_t N>
-using bytes = std::array<byte, N>;
-using any_bytes = std::vector<byte>;
+#include "ansi_colors.h"
+#include "binary_buffer.hpp"
+#include "bluetooth.hpp"
 
 constexpr bytes<4> AdvertisingAccessAddress = {0xd6, 0xbe, 0x89, 0x8e};
 constexpr bytes<6> OurAddress = {0xde, 0xad, 0xbe, 0xef, 0x69, 0x69};
 constexpr bytes<4> OurAccessAddress = {0xaa, 0xbb, 0xcc, 0xdd};
 
-class BinaryBuffer
-{
-    std::vector<uint8_t> data;
-    size_t position = 0;
-
-public:
-    BinaryBuffer() = default;
-    BinaryBuffer(size_t size) : data(size) {}
-    BinaryBuffer(const std::vector<uint8_t> &data) : data(data) {}
-    BinaryBuffer(const uint8_t *data, size_t size) : data(data, data + size) {}
-
-    const std::vector<uint8_t> &get_data() const
-    {
-        return data;
-    }
-
-    size_t get_position() { return position; }
-
-    void write(uint8_t value)
-    {
-        data.push_back(value);
-    }
-    void write(uint16_t value)
-    {
-        data.push_back(value & 0xFF);
-        data.push_back((value >> 8) & 0xFF);
-    }
-    template <auto N>
-    void write(const bytes<N> data)
-    {
-        for (size_t i = 0; i < N; ++i)
-            this->data.push_back(data[i]);
-    }
-    void write(const any_bytes data)
-    {
-        this->data.insert(this->data.end(), data.begin(), data.end());
-    }
-    template <typename T>
-    void write(const T &value)
-    {
-        const uint8_t *data = reinterpret_cast<const uint8_t *>(&value);
-        for (size_t i = 0; i < sizeof(T); ++i)
-            this->data.push_back(data[i]);
-    }
-
-    template <auto N>
-    void fill(bytes<N> &data)
-    {
-        for (size_t i = 0; i < N; ++i)
-            data[i] = u8();
-    }
-    void fill(any_bytes &data, size_t size)
-    {
-        data.resize(size);
-        for (size_t i = 0; i < size; ++i)
-            data[i] = u8();
-    }
-    void fill_remaining(any_bytes &data)
-    {
-        size_t remaining = this->data.size() - position;
-        fill(data, remaining);
-    }
-
-    template <typename T>
-    void read(T &value)
-    {
-        memcpy(&value, &data[position], sizeof(T));
-        position += sizeof(T);
-    }
-
-    uint8_t u8()
-    {
-        return data[position++];
-    }
-    uint16_t u16()
-    {
-        uint16_t value = data[position] | (data[position + 1] << 8);
-        position += 2;
-        return value;
-    }
-};
-
-static inline std::string ShowHex(any_bytes b)
-{
-    std::string result;
-    result.reserve(b.size() * 5);
-
-    for (size_t i = 0; i < b.size(); ++i)
-    {
-        result += std::format("0x{:02X}", b[i]);
-        if (i + 1 < b.size())
-            result += " ";
-    }
-    return result;
-}
+template <typename T>
+concept RequestPacket =
+    requires {
+        typename T::Response;
+        { T::Response::Method } -> std::convertible_to<uint32_t>;
+    };
 
 namespace BLE
 {
@@ -127,20 +31,6 @@ namespace BLE
     const std::string name() const override { return (m ? m->name() : "Empty") + " > " n; }
 
     constexpr uint32_t L2CAP_CHANNEL_ATT = 0x04;
-
-    struct Packet
-    {
-        virtual size_t size() = 0;
-        virtual const std::string name() const = 0;
-
-        virtual void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const = 0;
-        virtual void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) = 0;
-
-        virtual void run(bluetooth_t &bt)
-        {
-            abort();
-        }
-    };
 
     using child = std::unique_ptr<Packet>;
 
@@ -416,30 +306,6 @@ namespace BLE
             void run(bluetooth_t &bt) override;
         };
 
-        struct EXCHANGE_MTU_REQ : public BLE::Packet
-        {
-            NAME("ATT::EXCHANGE_MTU_REQ")
-
-            static constexpr uint32_t Method = 0x02;
-
-            uint16_t ClientRxMTU;
-
-            size_t size() override
-            {
-                return 2;
-            }
-
-            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
-            {
-                buffer.write(ClientRxMTU);
-            }
-
-            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
-            {
-                buffer.read(ClientRxMTU);
-            }
-        };
-
         struct EXCHANGE_MTU_RSP : public BLE::Packet
         {
             NAME("ATT::EXCHANGE_MTU_RSP")
@@ -466,30 +332,28 @@ namespace BLE
             void run(bluetooth_t &bt) override;
         };
 
-        struct FIND_INFORMATION_REQ : public BLE::Packet
+        struct EXCHANGE_MTU_REQ : public BLE::Packet
         {
-            NAME("ATT::FIND_INFORMATION_REQ")
+            NAME("ATT::EXCHANGE_MTU_REQ")
+            using Response = EXCHANGE_MTU_RSP;
 
-            static constexpr uint32_t Method = 0x04;
+            static constexpr uint32_t Method = 0x02;
 
-            uint16_t StartingHandle;
-            uint16_t EndingHandle;
+            uint16_t ClientRxMTU;
 
             size_t size() override
             {
-                return 4;
+                return 2;
             }
 
             void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
             {
-                buffer.write(StartingHandle);
-                buffer.write(EndingHandle);
+                buffer.write(ClientRxMTU);
             }
 
             void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
             {
-                buffer.read(StartingHandle);
-                buffer.read(EndingHandle);
+                buffer.read(ClientRxMTU);
             }
         };
 
@@ -520,6 +384,34 @@ namespace BLE
             }
 
             void run(bluetooth_t &bt) override;
+        };
+
+        struct FIND_INFORMATION_REQ : public BLE::Packet
+        {
+            NAME("ATT::FIND_INFORMATION_REQ")
+            using Response = FIND_INFORMATION_RSP;
+
+            static constexpr uint32_t Method = 0x04;
+
+            uint16_t StartingHandle;
+            uint16_t EndingHandle;
+
+            size_t size() override
+            {
+                return 4;
+            }
+
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
+            {
+                buffer.write(StartingHandle);
+                buffer.write(EndingHandle);
+            }
+
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
+            {
+                buffer.read(StartingHandle);
+                buffer.read(EndingHandle);
+            }
         };
 
         struct FIND_BY_TYPE_VALUE_REQ : public BLE::Packet
@@ -557,30 +449,6 @@ namespace BLE
             void run(bluetooth_t &bt) override;
         };
 
-        struct READ_REQ : public BLE::Packet
-        {
-            NAME("ATT::READ_REQ")
-
-            static constexpr uint32_t Method = 0x0A;
-
-            uint16_t Handle;
-
-            size_t size() override
-            {
-                return 2;
-            }
-
-            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
-            {
-                buffer.write(Handle);
-            }
-
-            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
-            {
-                buffer.read(Handle);
-            }
-        };
-
         struct READ_RSP : public BLE::Packet
         {
             NAME("ATT::READ_RSP")
@@ -605,6 +473,31 @@ namespace BLE
             }
 
             void run(bluetooth_t &bt) override;
+        };
+
+        struct READ_REQ : public BLE::Packet
+        {
+            NAME("ATT::READ_REQ")
+            using Response = READ_RSP;
+
+            static constexpr uint32_t Method = 0x0A;
+
+            uint16_t Handle;
+
+            size_t size() override
+            {
+                return 2;
+            }
+
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
+            {
+                buffer.write(Handle);
+            }
+
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
+            {
+                buffer.read(Handle);
+            }
         };
 
         struct HANDLE_VALUE_NTF : public BLE::Packet
@@ -697,7 +590,7 @@ namespace BLE
                     break;
 
                 default:
-                    printf(BYEL "Unhandled ATT command 0x%X\n" CRESET, Header.Method);
+                    BLE_LOG(BYEL, "Unhandled ATT command 0x%X\n", Header.Method);
                     break;
                 }
                 if (Parameters)
@@ -815,6 +708,7 @@ namespace BLE
 
     namespace Data
     {
+        constexpr byte LL_TERMINATE_IND = 0x02;
         constexpr byte LL_PERIPHERAL_FEATURE_REQ = 0x0E;
         constexpr byte LL_UNKNOWN_RSP = 0x07;
         constexpr byte LL_FEATURE_RSP = 0x09;

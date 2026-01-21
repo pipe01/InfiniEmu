@@ -1,5 +1,6 @@
 set(SRC_FILES
     bluetooth.cpp
+    bluetooth_sock.cpp
     bus_i2c.c
     bus_spi.c
     circular_buffer.c
@@ -98,7 +99,7 @@ set(WASM_EXPORTS
     lfs_info_malloc lfs_info_type lfs_info_size lfs_info_name
 )
 
-set(LIBS m tiny-aes capstone lua)
+set(LIBS m tiny-aes capstone lua nlohmann_json::nlohmann_json)
 
 if (PNG_FOUND)
     list(APPEND LIBS ${PNG_LIBRARIES})
@@ -109,7 +110,7 @@ endif()
 add_compile_options(-Werror -Wall -Wextra -Wno-unused-parameter -Wno-microsoft-anon-tag -fms-extensions)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 add_compile_definitions(_POSIX_C_SOURCE=200809L)
 

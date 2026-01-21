@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 
+include(FetchContent)
+
 project(infiniemu)
 
 if(CMAKE_TOOLCHAIN_FILE MATCHES "Emscripten.cmake")
@@ -24,5 +26,9 @@ add_subdirectory(lib/capstone)
 
 add_library(lua STATIC lib/lua/onelua.c)
 target_compile_options(lua PRIVATE -DMAKE_LIB)
+
+cmake_policy(SET CMP0135 NEW)
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
+FetchContent_MakeAvailable(json)
 
 add_subdirectory(src)

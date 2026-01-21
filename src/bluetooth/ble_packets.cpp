@@ -26,23 +26,8 @@ void BLE::LL::Advertising::Packet::run(bluetooth_t &bt)
 
 void BLE::LL::Advertising::ADV_IND::run(bluetooth_t &bt)
 {
-    CONNECT_IND inner;
-    inner.InitA = OurAddress;
-    inner.AdvA = AdvA;
-    inner.AA = OurAccessAddress;
-    inner.CRCInit = {0xBB, 0xBB, 0xBB};
-    inner.WinSize = TransmitWindowSizeMS / 1.25;
-    inner.WinOffset = 0;
-    inner.Interval = ConnIntervalMS / 1.25;
-    inner.Latency = ConnPeripheralLatency;
-    inner.Timeout = ConnSupervisionTimeoutMS / 10;
-    inner.ChM = {0xCC, 0xCC, 0xCC, 0xCC, 0xCC};
-    inner.Hop_SCA = 7; // Hop=7, SCA=0
-
-    bt.Enqueue(Advertising::Packet::Create(inner));
-    bt.connected = true;
-    bt.stage = CONNECTED;
-    bt.last_conn_event_cycles = nrf52832_get_cycle_counter(bt.nrf);
+    bt.peripheral_adva = AdvA;
+    bt.received_advertising = true;
 }
 
 void BLE::Data::Packet::run(bluetooth_t &bt)
@@ -53,13 +38,13 @@ void BLE::Data::Packet::run(bluetooth_t &bt)
     }
     else
     {
-        printf(BYEL "Packet with invalid SN received\n" CRESET);
+        BLE_LOG(BYEL, "Packet with invalid SN received\n");
         return;
     }
 
     if (Header.NESN == bt.transmitSeqNum)
     {
-        printf(BYEL "Last packet not acknowledged\n" CRESET);
+        BLE_LOG(BYEL, "Last packet not acknowledged\n");
     }
     else
     {
@@ -98,7 +83,7 @@ void BLE::Data::Packet::run(bluetooth_t &bt)
             break;
         }
 
-        case REQUESTED_INFO:
+        case DONE:
         {
             uint16_t handle = 0;
             for (auto p = bt.attrs16.begin(); p != bt.attrs16.end(); ++p)
@@ -163,7 +148,7 @@ void BLE::ATT::FIND_BY_TYPE_VALUE_REQ::run(bluetooth_t &bt)
 
 void BLE::ATT::HANDLE_VALUE_NTF::run(bluetooth_t &bt)
 {
-    printf(GRN "Attribute %d value updated to %s\n", Handle, ShowHex(Value).c_str());
+    BLE_LOG(GRN, "Attribute %d value updated to %s\n", Handle, ShowHex(Value).c_str());
 }
 
 void BLE::ATT::EXCHANGE_MTU_RSP::run(bluetooth_t &bt)
@@ -175,7 +160,15 @@ void BLE::ATT::EXCHANGE_MTU_RSP::run(bluetooth_t &bt)
 
 void BLE::ATT::ERROR_RSP::run(bluetooth_t &bt)
 {
-    abort();
+    if (bt.read_request.has_value())
+    {
+        bt.read_request->callback(ErrorCode, {});
+        bt.read_request.reset();
+    }
+    else
+    {
+        abort();
+    }
 }
 
 void BLE::ATT::FIND_INFORMATION_RSP::run(bluetooth_t &bt)
@@ -194,7 +187,7 @@ void BLE::ATT::FIND_INFORMATION_RSP::run(bluetooth_t &bt)
 
             bt.attrs16[handle] = uuid;
 
-            printf(BCYN "Discovered handle %d, UUID: 0x%X\n" CRESET, handle, uuid);
+            BLE_LOG(BCYN, "Discovered handle %d, UUID: 0x%X\n", handle, uuid);
             last_handle = handle;
         }
 
@@ -218,16 +211,20 @@ void BLE::ATT::FIND_INFORMATION_RSP::run(bluetooth_t &bt)
             uint16_t handle = buffer.u16();
             buffer.fill(uuid);
 
+            bt.attrs128[handle] = uuid;
+
+#if ENABLE_BLE_LOG
             printf(BCYN "Discovered handle %d, UUID: ", handle);
             for (auto it = uuid.rbegin(); it != uuid.rend(); ++it)
             {
                 printf("%02X", *it);
             }
             printf("\n" CRESET);
+#endif
         }
 
         bt.sent_req = false;
-        bt.stage = REQUESTED_INFO;
+        bt.stage = DONE;
     }
     else
     {
@@ -237,5 +234,11 @@ void BLE::ATT::FIND_INFORMATION_RSP::run(bluetooth_t &bt)
 
 void BLE::ATT::READ_RSP::run(bluetooth_t &bt)
 {
-    printf(GRN "Read Response: %s\n" CRESET, ShowHex(Value).c_str());
+    BLE_LOG(GRN, "Read Response: %s\n", ShowHex(Value).c_str());
+
+    if (bt.read_request.has_value())
+    {
+        bt.read_request->callback(0, std::move(Value));
+        bt.read_request.reset();
+    }
 }

@@ -1,11 +1,13 @@
 #include "pinetime.h"
 #include "gdb.h"
 #include "segger_rtt.h"
+#include "bluetooth.h"
 #include "peripherals/nrf52832/radio.h"
 
 typedef struct
 {
     pinetime_t *pt;
+    bluetooth_t *bt;
     event_queue_t *event_queue;
     double ran_seconds;
 
@@ -61,6 +63,7 @@ DEF_FN(new)
     lpt->event_queue = event_queue_new();
     lpt->pt = pinetime_new(program, lpt->event_queue);
     lpt->rtt = rtt_new(cpu_mem(nrf52832_get_cpu(pinetime_get_nrf52832(lpt->pt))));
+    lpt->bt = bluetooth_new(lpt->pt);
 
     pinetime_reset(lpt->pt);
 
@@ -114,6 +117,8 @@ DEF_FN(run)
     while (rem_cycles > 0)
     {
         rem_cycles -= pinetime_step(lpt->pt);
+
+        bluetooth_run(lpt->bt);
 
         if (exit_on_event && event_queue_peek(lpt->event_queue))
             break;
@@ -262,8 +267,16 @@ DEF_FN(rantime)
     return 1;
 }
 
+DEF_FN(coyield)
+{
+    
+
+    return 0;
+}
+
 DEF_FUNCS{
     FN(new),
+    FN(coyield),
     END_FN,
 };
 

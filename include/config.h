@@ -35,7 +35,7 @@
 #endif
 
 #ifndef ENABLE_MEASUREMENT
-#define ENABLE_MEASUREMENT 1
+#define ENABLE_MEASUREMENT 0
 #endif
 
 #ifndef ABORT_ON_INVALID_MEM_ACCESS
@@ -44,4 +44,8 @@
 
 #ifndef ASSERT_EXCEPTION_REGISTERS
 #define ASSERT_EXCEPTION_REGISTERS 0
+#endif
+
+#ifndef ENABLE_BLE_LOG
+#define ENABLE_BLE_LOG 0
 #endif

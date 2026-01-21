@@ -4,6 +4,7 @@
 #include <sys/time.h>
 
 #include "bluetooth.h"
+#include "bluetooth_sock.h"
 #include "commander.h"
 #include "config.h"
 #include "pinetime.h"
@@ -149,6 +150,8 @@ int main(int argc, char **argv)
     NRF52832_t *nrf = pinetime_get_nrf52832(pt);
     cpu_t *cpu = nrf52832_get_cpu(nrf);
     emulation_t *emu = new_emulation(pt, cpu, nrf);
+
+    bluetooth_sock_start(emu->bt);
 
 #if ENABLE_RUNLOG
     runlog_t *runlog = NULL;

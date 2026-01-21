@@ -6,7 +6,8 @@
                 "${workspaceFolder}/include",
                 "${workspaceFolder}/lib",
                 "${workspaceFolder}/lib/capstone/include",
-                "${workspaceFolder}"
+                "${workspaceFolder}",
+                "${workspaceFolder}/include/bluetooth"
             ],
             "defines": [
                 "_POSIX_C_SOURCE=200809L"

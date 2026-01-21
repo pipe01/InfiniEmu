@@ -20,3 +20,5 @@ vgcore.*
 
 *.pcap
 *.pcapng
+
+/*.log
