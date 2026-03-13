@@ -388,7 +388,7 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
 
     parse_hex(msg, hex_len, (uint8_t *)command);
 
-    if (strcmp(command, "reset halt") == 0)
+    if (strcmp(command, "reset") == 0)
     {
         nrf52832_reset(gdb->gdb->nrf);
 
