@@ -50,6 +50,16 @@ Although not strictly related to debugging as described in this document, it can
 
 This will send all log messages to the Segger RTT backend, which InfiniEmu will read and output to its stdout.
 
+### Building
+
+Given that we only need the `pinetime-app-1.16.0.out` file, we can build just the `pinetime-app` target:
+
+```shell
+make -j$(nproc) pinetime-app
+```
+
+You should now use the firmware file at `build/src/pinetime-app-1.16.0.out`.
+
 ## Using Visual Studio Code
 
 You will need the [Native Debug](https://marketplace.visualstudio.com/items?itemName=webfreak.debug) extension, which provides support for connecting to a remote GDB server. Once installed, add the following block to your `launch.json`:
