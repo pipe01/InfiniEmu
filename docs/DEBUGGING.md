@@ -30,7 +30,7 @@ However, this will greatly increase the output's size, potentially making it big
    /* SCRATCH (r) : ORIGIN = SCRATCH_OFFSET, LENGTH = SCRATCH_SIZE */
    SPARE_SPACE (r) : ORIGIN = SCRATCH_OFFSET + SCRATCH_SIZE, LENGTH = 12K
    RAM (rwx) :  ORIGIN = 0x20000000, LENGTH = 64K
-}
+ }
 ```
 
 You may also increase the RAM capacity in a similar manner if necessary by changing the `RAM`'s `LENGTH` to e.g. `128K`.
