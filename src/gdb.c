@@ -973,6 +973,9 @@ void gdb_start(gdb_t *gdb)
         exit(1);
     }
 
+    int yes = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
     for (;;)
     {
         if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
