@@ -70,7 +70,7 @@ Make sure to adjust the `executable` so it points to the same firmware file that
 
 You should now be able to hit F5 (make sure you select the "Attach to InfiniEmu" configuration on the "Run and Debug" sidebar) and connect to the running InfiniEmu instance.
 
-If you want to stop execution right after connecting, you can set either the `"stopAtConnect"` or the `"stopAtEntry"` to `true`. The former will stop execution at the absolute first instruction that that emulator runs (in our case the reset handler), while the latter will stop at the program's entry point (in our case `main`). For more information, check [the extension's README](https://github.com/WebFreak001/code-debug).
+If you want to stop execution right after connecting, you can set either the `"stopAtConnect"` or the `"stopAtEntry"` property to `true`. The former will stop execution at the absolute first instruction that that emulator runs (in our case the reset handler), while the latter will stop at the program's entry point (in our case `main`). For more information, check [the extension's README](https://github.com/WebFreak001/code-debug).
 
 > [!NOTE]
 > The firmware won't be automatically built when pressing F5, make sure to build it manually through whichever process you have set up before starting the debugging session.
