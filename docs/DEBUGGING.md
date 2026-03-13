@@ -19,7 +19,7 @@ First and foremost is to build it using CMake's `Debug` build type, which you ca
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 ```
 
-However, this will greatly increase the output's size, potentially making it bigger than the nRF52832's flash and causing the build to fail. If this occurs, you can make the linker think that the available flash space is larger (InfiniEmu supports up to 8MB) by tweaking the `gcc_nrf52.ld` file at the root of the project:
+However, this will greatly increase the output's size, potentially making it bigger than the nRF52832's flash and causing the build to fail. If this occurs, you can make the linker think that the available flash space is larger (InfiniEmu supports up to 8MB) by tweaking the `gcc_nrf52.ld` file at the root of the InfiniTime project:
 
 ```diff
  MEMORY
@@ -37,7 +37,7 @@ You may also increase the RAM capacity in a similar manner if necessary by chang
 
 ### Logging
 
-Although not strictly related to debugging as described in this document, it can be very useful to see the messages that the InfiniTime firmware logs when running. To enable this you must uncomment a couple lines in the `src/CMakeLists.txt` file:
+Although not strictly related to debugging as described in this document, it can be very useful to see the messages that the InfiniTime firmware logs when running. To enable this you must uncomment a couple lines in InfiniTime's `/src/CMakeLists.txt` file:
 
 ```diff
    # NRF SDK Logging
