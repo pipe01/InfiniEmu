@@ -4,6 +4,9 @@
 
 #include <thread>
 #include <cstring>
+#include <functional>
+
+using namespace std::placeholders;
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -11,51 +14,21 @@ using json = nlohmann::json;
 #include "bluetooth.hpp"
 #include "bluetooth/ble_packets.hpp"
 
-static void send_json(int socket, const json &msg)
+using uuid128 = std::array<uint8_t, 128 / 8>;
+
+class Connection
 {
-    std::string str = msg.dump();
-    send(socket, str.c_str(), str.size(), 0);
-}
+public:
+    Connection(bluetooth_t *bt, int socket) : bt(bt), socket(socket) {}
 
-static void handle_message(bluetooth_t *bt, int socket, json &msg)
-{
-    std::string msg_type = msg["type"];
-
-    if (msg_type == "connect")
+    void send_json(const json &msg)
     {
-        bt->Connect();
+        std::string str = msg.dump();
+        send(socket, str.c_str(), str.size(), 0);
     }
-    else if (msg_type == "disconnect")
+
+    std::optional<uint16_t> uuid_to_handle(json char_json)
     {
-        bt->Disconnect();
-    }
-    else if (msg_type == "list_chars")
-    {
-        json resp;
-        json uuids16 = json::array();
-        json uuids128 = json::array();
-
-        for (auto uuid = bt->attrs16.begin(); uuid != bt->attrs16.end(); ++uuid)
-        {
-            uuids16.push_back(uuid->second);
-        }
-        for (auto uuid = bt->attrs128.begin(); uuid != bt->attrs128.end(); ++uuid)
-        {
-            uuids128.push_back(uuid->second);
-        }
-
-        resp["uuids16"] = uuids16;
-        resp["uuids128"] = uuids128;
-
-        send_json(socket, resp);
-    }
-    else if (msg_type == "read_char")
-    {
-        json char_json = msg["uuid"];
-
-        uint16_t handle = 0;
-        bool found = false;
-
         if (char_json.is_number())
         {
             uint16_t want_uuid = char_json;
@@ -64,63 +37,172 @@ static void handle_message(bluetooth_t *bt, int socket, json &msg)
             {
                 if (want_uuid == uuid->second)
                 {
-                    handle = uuid->first;
-                    found = true;
+                    return uuid->first;
                 }
             }
         }
         else if (char_json.is_array())
         {
-            std::array<uint8_t, 128 / 8> want_uuid = char_json;
+            uuid128 want_uuid = char_json;
 
             for (auto uuid = bt->attrs128.begin(); uuid != bt->attrs128.end(); ++uuid)
             {
                 if (want_uuid == uuid->second)
                 {
-                    handle = uuid->first;
-                    found = true;
+                    return uuid->first;
                 }
             }
         }
 
-        if (!found)
+        return std::nullopt;
+    }
+
+    std::optional<std::variant<uint16_t, uuid128>> handle_to_uuid(uint16_t handle)
+    {
+        for (auto uuid = bt->attrs16.begin(); uuid != bt->attrs16.end(); ++uuid)
         {
-            send_json(socket, {
-                                  {"type", "error"},
-                                  {"error", "invalid uuid"},
-                              });
-            return;
+            if (handle == uuid->first)
+            {
+                return uuid->second;
+            }
+        }
+        for (auto uuid = bt->attrs128.begin(); uuid != bt->attrs128.end(); ++uuid)
+        {
+            if (handle == uuid->first)
+            {
+                return uuid->second;
+            }
         }
 
-        read_callback cb = [socket](int error, any_bytes data)
-        {
-            if (error != 0)
-            {
-                send_json(socket, {
-                                      {"type", "error_response"},
-                                      {"error_code", error},
-                                  });
-            }
-            else
-            {
-                send_json(socket, {
-                                      {"type", "response"},
-                                      {"data", data},
-                                  });
-            }
-        };
+        return std::nullopt;
+    }
 
-        size_t timeout = msg.contains("timeout") ? (size_t)msg["timeout"] : 2000;
+    void handle_message(json &msg)
+    {
+        if (!msg["type"].is_string())
+            return;
 
-        if (!bt->EnqueueReadRequest(handle, cb, timeout))
+        std::string msg_type = msg["type"];
+
+        if (msg_type == "connect")
         {
-            send_json(socket, {
-                                  {"type", "error"},
-                                  {"error", "not ready yet"},
-                              });
+            bt->Connect();
+        }
+        else if (msg_type == "disconnect")
+        {
+            bt->Disconnect();
+        }
+        else if (msg_type == "list_chars")
+        {
+            json resp;
+            json uuids16 = json::array();
+            json uuids128 = json::array();
+
+            for (auto uuid = bt->attrs16.begin(); uuid != bt->attrs16.end(); ++uuid)
+            {
+                uuids16.push_back(uuid->second);
+            }
+            for (auto uuid = bt->attrs128.begin(); uuid != bt->attrs128.end(); ++uuid)
+            {
+                uuids128.push_back(uuid->second);
+            }
+
+            resp["uuids16"] = uuids16;
+            resp["uuids128"] = uuids128;
+
+            send_json(resp);
+        }
+        else if (msg_type == "read_char")
+        {
+            auto handle = uuid_to_handle(msg["uuid"]);
+
+            if (!handle.has_value())
+            {
+                send_json({
+                    {"type", "error"},
+                    {"error", "invalid uuid"},
+                });
+                return;
+            }
+
+            size_t timeout = msg.contains("timeout") ? (size_t)msg["timeout"] : 2000;
+
+            if (!bt->EnqueueReadRequest(handle.value(), std::bind(&Connection::read_callback, this, _1, _2), timeout))
+            {
+                send_json({
+                    {"type", "error"},
+                    {"error", "not ready yet"},
+                });
+            }
+        }
+        else if (msg_type == "write_char")
+        {
+            auto handle = uuid_to_handle(msg["uuid"]);
+
+            if (!handle.has_value())
+            {
+                send_json({
+                    {"type", "error"},
+                    {"error", "invalid uuid"},
+                });
+                return;
+            }
+
+            any_bytes value = msg["value"];
+
+            size_t timeout = msg.contains("timeout") ? (size_t)msg["timeout"] : 2000;
+
+            if (!bt->EnqueueWriteRequest(handle.value(), value, std::bind(&Connection::write_callback, this, _1), timeout))
+            {
+                send_json({
+                    {"type", "error"},
+                    {"error", "not ready yet"},
+                });
+            }
         }
     }
-}
+
+    void handle_notify(uint16_t handle, any_bytes value)
+    {
+    }
+
+private:
+    bluetooth_t *bt;
+    int socket;
+
+    void read_callback(int error, any_bytes data)
+    {
+        if (error != 0)
+        {
+            send_json({
+                {"type", "error_response"},
+                {"error_code", error},
+            });
+        }
+        else
+        {
+            send_json({
+                {"type", "response"},
+                {"data", data},
+            });
+        }
+    }
+
+    void write_callback(int error)
+    {
+        if (error != 0)
+        {
+            send_json({
+                {"type", "error_response"},
+                {"error_code", error},
+            });
+        }
+        else
+        {
+            send_json({{"type", "response"}});
+        }
+    }
+};
 
 static void run_loop(bluetooth_t *bt)
 {
@@ -156,16 +238,21 @@ static void run_loop(bluetooth_t *bt)
     while (true)
     {
         int clientSocket = accept(serverSocket, nullptr, nullptr);
+        Connection conn(bt, clientSocket);
+
+        bt->notify_callback = std::bind(&Connection::handle_notify, conn, _1, _2);
 
         int n;
         while ((n = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0)
         {
-            json msg = json::parse(buffer, nullptr, false);
+            json msg = json::parse(buffer, buffer + n, nullptr, false);
             if (!msg.is_discarded())
             {
-                handle_message(bt, clientSocket, msg);
+                conn.handle_message(msg);
             }
         }
+
+        bt->notify_callback.reset();
 
         close(clientSocket);
     }

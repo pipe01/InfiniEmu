@@ -15,6 +15,8 @@ package emulator
 #include "pinetime.h"
 #include "segger_rtt.h"
 #include "scheduler.h"
+#include "bluetooth.h"
+#include "bluetooth_sock.h"
 
 extern unsigned long inst_counter;
 extern bool stop_loop;
@@ -316,6 +318,9 @@ func NewEmulator(program *Program, big bool) *Emulator {
 	cpu := C.nrf52832_get_cpu(nrf52)
 	pins := C.nrf52832_get_pins(nrf52)
 	extflash := C.pinetime_get_spinorflash(pt)
+
+	bt := C.bluetooth_new(pt)
+	C.bluetooth_sock_start(bt)
 
 	extflashContents := make([]byte, C.PINETIME_EXTFLASH_SIZE)
 	longPinner.Pin(&extflashContents[0])

@@ -65,11 +65,14 @@ struct pending_packet_t
 };
 
 using read_callback = std::function<void(int error, any_bytes data)>;
+using write_callback = std::function<void(int error)>;
+using notify_callback = std::function<void(uint16_t handle, any_bytes value)>;
 
-struct read_request_t
+template <typename Callback>
+struct request_t
 {
     uint64_t timeout_at;
-    read_callback callback;
+    Callback callback;
 };
 
 class PendingCompare
@@ -104,7 +107,9 @@ struct bluetooth_t
         std::vector<uint8_t> buffer;
     } l2cap_frag;
 
-    std::optional<read_request_t> read_request;
+    std::optional<request_t<read_callback>> read_request;
+    std::optional<request_t<write_callback>> write_request;
+    std::optional<notify_callback> notify_callback;
 
     uint64_t last_conn_event_cycles = 0;
 
@@ -132,8 +137,9 @@ struct bluetooth_t
     void Enqueue(std::unique_ptr<BLE::Packet> packet);
 
     bool EnqueueReadRequest(uint16_t handle, read_callback callback, size_t timeout_msec);
+    bool EnqueueWriteRequest(uint16_t handle, any_bytes value, write_callback callback, size_t timeout_msec);
 
-    inline bool IsReady() { return stage == DONE && !read_request.has_value(); }
+    inline bool IsReady() { return stage == DONE && !read_request.has_value() && !write_request.has_value(); }
 
 private:
     void Send(const BLE::Packet &packet);

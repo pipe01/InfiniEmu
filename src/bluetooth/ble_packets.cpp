@@ -149,6 +149,11 @@ void BLE::ATT::FIND_BY_TYPE_VALUE_REQ::run(bluetooth_t &bt)
 void BLE::ATT::HANDLE_VALUE_NTF::run(bluetooth_t &bt)
 {
     BLE_LOG(GRN, "Attribute %d value updated to %s\n", Handle, ShowHex(Value).c_str());
+
+    if (bt.notify_callback.has_value())
+    {
+        (*bt.notify_callback)(Handle, Value);
+    }
 }
 
 void BLE::ATT::EXCHANGE_MTU_RSP::run(bluetooth_t &bt)
@@ -164,6 +169,11 @@ void BLE::ATT::ERROR_RSP::run(bluetooth_t &bt)
     {
         bt.read_request->callback(ErrorCode, {});
         bt.read_request.reset();
+    }
+    else if (bt.write_request.has_value())
+    {
+        bt.write_request->callback(ErrorCode);
+        bt.write_request.reset();
     }
     else
     {
@@ -240,5 +250,16 @@ void BLE::ATT::READ_RSP::run(bluetooth_t &bt)
     {
         bt.read_request->callback(0, std::move(Value));
         bt.read_request.reset();
+    }
+}
+
+void BLE::ATT::WRITE_RSP::run(bluetooth_t &bt)
+{
+    BLE_LOG(GRN, "Write Response: success\n");
+
+    if (bt.write_request.has_value())
+    {
+        bt.write_request->callback(0);
+        bt.write_request.reset();
     }
 }

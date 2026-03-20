@@ -66,6 +66,11 @@ void bluetooth_t::Run()
                 read_request->callback(-1, {});
                 read_request.reset();
             }
+            if (write_request.has_value() && nrf52832_get_cycle_counter(nrf) >= write_request->timeout_at)
+            {
+                write_request->callback(-1);
+                write_request.reset();
+            }
 
             break;
         }
@@ -178,13 +183,32 @@ bool bluetooth_t::EnqueueReadRequest(uint16_t handle, read_callback callback, si
     if (!IsReady())
         return false;
 
-    read_request = (read_request_t){
+    read_request = (request_t<read_callback>){
         .timeout_at = nrf52832_get_cycle_counter(nrf) + (timeout_msec * NRF52832_HFCLK_FREQUENCY) / 1000,
         .callback = callback,
     };
 
     auto packet = std::make_unique<BLE::ATT::READ_REQ>();
     packet->Handle = handle;
+    auto le_packet = BLE::ATT::Packet::Create(std::move(packet), *this);
+    Enqueue(std::move(le_packet));
+
+    return true;
+}
+
+bool bluetooth_t::EnqueueWriteRequest(uint16_t handle, any_bytes value, write_callback callback, size_t timeout_msec)
+{
+    if (!IsReady())
+        return false;
+
+    write_request = (request_t<write_callback>){
+        .timeout_at = nrf52832_get_cycle_counter(nrf) + (timeout_msec * NRF52832_HFCLK_FREQUENCY) / 1000,
+        .callback = callback,
+    };
+
+    auto packet = std::make_unique<BLE::ATT::WRITE_REQ>();
+    packet->Handle = handle;
+    packet->Value = value;
     auto le_packet = BLE::ATT::Packet::Create(std::move(packet), *this);
     Enqueue(std::move(le_packet));
 

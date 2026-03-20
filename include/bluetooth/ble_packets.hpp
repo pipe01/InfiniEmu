@@ -529,6 +529,56 @@ namespace BLE
             void run(bluetooth_t &bt) override;
         };
 
+        struct WRITE_RSP : public BLE::Packet
+        {
+            NAME("ATT::WRITE_RSP")
+
+            static constexpr uint32_t Method = 0x13;
+
+            size_t size() override
+            {
+                return 0;
+            }
+
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
+            {
+            }
+
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
+            {
+            }
+
+            void run(bluetooth_t &bt) override;
+        };
+
+        struct WRITE_REQ : public BLE::Packet
+        {
+            NAME("ATT::WRITE_REQ")
+            using Response = WRITE_RSP;
+
+            static constexpr uint32_t Method = 0x12;
+
+            uint16_t Handle;
+            any_bytes Value;
+
+            size_t size() override
+            {
+                return 2 + Value.size();
+            }
+
+            void serialize(bluetooth_t &bt, BinaryBuffer &buffer) const override
+            {
+                buffer.write(Handle);
+                buffer.write(Value);
+            }
+
+            void deserialize(bluetooth_t &bt, BinaryBuffer &buffer) override
+            {
+                buffer.read(Handle);
+                buffer.fill_remaining(Value);
+            }
+        };
+
         struct Packet : public BLE::Packet
         {
             NAME_PARENT("ATT::Packet", Parameters)
@@ -587,6 +637,12 @@ namespace BLE
                     break;
                 case HANDLE_VALUE_NTF::Method:
                     Parameters = std::make_unique<HANDLE_VALUE_NTF>();
+                    break;
+                case WRITE_REQ::Method:
+                    Parameters = std::make_unique<WRITE_REQ>();
+                    break;
+                case WRITE_RSP::Method:
+                    Parameters = std::make_unique<WRITE_RSP>();
                     break;
 
                 default:
