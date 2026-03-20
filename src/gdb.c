@@ -391,7 +391,7 @@ char *gdb_qCommand(gdbstub *gdb, char *msg)
 
     parse_hex(msg, hex_len, (uint8_t *)command);
 
-    if (strcmp(command, "reset halt") == 0)
+    if (strcmp(command, "reset") == 0)
     {
         nrf52832_reset(gdb->gdb->nrf);
 
@@ -975,6 +975,9 @@ void gdb_start(gdb_t *gdb)
         perror("socket");
         exit(1);
     }
+
+    int yes = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
     for (;;)
     {
