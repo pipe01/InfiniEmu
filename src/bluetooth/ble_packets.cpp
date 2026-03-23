@@ -64,7 +64,7 @@ void BLE::Data::Packet::run(bluetooth_t &bt)
         case NONE:
             break;
 
-        case CONNECTED:
+        case EXCHANGING_MTU:
         {
             auto packet = std::make_unique<BLE::ATT::EXCHANGE_MTU_REQ>();
             packet->ClientRxMTU = WantATT_MTU;
@@ -73,7 +73,7 @@ void BLE::Data::Packet::run(bluetooth_t &bt)
             break;
         }
 
-        case EXCHANGED_MTU:
+        case DISCOVERING:
         {
             auto packet = std::make_unique<BLE::ATT::FIND_INFORMATION_REQ>();
             packet->StartingHandle = 1;
@@ -160,7 +160,7 @@ void BLE::ATT::EXCHANGE_MTU_RSP::run(bluetooth_t &bt)
 {
     bt.att_mtu = std::min(WantATT_MTU, ServerRxMTU);
     bt.sent_req = false;
-    bt.stage = EXCHANGED_MTU;
+    bt.stage = DISCOVERING;
 }
 
 void BLE::ATT::ERROR_RSP::run(bluetooth_t &bt)
@@ -174,6 +174,11 @@ void BLE::ATT::ERROR_RSP::run(bluetooth_t &bt)
     {
         bt.write_request->callback(ErrorCode);
         bt.write_request.reset();
+    }
+    else if (bt.stage == DISCOVERING && ErrorCode == 0x0A) // Attribute Not Found, no more attributes to discover
+    {
+        bt.sent_req = false;
+        bt.stage = DONE;
     }
     else
     {
@@ -216,6 +221,7 @@ void BLE::ATT::FIND_INFORMATION_RSP::run(bluetooth_t &bt)
         BinaryBuffer buffer(InformationData);
 
         std::array<uint8_t, 128 / 8> uuid;
+        uint16_t last_handle = 0xFFFF;
         for (size_t i = 0; i < handle_count; i++)
         {
             uint16_t handle = buffer.u16();
@@ -231,10 +237,15 @@ void BLE::ATT::FIND_INFORMATION_RSP::run(bluetooth_t &bt)
             }
             printf("\n" CRESET);
 #endif
+            last_handle = handle;
         }
 
-        bt.sent_req = false;
-        bt.stage = DONE;
+        // Send again to discover 128-bit UUID handles
+        auto packet = std::make_unique<BLE::ATT::FIND_INFORMATION_REQ>();
+        packet->StartingHandle = last_handle + 1;
+        packet->EndingHandle = 0xFFFF;
+        auto le_packet = BLE::ATT::Packet::Create(std::move(packet), bt);
+        bt.Enqueue(std::move(le_packet));
     }
     else
     {

@@ -135,7 +135,7 @@ void bluetooth_t::Connect()
 
     Enqueue(BLE::LL::Advertising::Packet::Create(inner));
     connected = true;
-    stage = CONNECTED;
+    stage = EXCHANGING_MTU;
     last_conn_event_cycles = nrf52832_get_cycle_counter(nrf);
 }
 

@@ -21,10 +21,17 @@ package emulator
 extern unsigned long inst_counter;
 extern bool stop_loop;
 
-scheduler_t *create_sched(pinetime_t *pt, size_t freq, rtt_t *rtt);
-int run(int type, void *arg, rtt_t *rtt);
+typedef struct
+{
+	pinetime_t *pt;
+	rtt_t *rtt;
+	bluetooth_t *bt;
+} step_deps_t;
+
+scheduler_t *create_sched(step_deps_t d, size_t freq);
+int run(int type, scheduler_t *arg, step_deps_t d);
 void set_cpu_branch_cb(cpu_t *cpu, void *userdata);
-int run_iterations(pinetime_t *pt, rtt_t *rtt, unsigned long iterations, unsigned long iterations_per_us);
+int run_iterations(step_deps_t d, unsigned long iterations, unsigned long iterations_per_us);
 */
 import "C"
 
@@ -265,6 +272,7 @@ type Emulator struct {
 	pins        *C.pins_t
 	rtcs        []*C.RTC_t
 	rtt         *C.rtt_t
+	bt          *C.bluetooth_t
 
 	extflashContents   []byte
 	extflashWriteCount uint64
@@ -311,7 +319,9 @@ func NewEmulator(program *Program, big bool) *Emulator {
 		C.program_load_binary(ptProgram, 0, (*C.uchar)(&flash[0]), C.size_t(len(flash)))
 	}
 
-	pt := C.pinetime_new(ptProgram)
+	evqueue := C.event_queue_new()
+
+	pt := C.pinetime_new(ptProgram, evqueue)
 	C.pinetime_reset(pt)
 
 	nrf52 := C.pinetime_get_nrf52832(pt)
@@ -351,7 +361,6 @@ func NewEmulator(program *Program, big bool) *Emulator {
 		id:      id,
 		program: program,
 		pt:      pt,
-		sched:   C.create_sched(pt, BaseFrequencyHZ, rtt),
 
 		initialSP: binary.LittleEndian.Uint32(flash),
 
@@ -366,11 +375,13 @@ func NewEmulator(program *Program, big bool) *Emulator {
 		pins:        pins,
 		rtcs:        rtcs,
 		rtcTrackers: rtcTrackers,
+		bt:          bt,
 
 		extflashContents: extflashContents,
 
 		longPinner: longPinner,
 	}
+	emulator.sched = C.create_sched(emulator.StepDeps(), BaseFrequencyHZ)
 	longPinner.Pin(&emulator)
 
 	emulators[id] = &emulator
@@ -424,6 +435,14 @@ func (e *Emulator) perfLoop() {
 	}
 }
 
+func (e *Emulator) StepDeps() C.step_deps_t {
+	return C.step_deps_t{
+		pt:  e.pt,
+		bt:  e.bt,
+		rtt: e.rtt,
+	}
+}
+
 var lock sync.Mutex
 
 func (e *Emulator) Start(mode RunMode) {
@@ -442,14 +461,13 @@ func (e *Emulator) Start(mode RunMode) {
 
 		switch mode {
 		case RunModeLoop:
-			fault = int(C.run(0, unsafe.Pointer(e.pt), e.rtt))
+			fault = int(C.run(0, nil, e.StepDeps()))
 
 		case RunModeScheduled:
-			fault = int(C.run(1, unsafe.Pointer(e.sched), nil))
+			fault = int(C.run(1, e.sched, e.StepDeps()))
 
 		case RunModeGDB:
-			gdb := C.gdb_new(e.pt, true)
-			fault = int(C.run(2, unsafe.Pointer(gdb), nil))
+			fault = int(C.run(2, nil, e.StepDeps()))
 		}
 
 		pc := C.cpu_reg_read(e.cpu, C.ARM_REG_PC) - 4
@@ -466,7 +484,7 @@ func (e *Emulator) RunIterations(iterations uint64, iterations_per_us uint64) in
 	}
 	defer e.isRunning.Store(false)
 
-	fault := int(C.run_iterations(e.pt, nil, C.ulong(iterations), C.ulong(iterations_per_us)))
+	fault := int(C.run_iterations(e.StepDeps(), C.ulong(iterations), C.ulong(iterations_per_us)))
 
 	return fault
 }

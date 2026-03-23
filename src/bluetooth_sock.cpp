@@ -92,42 +92,39 @@ public:
         {
             bt->Disconnect();
         }
-        else if (msg_type == "list_chars")
+        else if (msg_type == "list_attrs")
         {
             json resp;
-            json uuids16 = json::array();
-            json uuids128 = json::array();
+            resp["type"] = "response";
+
+            json attrs = json::array();
 
             for (auto uuid = bt->attrs16.begin(); uuid != bt->attrs16.end(); ++uuid)
             {
-                uuids16.push_back(uuid->second);
+                json attr = json::object();
+                attr["handle"] = uuid->first;
+                attr["uuid16"] = uuid->second;
+                attrs.push_back(attr);
             }
             for (auto uuid = bt->attrs128.begin(); uuid != bt->attrs128.end(); ++uuid)
             {
-                uuids128.push_back(uuid->second);
+                json attr = json::object();
+                attr["handle"] = uuid->first;
+                attr["uuid128"] = uuid->second;
+                attrs.push_back(attr);
             }
 
-            resp["uuids16"] = uuids16;
-            resp["uuids128"] = uuids128;
+            resp["attributes"] = attrs;
 
             send_json(resp);
         }
-        else if (msg_type == "read_char")
+        else if (msg_type == "read_attr")
         {
-            auto handle = uuid_to_handle(msg["uuid"]);
-
-            if (!handle.has_value())
-            {
-                send_json({
-                    {"type", "error"},
-                    {"error", "invalid uuid"},
-                });
-                return;
-            }
+            uint16_t handle = msg["handle"];
 
             size_t timeout = msg.contains("timeout") ? (size_t)msg["timeout"] : 2000;
 
-            if (!bt->EnqueueReadRequest(handle.value(), std::bind(&Connection::read_callback, this, _1, _2), timeout))
+            if (!bt->EnqueueReadRequest(handle, std::bind(&Connection::read_callback, this, _1, _2), timeout))
             {
                 send_json({
                     {"type", "error"},
@@ -135,35 +132,37 @@ public:
                 });
             }
         }
-        else if (msg_type == "write_char")
+        else if (msg_type == "write_attr")
         {
-            auto handle = uuid_to_handle(msg["uuid"]);
-
-            if (!handle.has_value())
-            {
-                send_json({
-                    {"type", "error"},
-                    {"error", "invalid uuid"},
-                });
-                return;
-            }
-
+            uint16_t handle = msg["handle"];
             any_bytes value = msg["value"];
 
             size_t timeout = msg.contains("timeout") ? (size_t)msg["timeout"] : 2000;
 
-            if (!bt->EnqueueWriteRequest(handle.value(), value, std::bind(&Connection::write_callback, this, _1), timeout))
+            if (!bt->EnqueueWriteRequest(handle, value, std::bind(&Connection::write_callback, this, _1), timeout))
             {
                 send_json({
                     {"type", "error"},
                     {"error", "not ready yet"},
                 });
             }
+        }
+        else if (msg_type == "ready?")
+        {
+            send_json({
+                {"type", "response"},
+                {"ready", bt->GetStage() == Stage::DONE},
+            });
         }
     }
 
     void handle_notify(uint16_t handle, any_bytes value)
     {
+        send_json({
+            {"type", "notify"},
+            {"handle", handle},
+            {"value", value},
+        });
     }
 
 private:

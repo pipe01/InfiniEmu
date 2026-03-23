@@ -19,12 +19,15 @@ extern "C"
 #if ENABLE_BLE_LOG
 #define BLE_LOG(color, msg, ...) printf(color msg CRESET, ##__VA_ARGS__)
 #else
-#define BLE_LOG(...) do { } while(0)
+#define BLE_LOG(...) \
+    do               \
+    {                \
+    } while (0)
 #endif
 
-constexpr uint32_t ConnIntervalMS = 100;
+constexpr uint32_t ConnIntervalMS = 45;
 constexpr uint32_t ConnPeripheralLatency = 0;
-constexpr uint32_t TransmitWindowSizeMS = 10; // Must be at most 10
+constexpr uint32_t TransmitWindowSizeMS = 5; // Must be at most 10
 constexpr uint32_t ConnSupervisionTimeoutMS = (1 + ConnPeripheralLatency) * ConnIntervalMS * 2 + 100;
 constexpr std::array<uint8_t, 3> FakeCRC = {0xFF, 0xFF, 0xFF};
 
@@ -53,8 +56,8 @@ namespace BLE
 enum Stage
 {
     NONE,
-    CONNECTED,
-    EXCHANGED_MTU,
+    EXCHANGING_MTU,
+    DISCOVERING,
     DONE,
 };
 
@@ -139,6 +142,7 @@ struct bluetooth_t
     bool EnqueueReadRequest(uint16_t handle, read_callback callback, size_t timeout_msec);
     bool EnqueueWriteRequest(uint16_t handle, any_bytes value, write_callback callback, size_t timeout_msec);
 
+    inline Stage GetStage() { return stage; }
     inline bool IsReady() { return stage == DONE && !read_request.has_value() && !write_request.has_value(); }
 
 private:
