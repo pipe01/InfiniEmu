@@ -1,9 +1,12 @@
 package services
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/dop251/goja"
 )
 
 type Options struct {
@@ -11,27 +14,59 @@ type Options struct {
 	Headers map[string]string
 }
 
-type HttpService struct{}
+type HttpService struct {
+	VM *goja.Runtime
+}
 
-func (HttpService) Request(method string, url string, options Options) {
+func (svc HttpService) Request(method string, url string, arg1 any, arg2 any) error {
+	var options map[string]any
+	var callback func(goja.FunctionCall) goja.Value
+
+	if v, ok := arg1.(map[string]any); ok {
+		options = v
+
+		if f, ok := arg2.(func(goja.FunctionCall) goja.Value); ok {
+			callback = f
+		}
+	} else if f, ok := arg1.(func(goja.FunctionCall) goja.Value); ok {
+		callback = f
+	}
+
 	var body io.Reader
-	if options.Body != nil {
-		body = strings.NewReader(*options.Body)
+	if b := options["body"]; b != nil {
+		body = strings.NewReader(b.(string))
 	}
 
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		return
+		return err
 	}
 
-	if options.Headers != nil {
-		for k, v := range options.Headers {
-			req.Header.Set(k, v)
+	if h := options["headers"]; h != nil {
+		for k, v := range h.(map[string]any) {
+			req.Header.Set(k, fmt.Sprint(v))
 		}
 	}
 
-	_, err = http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return
+		return err
 	}
+
+	if callback != nil {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		respStr := string(respBody)
+
+		callback(goja.FunctionCall{
+			Arguments: []goja.Value{
+				svc.VM.ToValue(respStr),
+			},
+		})
+	}
+
+	return nil
 }

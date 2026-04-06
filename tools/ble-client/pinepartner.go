@@ -28,7 +28,7 @@ func RunPinePartnerScript(script string, sv *server.Server, notifiers *[]service
 
 	modules := map[string]any{
 		"watches": watches,
-		"http":    services.HttpService{},
+		"http":    services.HttpService{VM: vm},
 	}
 
 	vm.Set("require", js.NewRequire(vm, modules))
