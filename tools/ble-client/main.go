@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/chzyer/readline"
+	"github.com/pipe01/InfiniEmu/tools/ble-client/hostble"
 	"github.com/pipe01/InfiniEmu/tools/ble-client/js/services"
 	"github.com/pipe01/InfiniEmu/tools/ble-client/server"
 )
@@ -18,6 +19,7 @@ import (
 var notifiers []services.Notifier
 var scriptParams = map[string]any{}
 var currentScript *PinePartnerScript
+var hostBLE *hostble.HostBLE
 
 func main() {
 	addr := flag.String("addr", "localhost:9345", "address of the BLE server to connect to")
@@ -200,6 +202,24 @@ func runLine(line string, sv *server.Server) {
 
 	case "exit", "quit":
 		os.Exit(0)
+
+	case "echo":
+		println(arg)
+
+	case "host":
+		switch arg {
+		case "on":
+			if hostBLE == nil {
+				hostBLE = hostble.NewHostBLE(sv)
+
+				err := hostBLE.Start()
+				if err != nil {
+					log.Fatalf("failed to start host BLE emulator: %v", err)
+				}
+
+				notifiers = append(notifiers, hostBLE.Notify)
+			}
+		}
 
 	default:
 		println("unknown command")

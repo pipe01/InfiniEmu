@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,8 @@ type Server struct {
 	conn     net.Conn
 	msgch    chan GenericMessage
 	onNotify func(uint16, []byte)
+
+	lock sync.Mutex
 }
 
 func Dial(addr string, onNotify func(uint16, []byte)) (*Server, error) {
@@ -28,7 +31,7 @@ func Dial(addr string, onNotify func(uint16, []byte)) (*Server, error) {
 
 	sv := &Server{
 		conn:     c,
-		msgch:    make(chan GenericMessage, 0),
+		msgch:    make(chan GenericMessage),
 		onNotify: onNotify,
 	}
 	go sv.read()
@@ -110,6 +113,9 @@ func handleError(msg *GenericMessage) error {
 }
 
 func sendRequest[T any](s *Server, requestType string, payload map[string]any) (*T, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	if err := s.sendMessage(requestType, payload); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
@@ -168,6 +174,9 @@ func (s *Server) ReadAttribute(handle uint16) ([]byte, error) {
 }
 
 func (s *Server) WriteAttribute(handle uint16, value []byte) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	return s.sendMessage("write_attr", map[string]any{
 		"handle": handle,
 		"value":  JSONBytes(value),

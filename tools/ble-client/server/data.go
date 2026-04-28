@@ -70,10 +70,7 @@ func (u JSONBytes) MarshalJSON() ([]byte, error) {
 }
 
 func FormatUUID128(uuid []byte) string {
-	rev := slices.Clone(uuid)
-	slices.Reverse(rev)
-
-	return fmt.Sprintf("%x-%x-%x-%x-%x", rev[:4], rev[4:6], rev[6:8], rev[8:10], rev[10:])
+	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:])
 }
 
 type UUID struct {
@@ -95,8 +92,11 @@ func (u UUID) Is16() bool {
 
 func UUIDFromBytes(b []byte) UUID {
 	if len(b) == 16 {
+		rb := slices.Clone(b)
+		slices.Reverse(rb)
+
 		return UUID{
-			UUID128: b,
+			UUID128: rb,
 		}
 	} else if len(b) == 2 {
 		return UUID{
