@@ -18,7 +18,7 @@ type HttpService struct {
 	VM *goja.Runtime
 }
 
-func (svc HttpService) Request(method string, url string, arg1 any, arg2 any) error {
+func (svc HttpService) Request(method string, url string, arg1 any, arg2 any) (any, error) {
 	var options map[string]any
 	var callback func(goja.FunctionCall) goja.Value
 
@@ -39,7 +39,7 @@ func (svc HttpService) Request(method string, url string, arg1 any, arg2 any) er
 
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if h := options["headers"]; h != nil {
@@ -50,23 +50,25 @@ func (svc HttpService) Request(method string, url string, arg1 any, arg2 any) er
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	respStr := string(respBody)
+
 	if callback != nil {
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-
-		respStr := string(respBody)
-
 		callback(goja.FunctionCall{
 			Arguments: []goja.Value{
 				svc.VM.ToValue(respStr),
 			},
 		})
-	}
 
-	return nil
+		return nil, nil
+	} else {
+		return respStr, nil
+	}
 }

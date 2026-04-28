@@ -34,7 +34,7 @@ func main() {
 	defer rl.Close()
 
 	sv, err := server.Dial(*addr, func(handle uint16, value []byte) {
-		fmt.Fprintf(rl, "Handle %d notified value %x (%s)\n", handle, value, string(value))
+		// fmt.Fprintf(rl, "Handle %d notified value %x (%s)\n", handle, value, string(value))
 
 		for _, n := range notifiers {
 			n(handle, value)
@@ -168,6 +168,8 @@ func runLine(line string, sv *server.Server) {
 		}
 
 	case "param":
+		key, value, _ := strings.Cut(arg, " ")
+		scriptParams[key] = value
 
 	case "run":
 		notifiers = []services.Notifier{}
