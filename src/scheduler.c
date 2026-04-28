@@ -44,7 +44,7 @@ void scheduler_run(scheduler_t *sched)
 
     sched->stop = false;
 
-    ssize_t fuel, rtt_fuel = 5000, rtt_find_fuel = 20000000;
+    ssize_t fuel, rtt_find_fuel = 20000000;
 
     while (!sched->stop)
     {
@@ -64,7 +64,7 @@ void scheduler_run(scheduler_t *sched)
                 sched->found_rtt = rtt_find_control(sched->rtt);
             }
 
-            rtt_fuel -= sched->cycles_per_iteration;
+            rtt_find_fuel -= sched->cycles_per_iteration;
         }
 
         uint64_t elapsed_us = microseconds_now_real() - start;
