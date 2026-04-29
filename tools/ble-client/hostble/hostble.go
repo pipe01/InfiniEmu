@@ -1,6 +1,7 @@
 package hostble
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -12,8 +13,10 @@ var adapter = bluetooth.DefaultAdapter
 
 type HostBLE struct {
 	srv *server.Server
+	adv *bluetooth.Advertisement
 
-	services []*server.Service
+	services  []*server.Service
+	bservices []*bluetooth.Service
 
 	chars map[bluetooth.UUID]map[bluetooth.UUID]*bluetooth.Characteristic
 }
@@ -26,6 +29,8 @@ func NewHostBLE(srv *server.Server) *HostBLE {
 }
 
 func (h *HostBLE) Start() error {
+	log.Print("starting host BLE stack")
+
 	err := adapter.Enable()
 	if err != nil {
 		return fmt.Errorf("start adapter: %w", err)
@@ -34,15 +39,23 @@ func (h *HostBLE) Start() error {
 	adapter.SetConnectHandler(func(device bluetooth.Device, connected bool) {
 		if connected {
 			println("device connected:", device.Address.String())
+			h.srv.Connect(context.Background())
 		} else {
 			println("device disconnected:", device.Address.String())
+			h.srv.Disconnect(context.Background())
 		}
 	})
 
-	adv := adapter.DefaultAdvertisement()
-	adv.Configure(bluetooth.AdvertisementOptions{
+	h.adv = adapter.DefaultAdvertisement()
+	h.adv.Configure(bluetooth.AdvertisementOptions{
 		LocalName: "InfiniTime Emulator",
 	})
+
+	// We need to connect at startup to load the watch's BLE services and characteristics
+	if !h.srv.Connected() {
+		h.srv.Connect(context.Background())
+		defer h.srv.Disconnect(context.Background())
+	}
 
 	services, err := h.srv.ListServices()
 	if err != nil {
@@ -50,11 +63,10 @@ func (h *HostBLE) Start() error {
 	}
 	h.services = services
 
-	err = adv.Start()
+	err = h.adv.Start()
 	if err != nil {
 		return fmt.Errorf("start advertising: %w", err)
 	}
-	defer adv.Stop()
 
 	for _, svc := range services {
 		svcUUID := convertUUID(svc.UUID)
@@ -99,13 +111,23 @@ func (h *HostBLE) Start() error {
 			chars[i] = bch
 		}
 
-		adapter.AddService(&bluetooth.Service{
+		bsvc := &bluetooth.Service{
 			UUID:            svcUUID,
 			Characteristics: chars,
-		})
+		}
+		adapter.AddService(bsvc)
+		h.bservices = append(h.bservices, bsvc)
 	}
 
 	return nil
+}
+
+func (h *HostBLE) Stop() {
+	h.adv.Stop()
+
+	for _, svc := range h.bservices {
+		adapter.RemoveService(svc)
+	}
 }
 
 func (h *HostBLE) Notify(handle uint16, value []byte) {

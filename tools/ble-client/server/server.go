@@ -20,7 +20,8 @@ type Server struct {
 	msgch    chan GenericMessage
 	onNotify func(uint16, []byte)
 
-	lock sync.Mutex
+	connected bool
+	lock      sync.Mutex
 }
 
 func Dial(addr string, onNotify func(uint16, []byte)) (*Server, error) {
@@ -131,6 +132,10 @@ func sendRequest[T any](s *Server, requestType string, payload map[string]any) (
 	return &respPayload, nil
 }
 
+func (s *Server) Connected() bool {
+	return s.connected
+}
+
 func (s *Server) Connect(ctx context.Context) error {
 	s.sendMessage("connect", nil)
 
@@ -149,6 +154,14 @@ func (s *Server) Connect(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
+
+	s.connected = true
+	return nil
+}
+
+func (s *Server) Disconnect(ctx context.Context) error {
+	s.sendMessage("disconnect", nil)
+	s.connected = false
 
 	return nil
 }

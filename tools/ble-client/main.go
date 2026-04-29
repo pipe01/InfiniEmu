@@ -47,6 +47,12 @@ func main() {
 	}
 	defer sv.Close()
 
+	defer func() {
+		if hostBLE != nil {
+			hostBLE.Stop()
+		}
+	}()
+
 	for _, l := range flag.Args() {
 		runLine(l, sv)
 	}
