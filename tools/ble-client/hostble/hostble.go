@@ -36,13 +36,21 @@ func (h *HostBLE) Start() error {
 		return fmt.Errorf("start adapter: %w", err)
 	}
 
+	manageConnection := !h.srv.Connected()
+
 	adapter.SetConnectHandler(func(device bluetooth.Device, connected bool) {
 		if connected {
-			println("device connected:", device.Address.String())
-			h.srv.Connect(context.Background())
+			log.Print("device connected:", device.Address.String())
+
+			if manageConnection {
+				h.srv.Connect(context.Background())
+			}
 		} else {
-			println("device disconnected:", device.Address.String())
-			h.srv.Disconnect(context.Background())
+			log.Print("device disconnected:", device.Address.String())
+
+			if manageConnection {
+				h.srv.Disconnect(context.Background())
+			}
 		}
 	})
 
@@ -52,7 +60,7 @@ func (h *HostBLE) Start() error {
 	})
 
 	// We need to connect at startup to load the watch's BLE services and characteristics
-	if !h.srv.Connected() {
+	if manageConnection {
 		h.srv.Connect(context.Background())
 		defer h.srv.Disconnect(context.Background())
 	}
@@ -75,14 +83,10 @@ func (h *HostBLE) Start() error {
 
 		chars := make([]bluetooth.CharacteristicConfig, len(svc.Characteristics))
 
-		println(svcUUID.String())
-
 		for i, char := range svc.Characteristics {
 			charUUID := convertUUID(char.UUID)
 
 			handle := new(bluetooth.Characteristic)
-
-			println("  " + charUUID.String())
 
 			bch := bluetooth.CharacteristicConfig{
 				UUID:   charUUID,
