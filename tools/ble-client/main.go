@@ -21,6 +21,8 @@ var scriptParams = map[string]any{}
 var currentScript *PinePartnerScript
 var hostBLE *hostble.HostBLE
 
+var output io.Writer
+
 func main() {
 	addr := flag.String("addr", "localhost:9345", "address of the BLE server to connect to")
 	flag.Parse()
@@ -34,6 +36,9 @@ func main() {
 		log.Fatalf("failed to create readline: %v", err)
 	}
 	defer rl.Close()
+
+	output = rl
+	log.Default().SetOutput(output)
 
 	sv, err := server.Dial(*addr, func(handle uint16, value []byte) {
 		// fmt.Fprintf(rl, "Handle %d notified value %x (%s)\n", handle, value, string(value))
@@ -78,49 +83,49 @@ func runLine(line string, sv *server.Server) {
 
 	switch cmdName {
 	case "connect":
+		log.Print("connecting to watch...")
 		sv.Connect(context.Background())
-
-		println("Connected")
+		log.Print("connected")
 
 	case "list":
 		switch args[0] {
 		case "attrs", "attributes":
 			attrs, err := sv.GetAttributes()
 			if err != nil {
-				fmt.Printf("failed to read attributes: %v\n", err)
+				fmt.Fprintf(output, "failed to read attributes: %v\n", err)
 				break
 			}
 
-			println("Handle  UUID")
+			fmt.Fprintln(output, "Handle  UUID")
 			for _, ch := range attrs {
-				fmt.Printf("% 6d  ", ch.Handle)
+				fmt.Fprintf(output, "% 6d  ", ch.Handle)
 
 				if ch.UUID128 == nil {
-					fmt.Printf("0x%x\n", ch.UUID16)
+					fmt.Fprintf(output, "0x%x\n", ch.UUID16)
 				} else if len(ch.UUID128) == 16 {
-					fmt.Printf("%s\n", server.FormatUUID128(ch.UUID128))
+					fmt.Fprintf(output, "%s\n", server.FormatUUID128(ch.UUID128))
 				}
 			}
 
 		case "svcs", "services":
 			svcs, err := sv.ListServices()
 			if err != nil {
-				fmt.Printf("failed to read services: %v\n", err)
+				fmt.Fprintf(output, "failed to read services: %v\n", err)
 				break
 			}
 
 			for _, svc := range svcs {
-				fmt.Printf("Service %s\n", svc.UUID)
+				fmt.Fprintf(output, "Service %s\n", svc.UUID)
 
 				for _, ch := range svc.Characteristics {
-					fmt.Printf("  Characteristic %s\n", ch.UUID)
-					fmt.Printf("    Properties: %08b\n", ch.Properties)
-					fmt.Printf("    Handle: %d\n", ch.Handle)
+					fmt.Fprintf(output, "  Characteristic %s\n", ch.UUID)
+					fmt.Fprintf(output, "    Properties: %08b\n", ch.Properties)
+					fmt.Fprintf(output, "    Handle: %d\n", ch.Handle)
 				}
 			}
 
 		default:
-			println("invalid argument")
+			fmt.Fprintln(output, "invalid argument")
 		}
 
 	case "read":
@@ -128,20 +133,20 @@ func runLine(line string, sv *server.Server) {
 		case "attr", "attribute":
 			handle, err := strconv.Atoi(args[1])
 			if err != nil {
-				fmt.Printf("invalid handle: %v\n", err)
+				fmt.Fprintf(output, "invalid handle: %v\n", err)
 				break
 			}
 
 			data, err := sv.ReadAttribute(uint16(handle))
 			if err != nil {
-				fmt.Printf("failed to read attribute: %v\n", err)
+				fmt.Fprintf(output, "failed to read attribute: %v\n", err)
 				break
 			}
 
-			fmt.Printf("data: %x (%s)\n", data, string(data))
+			fmt.Fprintf(output, "data: %x (%s)\n", data, string(data))
 
 		default:
-			println("invalid argument")
+			fmt.Fprintln(output, "invalid argument")
 		}
 
 	case "write":
@@ -149,7 +154,7 @@ func runLine(line string, sv *server.Server) {
 		case "attr", "attribute":
 			handle, err := strconv.Atoi(args[1])
 			if err != nil {
-				fmt.Printf("invalid handle: %v\n", err)
+				fmt.Fprintf(output, "invalid handle: %v\n", err)
 				break
 			}
 
@@ -157,7 +162,7 @@ func runLine(line string, sv *server.Server) {
 			if strings.HasPrefix(args[2], "0x") {
 				b, err := parseHexData(args[2][2:])
 				if err != nil {
-					fmt.Printf("invalid hex data: %v\n", err)
+					fmt.Fprintf(output, "invalid hex data: %v\n", err)
 					break
 				}
 				data = b
@@ -167,12 +172,12 @@ func runLine(line string, sv *server.Server) {
 
 			err = sv.WriteAttribute(uint16(handle), data)
 			if err != nil {
-				fmt.Printf("failed to write attribute: %v\n", err)
+				fmt.Fprintf(output, "failed to write attribute: %v\n", err)
 				break
 			}
 
 		default:
-			println("invalid argument")
+			fmt.Fprintln(output, "invalid argument")
 		}
 
 	case "param":
@@ -184,33 +189,33 @@ func runLine(line string, sv *server.Server) {
 
 		source, err := os.ReadFile(arg)
 		if err != nil {
-			fmt.Printf("failed to read file: %v\n", err)
+			fmt.Fprintf(output, "failed to read file: %v\n", err)
 			break
 		}
 
 		currentScript, err = RunPinePartnerScript(string(source), sv, &notifiers, scriptParams)
 		if err != nil {
-			fmt.Printf("failed to run script: %v\n", err)
+			fmt.Fprintf(output, "failed to run script: %v\n", err)
 		}
 
 	case "eval":
 		if currentScript == nil {
-			fmt.Println("no script is currently running")
+			fmt.Fprintln(output, "no script is currently running")
 			break
 		}
 
 		val, err := currentScript.vm.RunString(arg)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Fprintln(output, err.Error())
 		} else {
-			fmt.Println(val.Export())
+			fmt.Fprintln(output, val.Export())
 		}
 
 	case "exit", "quit":
 		os.Exit(0)
 
 	case "echo":
-		println(arg)
+		fmt.Fprintln(output, arg)
 
 	case "host":
 		switch arg {
@@ -228,7 +233,7 @@ func runLine(line string, sv *server.Server) {
 		}
 
 	default:
-		println("unknown command")
+		fmt.Fprintln(output, "unknown command")
 	}
 }
 
