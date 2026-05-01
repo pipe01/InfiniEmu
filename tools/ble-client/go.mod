@@ -26,5 +26,4 @@ require (
 	golang.org/x/text v0.16.0 // indirect
 )
 
-// replace tinygo.org/x/bluetooth => github.com/pipe01/bluetooth v0.0.0-20260428142442-2814b18d27ea
-replace tinygo.org/x/bluetooth => ../../../../git/bluetooth
+replace tinygo.org/x/bluetooth => github.com/pipe01/bluetooth v0.0.0-20260428142442-2814b18d27ea
